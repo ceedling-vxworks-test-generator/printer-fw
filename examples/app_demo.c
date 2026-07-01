@@ -71,7 +71,12 @@ static void step(const char* title)
 
 int main(void)
 {
+    /* 実行環境に応じて port を選択：Linux は stdout ログの POSIX port、他は bare-metal サンプル。 */
+#if defined(__linux__)
+    pf_port_t port = pf_port_linux();
+#else
     pf_port_t port = pf_port_baremetal();
+#endif
     pf_result_t r = pf_core_init(model_sample_get(), &port);
     if (r != PF_OK) {
         printf("init失敗: %s\n", pf_result_str(r));

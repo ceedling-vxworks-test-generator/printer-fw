@@ -6,6 +6,7 @@
 #include "printer_fw/pf_data.h"
 #include "printer_fw/pf_state.h"
 #include "printer_fw/pf_observer.h"
+#include "printer_fw/pf_log.h"
 
 static bool             g_init;
 static const pf_model_t* g_model;
@@ -49,6 +50,10 @@ pf_result_t pf_core_init(const pf_model_t* model, const pf_port_t* port)
     }
 
     g_init = true;
+    PF_LOGI("core: init ok model=%s data=%u state=%u fsm=%u",
+            model->name ? model->name : "?",
+            (unsigned)model->data_count, (unsigned)model->state_count,
+            (unsigned)model->fsm_count);
     return PF_OK;
 }
 

@@ -441,6 +441,27 @@ void             pf_core_deinit(void);
 
 ---
 
+## 10.6 ログ（`pf_log.h`）とプラットフォーム出力
+
+フレームワークのトレースは **`pf_port_t.log` コールバック経由**で出力する（出力先は port が決める）。
+
+```c
+/* レベル付きログ（port->log が未登録なら無視） */
+void pf_log_write(pf_log_level_t level, const char* fmt, ...);
+/* マクロ（コンパイル時に PF_LOG_LEVEL 以下だけ有効。PF_LOG_ENABLE=0 で全消去） */
+PF_LOGE(fmt, ...);  /* ERROR */
+PF_LOGW(fmt, ...);  /* WARN  */
+PF_LOGI(fmt, ...);  /* INFO  */
+PF_LOGD(fmt, ...);  /* DEBUG */
+```
+
+- **出力先の切替**は port 実装が担う：
+  - `pf_port_linux`（`port/pf_port_linux.c`）… `stdout` に即時 flush → Ubuntu 端末 / TeraTerm(SSH・シリアル) で閲覧。
+  - 実機 … `log` を UART 送信に実装すれば TeraTerm のシリアルコンソールに出力。
+  - `log = NULL` にすればログは出ない（stdio 非搭載構成向け）。
+- **設定**: `PF_LOG_LEVEL`（既定 `PF_LOG_INFO`）、`PF_LOG_ENABLE`（既定 1）。ビルド時に `-D` で上書き可能。
+- コア標準の出力箇所: `pf_core_init` 成功（INFO）／状態変化 dispatch（INFO）／FSM不正遷移の拒否（WARN）。
+
 ## 11. エラーハンドリング規約（まとめ）
 
 | 状況 | 返り値/動作 |

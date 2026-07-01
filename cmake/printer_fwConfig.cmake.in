@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+# printer_fw の CMake パッケージ設定。
+#   find_package(printer_fw REQUIRED)
+#   target_link_libraries(myapp PRIVATE printer_fw::printer_fw)
+include("${CMAKE_CURRENT_LIST_DIR}/printer_fwTargets.cmake")
+
+check_required_components(printer_fw)

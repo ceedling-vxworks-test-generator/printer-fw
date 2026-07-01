@@ -12,6 +12,7 @@
 #include "printer_fw/pf_config.h"
 #include "printer_fw/pf_types.h"
 #include "printer_fw/pf_result.h"
+#include "printer_fw/pf_log.h"
 #include "printer_fw/pf_port.h"
 #include "printer_fw/pf_data.h"
 #include "printer_fw/pf_state.h"

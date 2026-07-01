@@ -10,6 +10,7 @@
 #include "printer_fw/pf_state.h"
 #include "printer_fw/pf_core.h"
 #include "printer_fw/pf_config.h"
+#include "printer_fw/pf_log.h"
 #include "pf_priv.h"
 
 static bool             g_init;
@@ -22,12 +23,6 @@ static pf_time_ms_t now_ms(void)
 {
     const pf_port_t* p = pf_core_port();
     return (p && p->time_now) ? p->time_now() : 0u;
-}
-
-static void log_msg(const char* m)
-{
-    const pf_port_t* p = pf_core_port();
-    if (p && p->log) p->log(m);
 }
 
 /* state_id を管理する FSM を探す（無ければ NULL）。 */
@@ -66,7 +61,8 @@ static void process_state(size_t slot)
     /* FSM 遷移検証（管理対象のみ）。不許可なら旧値を維持し log。 */
     const pf_fsm_desc_t* fsm = find_fsm(id);
     if (fsm && !pf_fsm_is_allowed(fsm, oldv, newv)) {
-        log_msg("pf_monitor: rejected invalid FSM transition");
+        PF_LOGW("monitor: reject invalid transition state=%u %d->%d",
+                (unsigned)id, (int)oldv, (int)newv);
         return;
     }
 
@@ -92,6 +88,8 @@ static void process_state(size_t slot)
     ev.old_value = oldv;
     ev.new_value = newv;
     ev.timestamp = now_ms();
+    PF_LOGI("monitor: state=%u changed %d->%d (t=%u)",
+            (unsigned)id, (int)oldv, (int)newv, (unsigned)ev.timestamp);
     (void)pf_observer_dispatch(&ev);
 }
 
