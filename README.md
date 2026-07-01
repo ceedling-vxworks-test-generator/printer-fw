@@ -26,7 +26,8 @@ Driver(機種依存)
 - [docs/basic-design.md](docs/basic-design.md) — ① 基本設計書（アーキテクチャ・各方針・代替案比較）
 - [docs/detailed-design.md](docs/detailed-design.md) — ③ 詳細設計書（IF仕様。これだけで別機種展開可能を目標）
 - [docs/self-review.md](docs/self-review.md) — 設計の自己レビューと反映ログ
-- [docs/diagrams/printer-fw.drawio](docs/diagrams/printer-fw.drawio) — ② draw.io 図（編集可能・複数ページ）
+- [docs/diagrams/printer-fw.drawio](docs/diagrams/printer-fw.drawio) — ② draw.io 図（編集可能・複数ページ：レイヤ/データ/イベント/シーケンス/状態遷移/依存）
+- [docs/diagrams/printer-fw-functions.drawio](docs/diagrams/printer-fw-functions.drawio) — 関数コールグラフ ＋ 関数×静的テーブル アクセス図（編集可能・2ページ）
 
 ## ディレクトリ構成
 
