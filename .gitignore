@@ -1,0 +1,45 @@
+# 機密情報（絶対にコミットしない）
+.env
+.env.*
+*.key
+*.pem
+secrets/
+credentials*.json
+
+# 依存・ビルド成果物
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+
+# C/C++ ビルド成果物
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+*.gcno
+*.gcda
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+compile_commands.json
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ログ・一時ファイル
+*.log
+tmp/
+.cache/
