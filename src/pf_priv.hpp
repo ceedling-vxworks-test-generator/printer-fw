@@ -13,9 +13,14 @@
 #include "printer_fw/pf_types.h"
 
 /* pf_state（state_registry）内部：monitor_engine が状態を走査・確定値を書き戻すための橋渡し */
+
+/** @brief 登録済みの状態数を返す（monitor_engineが全状態を走査する際のループ上限に使う）。 */
 size_t        pf_state__count();
+/** @brief slot番目（0..count()-1）の状態IDを返す。 */
 pf_state_id_t pf_state__id_at(size_t slot);
+/** @brief slot番目の状態の初期値を返す（monitor_engine::init が前回値の初期化に使う）。 */
 int32_t       pf_state__initial_at(size_t slot);
+/** @brief 確定した状態値をレジストリへ書き戻す（monitor_engineが変化確定時に呼ぶ）。 */
 void          pf_state__store(pf_state_id_t id, int32_t value);
 
 #endif /* PRINTER_FW_PF_PRIV_HPP */

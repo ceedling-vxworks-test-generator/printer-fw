@@ -21,12 +21,22 @@
 
 namespace {
 
+/** @brief クリティカルセクション開始（実機ではミューテックス取得等に置換）。本スタブでは何もしない。 */
 void crit_enter() { /* TODO: xSemaphoreTake / taskENTER_CRITICAL */ }
+/** @brief crit_enter() に対応する終了処理。本スタブでは何もしない。 */
 void crit_exit()  { /* TODO: xSemaphoreGive / taskEXIT_CRITICAL */ }
+/** @brief 実機では xTaskGetTickCount() 由来のmsを返す想定。本スタブは常に0を返す。 */
 pf_time_ms_t time_now() { return 0u; /* TODO: xTaskGetTickCount() 由来の ms */ }
 
 } // namespace
 
+/**
+ * @brief FreeRTOSサンプル用の pf_port_t を組み立てて返す（現状は全てスタブ）。
+ *
+ * log/assert_fail は未実装（nullptr）。実機移植時は本ファイル冒頭のコメントを
+ * 参考に crit_enter/crit_exit/time_now を実装し、UART等でlogも接続すること。
+ * @return スタブのコールバックを設定した pf_port_t。
+ */
 pf_port_t pf_port_freertos()
 {
     pf_port_t p;

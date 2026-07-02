@@ -16,16 +16,28 @@
  */
 namespace {
 
+/** @brief クリティカルセクション開始（実機では割込み禁止）。ホストでは何もしない（単一文脈のため不要）。 */
 void crit_enter() { /* TODO: 実機では割込み禁止。ホストでは no-op */ }
+/** @brief crit_enter() に対応する終了処理（実機では割込み許可）。ホストでは何もしない。 */
 void crit_exit()  { /* TODO: 実機では割込み許可。ホストでは no-op */ }
 
-pf_time_ms_t s_tick = 0;
+pf_time_ms_t s_tick = 0;   ///< 呼ばれるたびに1ずつ増える単調カウンタ（実時間ではない代用値）
+
+/** @brief 呼ばれるたびにインクリメントするだけの単調増加カウンタを返す（実機ではSysTick由来のmsに置換）。 */
 pf_time_ms_t time_now() { return ++s_tick; }   /* TODO: 実機は SysTick 由来の ms */
 
+/** @brief ログ文字列をそのまま stderr へ改行付きで出力する（NULLは無視）。 */
 void host_log(const char* msg) { if (msg) std::fprintf(stderr, "[pf][log] %s\n", msg); }
 
 } // namespace
 
+/**
+ * @brief bare-metalサンプル用の pf_port_t を組み立てて返す。
+ *
+ * 各コールバックにこのファイル内のstatic関数を割り当てるだけ。assert_fail は
+ * このサンプルでは未実装（nullptr）とし、core側で無視される。
+ * @return 4つのコールバック（critical_enter/exit・time_now・log）を設定した pf_port_t。
+ */
 pf_port_t pf_port_baremetal()
 {
     pf_port_t p;

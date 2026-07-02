@@ -39,7 +39,14 @@ const pf_data_desc_t s_data[] = {
  * ② 状態 評価器（純関数。pf_data_get_* で生値を読む）
  * ============================================================ */
 
-/* ライフサイクル：フェーズをそのまま状態値へ写像 */
+/**
+ * @brief ライフサイクル状態の評価器：フェーズをそのまま状態値へ写像する。
+ *
+ * SAMPLE_PHASE_* と SAMPLE_MAIN_* は数値が1:1で一致するよう定義されているため、
+ * 変換処理は不要で、読み取った値をそのまま出力するだけでよい。
+ * @param out 出力先（状態値）。ctxは本評価器では未使用。
+ * @return 生データ読み取りの結果（pf_data_get_enum の戻り値）。
+ */
 pf_result_t eval_main(int32_t* out, void* ctx)
 {
     (void)ctx;
@@ -50,7 +57,14 @@ pf_result_t eval_main(int32_t* out, void* ctx)
     return PF_OK;
 }
 
-/* 印刷可否：READY かつ 温度OK かつ カバー閉 のときだけ可。例「温度50+待機→印刷不可」 */
+/**
+ * @brief 印刷可否の評価器：READY かつ 温度OK かつ カバー閉 のときだけ「印刷可」。
+ *
+ * 内部処理: 温度・フェーズ・カバー状態の3つの生データを読み取り、
+ * 「フェーズがREADY」「温度がしきい値未満」「カバーが閉じている」の
+ * 全条件を満たすかどうかで印刷可否を判定する（例: 温度50℃+待機中→印刷不可）。
+ * いずれかの読み取りに失敗した場合は、その時点でエラーを返して中断する。
+ */
 pf_result_t eval_printable(int32_t* out, void* ctx)
 {
     (void)ctx;
@@ -65,7 +79,12 @@ pf_result_t eval_printable(int32_t* out, void* ctx)
     return PF_OK;
 }
 
-/* 温度警報：しきい値で 正常/警告/異常 を判定。例「温度50→警告」「温度65→異常」 */
+/**
+ * @brief 温度警報の評価器：しきい値で 正常/警告/異常 の3段階に分類する。
+ *
+ * 内部処理: 温度を読み取り、高いほうから順に判定する
+ * （kTempAlarmC以上→異常、kTempWarnC以上→警告、それ未満→正常。例: 50→警告、65→異常）。
+ */
 pf_result_t eval_temp_alert(int32_t* out, void* ctx)
 {
     (void)ctx;
@@ -79,10 +98,12 @@ pf_result_t eval_temp_alert(int32_t* out, void* ctx)
     return PF_OK;
 }
 
-/*
- * 音量レベル：SAMPLE_RAW_VOLUME（正規型 i32）をしきい値判定するだけ。
+/**
+ * @brief 音量レベルの評価器：SAMPLE_RAW_VOLUME（正規型 i32）をしきい値判定するだけ。
+ *
  * ドライバのネイティブ型が short でも long でも、この評価器は一切変更不要
- * （辞書に入った時点で型は統一されているため）。
+ * （辞書に入った時点で型は統一されているため）。判定ロジック自体は
+ * eval_temp_alert と同様、高い方から順にしきい値と比較する。
  */
 pf_result_t eval_volume_level(int32_t* out, void* ctx)
 {
@@ -125,6 +146,13 @@ const pf_fsm_desc_t s_fsm[] = {
 };
 
 /* ============================================================
+ * ④ ドライバグルー（任意）
+ * ============================================================
+ * 実機では driver_poll で ADC/GPIO 等を読み、pf_data_set_* で辞書へ書き込む。
+ * 本サンプルではデモ側が辞書を直接更新するため driver_init/poll は NULL とする。
+ */
+
+/* ============================================================
  * モデル記述子
  * ============================================================ */
 const pf_model_t s_model = {
@@ -138,6 +166,14 @@ const pf_model_t s_model = {
 
 } // namespace
 
+/**
+ * @brief サンプル機種の記述子(pf_model_t)を返す。
+ *
+ * この1関数を core_init() に渡すだけで、上記の全記述子（データ辞書・状態・FSM）が
+ * まとめて登録される。新機種を追加する場合は、この関数と同名の model_xxx_get() を
+ * 実装し、対応する s_data/s_states/s_fsm を用意すればよい。
+ * @return モデル記述子への静的なポインタ（プログラム終了まで有効）。
+ */
 const pf_model_t* model_sample_get()
 {
     return &s_model;
@@ -150,16 +186,31 @@ const pf_model_t* model_sample_get()
  * 辞書 (pf_data) には常に SAMPLE_RAW_VOLUME を i32 として格納する。型の違いを吸収する
  * 変換処理は、このようにモデル側のグルー関数だけに閉じ込め、core・評価器は一切変更しない。
  */
+
+/**
+ * @brief Aドライバ（音量をshortで保持する機種）からの取り込みグルー。
+ *
+ * short(通常16bit)からi32への符号拡張は情報の欠落がなく無損失であるため、
+ * 単純なキャストのみで辞書の正規型へ変換できる。
+ * @param native_value Aドライバのネイティブ表現（short）の音量値。
+ * @return pf_data_set_i32 の結果。
+ */
 pf_result_t model_sample_volume_ingest_from_short(short native_value)
 {
     /* short(通常16bit) → i32 は無損失の符号拡張 */
     return pf_data_set_i32(SAMPLE_RAW_VOLUME, static_cast<int32_t>(native_value));
 }
 
+/**
+ * @brief Bドライバ（音量をlongで保持する機種）からの取り込みグルー。
+ *
+ * long は環境依存(32/64bit)。この機種は long も 32bit の値域で運用する前提のため
+ * i32 へキャストする。64bit long 環境かつ32bitを超える値を扱う場合は、正規型を
+ * 拡張する（例: PF_TYPE を追加）などの見直しが必要になる点に注意。
+ * @param native_value Bドライバのネイティブ表現（long）の音量値。
+ * @return pf_data_set_i32 の結果。
+ */
 pf_result_t model_sample_volume_ingest_from_long(long native_value)
 {
-    /* long は環境依存(32/64bit)。この機種は long も 32bit の値域で運用する前提のため
-     * i32 へキャストする。64bit long 環境かつ32bitを超える値を扱う場合は、正規型を
-     * 拡張する（例: PF_TYPE を追加）などの見直しが必要になる点に注意。 */
     return pf_data_set_i32(SAMPLE_RAW_VOLUME, static_cast<int32_t>(native_value));
 }
