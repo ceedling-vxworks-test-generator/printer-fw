@@ -124,12 +124,52 @@ static void test_monitor_observer(void)
     pf_core_deinit();
 }
 
+/* --- モデル差異吸収: short/long ドライバのどちらから取り込んでも辞書は同一のi32値になる --- */
+static void test_volume_type_reconciliation(void)
+{
+    printf("[test_volume_type_reconciliation]\n");
+    pf_core_deinit();
+    pf_port_t port = pf_port_baremetal();
+    CHECK(pf_core_init(model_sample_get(), &port) == PF_OK);
+
+    int32_t v = -1;
+
+    /* Aドライバ(short) と Bドライバ(long) で同じ物理音量を入れても辞書値は一致する */
+    CHECK(model_sample_volume_ingest_from_short((short)30) == PF_OK);
+    CHECK(pf_data_get_i32(SAMPLE_RAW_VOLUME, &v) == PF_OK);
+    CHECK(v == 30);
+
+    CHECK(model_sample_volume_ingest_from_long(30L) == PF_OK);
+    CHECK(pf_data_get_i32(SAMPLE_RAW_VOLUME, &v) == PF_OK);
+    CHECK(v == 30);  /* short経由・long経由で同一の正規値 */
+
+    /* 評価器は正規型だけを見るので、しきい値どおりに分類される */
+    CHECK(model_sample_volume_ingest_from_short((short)10) == PF_OK);
+    CHECK(pf_monitor_tick() == PF_OK);
+    int32_t level = -1;
+    CHECK(pf_state_get(SAMPLE_STATE_VOLUME_LEVEL, &level) == PF_OK);
+    CHECK(level == SAMPLE_VOLUME_QUIET);
+
+    CHECK(model_sample_volume_ingest_from_long(50L) == PF_OK);
+    CHECK(pf_monitor_tick() == PF_OK);
+    CHECK(pf_state_get(SAMPLE_STATE_VOLUME_LEVEL, &level) == PF_OK);
+    CHECK(level == SAMPLE_VOLUME_NORMAL);
+
+    CHECK(model_sample_volume_ingest_from_short((short)90) == PF_OK);
+    CHECK(pf_monitor_tick() == PF_OK);
+    CHECK(pf_state_get(SAMPLE_STATE_VOLUME_LEVEL, &level) == PF_OK);
+    CHECK(level == SAMPLE_VOLUME_LOUD);
+
+    pf_core_deinit();
+}
+
 int main(void)
 {
     printf("=== printer-fw unit tests ===\n");
     test_data();
     test_fsm();
     test_monitor_observer();
+    test_volume_type_reconciliation();
 
     if (g_fail == 0) {
         printf("ALL PASS\n");

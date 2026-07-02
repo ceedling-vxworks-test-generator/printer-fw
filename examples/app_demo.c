@@ -20,6 +20,7 @@ static const char* state_name(pf_state_id_t id)
         case SAMPLE_STATE_MAIN:       return "MAIN";
         case SAMPLE_STATE_PRINTABLE:  return "PRINTABLE";
         case SAMPLE_STATE_TEMP_ALERT: return "TEMP_ALERT";
+        case SAMPLE_STATE_VOLUME_LEVEL: return "VOLUME_LEVEL";
         default:                      return "?";
     }
 }
@@ -40,6 +41,12 @@ static const char* value_name(pf_state_id_t id, int32_t v)
             case SAMPLE_TEMP_NORMAL: return "正常";
             case SAMPLE_TEMP_WARN:   return "警告";
             case SAMPLE_TEMP_ALARM:  return "異常";
+        }
+    } else if (id == SAMPLE_STATE_VOLUME_LEVEL) {
+        switch (v) {
+            case SAMPLE_VOLUME_QUIET:  return "静音";
+            case SAMPLE_VOLUME_NORMAL: return "通常";
+            case SAMPLE_VOLUME_LOUD:   return "大音量";
         }
     }
     return "?";
@@ -117,6 +124,28 @@ int main(void)
     pf_data_set_u32 (SAMPLE_RAW_TEMP, 25);
     pf_data_set_enum(SAMPLE_RAW_PHASE, SAMPLE_PHASE_READY);
     step("⑨ 復帰成功（RECOVERY → READY、温度正常、印刷可へ）");
+
+    /* --- 機種でドライバのネイティブ型が違っても、辞書に入れば同じ扱いになる実演 --- */
+    printf("\n--- 参考: 音量ドライバの型差異吸収（Aドライバ=short / Bドライバ=long）---\n");
+
+    model_sample_volume_ingest_from_short((short)30);   /* Aドライバ想定 */
+    step("⑩-A Aドライバ(short)で volume=30 を取り込み");
+    {
+        int32_t v = 0;
+        pf_data_get_i32(SAMPLE_RAW_VOLUME, &v);
+        printf("   [検証] 辞書内の正規値(i32) = %d\n", (int)v);
+    }
+
+    model_sample_volume_ingest_from_long(30L);          /* Bドライバ想定・同じ物理音量30 */
+    step("⑩-B Bドライバ(long)で同じ物理音量=30 を取り込み");
+    {
+        int32_t v = 0;
+        pf_data_get_i32(SAMPLE_RAW_VOLUME, &v);
+        printf("   [検証] 辞書内の正規値(i32) = %d （Aと同一→カテゴリも変化せず無通知）\n", (int)v);
+    }
+
+    model_sample_volume_ingest_from_short((short)90);
+    step("⑩-C Aドライバ(short)で volume=90 → 大音量へ変化");
 
     printf("\n=== デモ終了 ===\n");
     pf_core_deinit();

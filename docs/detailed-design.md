@@ -419,6 +419,26 @@ void             pf_core_deinit(void);
 3. ドライバグルー（`driver_poll`）でその値を `pf_data_set_*()` する。
 → **core 無改修**。`PF_DATA_MAX` を超える場合のみ `pf_config.h` を引き上げ。
 
+### 10.1.1 補足: ドライバのネイティブ型が機種によって異なる場合
+
+同じ意味のデータでも、機種のドライバによってネイティブ型が異なることがある
+（例: Aドライバは `short` で音量を保持、Bドライバは `long` で保持）。この場合、
+**辞書 (`pf_data_desc_t`) に登録する型は「正規型」として1つだけ決め、ネイティブ型→正規型の
+変換は機種のドライバグルー内だけで完結させる**。core・評価器はネイティブ型を一切知らない。
+
+1. 正規型を決める（両方のネイティブ型の値域を無損失に表せる型。例: `PF_TYPE_I32`）
+2. `pf_data_desc_t[]` にはその正規型で1行登録する（ネイティブ型は関係ない）
+3. 各機種のドライバグルーで `(int32_t)` 等にキャストしてから `pf_data_set_i32()` を呼ぶ
+4. 評価器は常に正規型でしか読まないため、機種間で評価器コードを共有できる
+
+`models/model_sample/model_sample.c` の `model_sample_volume_ingest_from_short()` /
+`model_sample_volume_ingest_from_long()` が実装例。どちらの関数を通しても辞書には
+同じ `SAMPLE_RAW_VOLUME`（i32）が入り、`eval_volume_level()` は型の違いを意識しない。
+
+> 注意: ネイティブ型の実際の値域が正規型に収まらない場合（例: 64bit `long` で32bitを
+> 超える値を扱う）は、正規型を拡張する（`pf_types.h` に新しい `pf_type_t` を追加する等）
+> 判断が必要。安易に切り捨てない。
+
 ### 10.2 新しい状態を追加する
 1. `model_xxx_ids.h` の **状態ID enum に1つ追加**（例 `SAMPLE_STATE_DOOR`）。
 2. 評価器を1つ書く：`static pf_result_t eval_door(int32_t* out, void* ctx){ ... pf_data_get_*; *out = ...; return PF_OK; }`。
