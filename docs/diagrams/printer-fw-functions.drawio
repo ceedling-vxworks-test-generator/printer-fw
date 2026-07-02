@@ -30,7 +30,7 @@
         <mxCell id="ev_main" value="eval_main()" style="rounded=1;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="160" width="240" height="26" as="geometry"/></mxCell>
         <mxCell id="ev_print" value="eval_printable()" style="rounded=1;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="195" width="240" height="26" as="geometry"/></mxCell>
         <mxCell id="ev_temp" value="eval_temp_alert()" style="rounded=1;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="230" width="240" height="26" as="geometry"/></mxCell>
-        <mxCell id="tbl_model" value="s_model / s_data[] / s_states[]&#10;s_fsm[] / s_main_trans[]&#10;（const記述子, model_sample.c）" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="270" width="240" height="105" as="geometry"/></mxCell>
+        <mxCell id="tbl_model" value="s_model / s_data[] / s_states[]&#10;s_fsm[] / s_main_trans[]&#10;（const記述子, model_sample.cpp）" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="270" width="240" height="105" as="geometry"/></mxCell>
 
         <!-- core funcs -->
         <mxCell id="core_init" value="pf_core_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="360" y="210" width="390" height="28" as="geometry"/></mxCell>
@@ -50,7 +50,7 @@
         <!-- monitor funcs -->
         <mxCell id="mon_init" value="pf_monitor_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="690" y="465" width="340" height="26" as="geometry"/></mxCell>
         <mxCell id="mon_tick" value="pf_monitor_tick()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="690" y="500" width="340" height="26" as="geometry"/></mxCell>
-        <mxCell id="mon_proc" value="process_state()  [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="690" y="535" width="340" height="26" as="geometry"/></mxCell>
+        <mxCell id="mon_proc" value="process_state()  [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="690" y="535" width="340" height="26" as="geometry"/></mxCell>
         <mxCell id="mon_force" value="pf_monitor_force_emit()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="690" y="570" width="340" height="26" as="geometry"/></mxCell>
         <mxCell id="mon_findfsm" value="find_fsm()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="690" y="605" width="165" height="26" as="geometry"/></mxCell>
         <mxCell id="mon_now" value="now_ms()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="865" y="605" width="165" height="26" as="geometry"/></mxCell>
@@ -67,10 +67,10 @@
         <mxCell id="da_setblob" value="pf_data_set() BLOB" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="930" width="180" height="26" as="geometry"/></mxCell>
         <mxCell id="da_getblob" value="pf_data_get() BLOB" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1"><mxGeometry x="230" y="930" width="190" height="26" as="geometry"/></mxCell>
         <mxCell id="da_getval" value="pf_data_get_value()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="965" width="380" height="26" as="geometry"/></mxCell>
-        <mxCell id="da_setsc" value="set_scalar() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="1000" width="180" height="26" as="geometry"/></mxCell>
-        <mxCell id="da_getsc" value="get_scalar() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="230" y="1000" width="190" height="26" as="geometry"/></mxCell>
-        <mxCell id="da_idx" value="idx() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="1035" width="180" height="26" as="geometry"/></mxCell>
-        <mxCell id="da_lock" value="lock()/unlock() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="230" y="1035" width="190" height="26" as="geometry"/></mxCell>
+        <mxCell id="da_setsc" value="set_scalar() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="1000" width="180" height="26" as="geometry"/></mxCell>
+        <mxCell id="da_getsc" value="get_scalar() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="230" y="1000" width="190" height="26" as="geometry"/></mxCell>
+        <mxCell id="da_idx" value="index_of() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="1035" width="180" height="26" as="geometry"/></mxCell>
+        <mxCell id="da_lock" value="lock()/unlock() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="230" y="1035" width="190" height="26" as="geometry"/></mxCell>
         <mxCell id="tbl_data1" value="g_desc[PF_DATA_MAX]&#10;（記述子）&#10;g_count / g_init" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="1070" width="180" height="80" as="geometry"/></mxCell>
         <mxCell id="tbl_data2" value="g_val[]（値） g_pool[]（BLOB）&#10;g_blob_off[] / g_blob_len[]" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1"><mxGeometry x="230" y="1070" width="190" height="80" as="geometry"/></mxCell>
 
@@ -82,7 +82,7 @@
         <mxCell id="obs_sub" value="pf_observer_subscribe()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1110" y="430" width="270" height="26" as="geometry"/></mxCell>
         <mxCell id="obs_unsub" value="pf_observer_unsubscribe()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1110" y="465" width="270" height="26" as="geometry"/></mxCell>
         <mxCell id="obs_disp" value="pf_observer_dispatch()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1110" y="500" width="270" height="26" as="geometry"/></mxCell>
-        <mxCell id="obs_lock" value="lock()/unlock() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1110" y="535" width="270" height="26" as="geometry"/></mxCell>
+        <mxCell id="obs_lock" value="lock()/unlock() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1110" y="535" width="270" height="26" as="geometry"/></mxCell>
         <mxCell id="tbl_obs" value="g_subs[PF_OBSERVER_MAX]&#10;（used/id/cb/ctx）" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1"><mxGeometry x="1110" y="575" width="270" height="60" as="geometry"/></mxCell>
 
         <!-- app -->
@@ -185,16 +185,16 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="ft_title" value="printer-fw 関数 × 静的テーブル アクセス（緑=read / 赤=write / 紫=参照）" style="text;html=1;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="12" width="800" height="26" as="geometry"/></mxCell>
-        <mxCell id="ft_legend" value="凡例:  ┄▶(緑) read   ┄▶(赤) write   ─▶(紫) references。テーブルは各モジュール .c 内の static（全静的確保）" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1"><mxGeometry x="40" y="38" width="900" height="20" as="geometry"/></mxCell>
+        <mxCell id="ft_legend" value="凡例:  ┄▶(緑) read   ┄▶(赤) write   ─▶(紫) references。テーブルは各モジュール .cpp 内のクラスの private メンバ（シングルトン・静的記憶域、全静的確保）" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1"><mxGeometry x="40" y="38" width="900" height="20" as="geometry"/></mxCell>
 
         <!-- ===== DATA ===== -->
-        <mxCell id="s_data" value="pf_data.c" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="70" width="1030" height="270" as="geometry"/></mxCell>
+        <mxCell id="s_data" value="pf_data.cpp（data_dictionary クラス）" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="70" width="1030" height="270" as="geometry"/></mxCell>
         <mxCell id="fd_init" value="pf_data_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="110" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fd_setx" value="pf_data_set_* / set_scalar()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="145" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fd_getx" value="pf_data_get_* / get_scalar()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="180" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fd_setblob" value="pf_data_set() BLOB" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="215" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fd_getblob" value="pf_data_get()/get_value() BLOB" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="250" width="220" height="26" as="geometry"/></mxCell>
-        <mxCell id="fd_idx" value="idx() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="285" width="220" height="26" as="geometry"/></mxCell>
+        <mxCell id="fd_idx" value="index_of() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="285" width="220" height="26" as="geometry"/></mxCell>
 
         <mxCell id="td_desc" value="g_desc[PF_DATA_MAX]&#10;（記述子）" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="470" y="95" width="180" height="60" as="geometry"/></mxCell>
         <mxCell id="td_val" value="g_val[PF_DATA_MAX]&#10;（タグ付き値）" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="470" y="180" width="180" height="60" as="geometry"/></mxCell>
@@ -213,7 +213,7 @@
         <mxCell id="de9" value="read" style="endArrow=open;html=1;dashed=1;strokeColor=#2e7d32;fontSize=9;" edge="1" parent="1" source="fd_idx" target="td_desc"><mxGeometry relative="1" as="geometry"/></mxCell>
 
         <!-- ===== STATE ===== -->
-        <mxCell id="s_state" value="pf_state.c" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="360" width="1030" height="200" as="geometry"/></mxCell>
+        <mxCell id="s_state" value="pf_state.cpp（state_registry クラス）" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="360" width="1030" height="200" as="geometry"/></mxCell>
         <mxCell id="fs_init" value="pf_state_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="395" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fs_eval" value="pf_state_eval()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="430" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fs_get" value="pf_state_get()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="465" width="220" height="26" as="geometry"/></mxCell>
@@ -231,10 +231,10 @@
         <mxCell id="se6" value="read" style="endArrow=open;html=1;dashed=1;strokeColor=#2e7d32;fontSize=9;" edge="1" parent="1" source="fs_iter" target="ts_desc"><mxGeometry relative="1" as="geometry"/></mxCell>
 
         <!-- ===== MONITOR ===== -->
-        <mxCell id="s_mon" value="pf_monitor.c" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="580" width="1030" height="220" as="geometry"/></mxCell>
+        <mxCell id="s_mon" value="pf_monitor.cpp（monitor_engine クラス）" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="580" width="1030" height="220" as="geometry"/></mxCell>
         <mxCell id="fm_init" value="pf_monitor_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="615" width="220" height="26" as="geometry"/></mxCell>
-        <mxCell id="fm_proc" value="process_state() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="650" width="220" height="26" as="geometry"/></mxCell>
-        <mxCell id="fm_findfsm" value="find_fsm() [static]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="685" width="220" height="26" as="geometry"/></mxCell>
+        <mxCell id="fm_proc" value="process_state() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="650" width="220" height="26" as="geometry"/></mxCell>
+        <mxCell id="fm_findfsm" value="find_fsm() [private]" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="685" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fm_tick" value="pf_monitor_tick()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="720" width="220" height="26" as="geometry"/></mxCell>
 
         <mxCell id="tm_cfg" value="g_cfg&#10;（fsm_list/count/debounce_n）" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1"><mxGeometry x="470" y="610" width="200" height="60" as="geometry"/></mxCell>
@@ -251,7 +251,7 @@
         <mxCell id="me7" value="read" style="endArrow=open;html=1;dashed=1;strokeColor=#2e7d32;fontSize=9;" edge="1" parent="1" source="fm_findfsm" target="tm_cfg"><mxGeometry relative="1" as="geometry"/></mxCell>
 
         <!-- ===== OBSERVER ===== -->
-        <mxCell id="s_obs" value="pf_observer.c" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="820" width="1030" height="180" as="geometry"/></mxCell>
+        <mxCell id="s_obs" value="pf_observer.cpp（observer_dispatcher クラス）" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="820" width="1030" height="180" as="geometry"/></mxCell>
         <mxCell id="fo_init" value="pf_observer_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="855" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fo_sub" value="pf_observer_subscribe()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="890" width="220" height="26" as="geometry"/></mxCell>
         <mxCell id="fo_unsub" value="pf_observer_unsubscribe()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="925" width="220" height="26" as="geometry"/></mxCell>
@@ -263,7 +263,7 @@
         <mxCell id="oe4" value="read(snapshot)" style="endArrow=open;html=1;dashed=1;strokeColor=#2e7d32;fontSize=9;" edge="1" parent="1" source="fo_disp" target="to_subs"><mxGeometry relative="1" as="geometry"/></mxCell>
 
         <!-- ===== CORE ===== -->
-        <mxCell id="s_core" value="pf_core.c" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="1020" width="500" height="200" as="geometry"/></mxCell>
+        <mxCell id="s_core" value="pf_core.cpp（core_context クラス）" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="1020" width="500" height="200" as="geometry"/></mxCell>
         <mxCell id="fc_init" value="pf_core_init()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="1055" width="200" height="26" as="geometry"/></mxCell>
         <mxCell id="fc_port" value="pf_core_port()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="1090" width="200" height="26" as="geometry"/></mxCell>
         <mxCell id="fc_poll" value="pf_core_poll_and_tick()" style="rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="1125" width="200" height="26" as="geometry"/></mxCell>
@@ -277,7 +277,7 @@
         <mxCell id="ce5" value="clear" style="endArrow=open;html=1;dashed=1;strokeColor=#c62828;fontSize=9;" edge="1" parent="1" source="fc_deinit" target="tc_port"><mxGeometry relative="1" as="geometry"/></mxCell>
 
         <!-- ===== MODEL ===== -->
-        <mxCell id="s_model" value="model_sample.c（const テーブル群）" style="rounded=0;html=1;fillColor=#fffbe6;strokeColor=#d6b656;verticalAlign=top;fontStyle=1;fontColor=#7f6000;" vertex="1" parent="1"><mxGeometry x="560" y="1020" width="490" height="200" as="geometry"/></mxCell>
+        <mxCell id="s_model" value="model_sample.cpp（const テーブル群）" style="rounded=0;html=1;fillColor=#fffbe6;strokeColor=#d6b656;verticalAlign=top;fontStyle=1;fontColor=#7f6000;" vertex="1" parent="1"><mxGeometry x="560" y="1020" width="490" height="200" as="geometry"/></mxCell>
         <mxCell id="fmo_get" value="model_sample_get()" style="rounded=1;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="575" y="1055" width="170" height="28" as="geometry"/></mxCell>
         <mxCell id="tmo_model" value="s_model (pf_model_t)" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1"><mxGeometry x="575" y="1110" width="170" height="55" as="geometry"/></mxCell>
         <mxCell id="tmo_data" value="s_data[]" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1"><mxGeometry x="800" y="1045" width="110" height="45" as="geometry"/></mxCell>
@@ -290,7 +290,7 @@
         <mxCell id="mo4" value="ref" style="endArrow=open;html=1;strokeColor=#9673a6;fontSize=9;" edge="1" parent="1" source="tmo_model" target="tmo_fsm"><mxGeometry relative="1" as="geometry"/></mxCell>
         <mxCell id="mo5" value="ref" style="endArrow=open;html=1;strokeColor=#9673a6;fontSize=9;" edge="1" parent="1" source="tmo_fsm" target="tmo_trans"><mxGeometry relative="1" as="geometry"/></mxCell>
 
-        <mxCell id="ft_note" value="※ これらの const テーブルが pf_core_init 経由で pf_data/pf_state/pf_monitor の各 static テーブルへ複製・参照される（機種依存→共通コアへの登録）。" style="text;html=1;fontSize=10;align=left;fontColor=#7f6000;" vertex="1" parent="1"><mxGeometry x="560" y="1225" width="490" height="30" as="geometry"/></mxCell>
+        <mxCell id="ft_note" value="※ これらの const テーブルが pf_core_init 経由で data_dictionary/state_registry/monitor_engine の各 private メンバへ複製・参照される（機種依存→共通コアへの登録）。" style="text;html=1;fontSize=10;align=left;fontColor=#7f6000;" vertex="1" parent="1"><mxGeometry x="560" y="1225" width="490" height="30" as="geometry"/></mxCell>
       </root>
     </mxGraphModel>
   </diagram>

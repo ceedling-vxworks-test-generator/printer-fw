@@ -1,5 +1,5 @@
 /**
- * @file pf_result.c
+ * @file pf_result.cpp
  * @brief 結果コード→文字列。
  */
 #include "printer_fw/pf_result.h"

@@ -1,9 +1,15 @@
 # printer-fw
 
-> 種類: Library（組込みC共通フレームワーク） / 作成日: 2026-07-01
+> 種類: Library（組込みC++共通フレームワーク） / 作成日: 2026-07-01
 
-印刷機の組込みソフトウェア向け **共通フレームワーク（C言語ライブラリ）**。
+印刷機の組込みソフトウェア向け **共通フレームワーク**。
 複数機種へ流用できる、長期運用可能なスケルトン。機種依存部と共通部を明確に分離する。
+
+- **実装言語**: 組込み向けイディオマティック **C++（C++17）**。各レイヤをクラス化し、
+  RAII・カプセル化を活用する。ただし例外・RTTI・動的確保・STLコンテナは使用しない
+  （`-fno-exceptions -fno-rtti`、全静的確保を維持）。
+- **公開API**: すべて `extern "C"` で **C ABI 互換**を維持。既存のCコードからもリンク・呼び出し可能
+  （ヘッダは純Cとしても解釈できる形で書かれている）。
 
 ## アーキテクチャ（5レイヤ + Observer）
 
@@ -17,7 +23,9 @@ Driver(機種依存)
 ```
 
 3層に責務分離：
-- **core**（共通ライブラリ・機種非依存）: `include/printer_fw/` + `src/`
+- **core**（共通ライブラリ・機種非依存）: `include/printer_fw/` + `src/`。各レイヤは
+  クラス（`data_dictionary`／`state_registry`／`monitor_engine`／`observer_dispatcher`／
+  `core_context`）として実装され、モジュールごとに単一インスタンス（シングルトン・静的記憶域）を持つ
 - **port**（プラットフォーム依存：mutex・時間・assert/log）: `port/`
 - **models**（機種依存：データID・記述子表・状態評価器・FSM遷移表・ドライバグルー）: `models/`
 
@@ -33,17 +41,17 @@ Driver(機種依存)
 
 ```
 printer-fw/
-├── include/printer_fw/   公開ヘッダ（ライブラリAPI）
-├── src/                  コア実装（共通・機種非依存）
-├── port/                 プラットフォーム依存サンプル（bare-metal / FreeRTOS / linux）
-├── models/               機種依存サンプル（model_sample）
-├── examples/             最小デモ（app_demo）
-├── tests/                Unity/ceedling 想定のテスト雛形
+├── include/printer_fw/   公開ヘッダ（ライブラリAPI。純C互換・extern "C"）
+├── src/                  コア実装（.cpp・クラス化。共通・機種非依存）
+├── port/                 プラットフォーム依存サンプル（bare-metal / FreeRTOS / linux、.cpp）
+├── models/               機種依存サンプル（model_sample、.cpp）
+├── examples/             最小デモ（app_demo.cpp）
+├── tests/                ユニットテスト（test_printer_fw.cpp。Catch2/GoogleTest等へ移植も容易）
 ├── docs/                 設計書・図
 ├── cmake/                パッケージ設定（Config / pkg-config テンプレート）
 ├── scripts/run_demo.sh   クローン後にビルド＆実行しログを表示
-├── Makefile              cmake 無し環境向けの簡易ビルド
-└── CMakeLists.txt        ビルド構成（install / export / pkg-config 対応）
+├── Makefile              cmake 無し環境向けの簡易ビルド（g++）
+└── CMakeLists.txt        ビルド構成（C++17・install / export / pkg-config 対応）
 ```
 
 ---
@@ -101,16 +109,24 @@ target_link_libraries(my_app PRIVATE printer_fw::printer_fw)
 
 **pkg-config**
 ```sh
-gcc my_app.c $(pkg-config --cflags --libs printer_fw) -o my_app
+gcc my_app.c $(pkg-config --cflags --libs printer_fw) -lstdc++ -o my_app
 ```
 
-**素の gcc**
+**素の gcc / g++**
 ```sh
-gcc my_app.c -I/usr/local/include -L/usr/local/lib -lprinter_fw -o my_app
+# Cから利用（C ABI）: 実装がC++のため libstdc++ のリンクが必要
+gcc my_app.c -I/usr/local/include -L/usr/local/lib -lprinter_fw -lstdc++ -o my_app
+
+# C++から利用: 通常どおりリンクするだけでよい（libstdc++は自動リンクされる）
+g++ my_app.cpp -I/usr/local/include -L/usr/local/lib -lprinter_fw -o my_app
 ```
 
+> **Cからのリンクに関する注意**: 公開APIは `extern "C"` で C ABI 互換だが、実装本体はC++で
+> コンパイルされているため、Cプログラムからリンクする場合は `-lstdc++`（またはリンカに `g++` を使う）
+> が必要になる。C++から利用する場合はこの点を意識する必要はない。
+>
 > 組み込む側は、自機種の `port`（`pf_port_t`）と `model`（`pf_model_t`）を実装して `pf_core_init()` に渡す。
-> サンプルは `port/pf_port_linux.c`（Linux）・`models/model_sample/` を参照。
+> サンプルは `port/pf_port_linux.cpp`（Linux）・`models/model_sample/` を参照。
 
 ---
 
@@ -132,6 +148,6 @@ gcc my_app.c -I/usr/local/include -L/usr/local/lib -lprinter_fw -o my_app
 ログの制御（`pf_log.h`）:
 - `PF_LOG_LEVEL`（既定 `PF_LOG_INFO`）で出力レベルを調整（`ERROR/WARN/INFO/DEBUG`）。
 - `PF_LOG_ENABLE=0` でログを完全に無効化（stdio を持たない極小構成向け）。
-- 例: `cmake -S . -B build -DCMAKE_C_FLAGS="-DPF_LOG_LEVEL=PF_LOG_DEBUG"`
+- 例: `cmake -S . -B build -DCMAKE_CXX_FLAGS="-DPF_LOG_LEVEL=PF_LOG_DEBUG"`
 
 > 現状はスケルトン（API骨組み＋動作する最小コア）。各機種への展開は [docs/detailed-design.md](docs/detailed-design.md) の「拡張手順」に従う。

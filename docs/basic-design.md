@@ -3,9 +3,11 @@
 | 項目 | 内容 |
 |------|------|
 | プロジェクト | printer-fw（印刷機 組込み共通フレームワーク） |
-| 版 | v1.0（2026-07-01 初版） |
+| 版 | v1.1（2026-07-01 初版 / 2026-07-02 C++実装へ移行） |
 | 対象 | 印刷機の組込みソフトウェア。複数機種への流用を前提とした共通ライブラリ |
-| 言語 | C99/C11 中心（公開ヘッダは `extern "C"` で C++ から利用可） |
+| 言語 | 組込み向けイディオマティック **C++（C++17）**。各レイヤをクラス化・カプセル化するが、
+例外・RTTI・動的確保・STLコンテナは使用しない（`-fno-exceptions -fno-rtti`、全静的確保）。
+公開APIは全て `extern "C"` で **C ABI 互換**を維持し、C からも呼び出せる |
 | 文書の位置づけ | 「概要・設計方針」を示す上位設計。API詳細は [detailed-design.md](detailed-design.md) を参照 |
 
 ---
@@ -324,21 +326,33 @@ flowchart TB
   なお `0xFFFF` は「全状態購読」の番兵（`PF_STATE_ANY`）として**予約**し、有効 ID には使わない。
 - **戻り値は `pf_result_t`、出力は out 引数**。getter は `pf_xxx_get(id, T* out)`。
 - **名前空間**: 全公開シンボルに `pf_`／マクロに `PF_` を接頭。衝突回避と一覧性。
-- **C++連携**: 公開ヘッダは `#ifdef __cplusplus extern "C" {}` で囲む。
+- **C ABI 互換**: 公開ヘッダは `#ifdef __cplusplus extern "C" {}` で囲み、実装がC++でも C から呼び出せる。
+  公開ヘッダ自身は純Cとして解釈可能な構文のみで書く（`pf_value_t` 等の構造体はPOD/集成体）。
 - **コールバック**: 必ず `void* ctx` を伴わせ、状態を持ち回れるようにする（グローバル不要でテスト容易）。
 - **初期化明示**: 暗黙のグローバル初期化に頼らず `pf_core_init()` を必須化（多重初期化は弾く）。
+- **内部はクラスでカプセル化（実装詳細・非公開）**: 各レイヤの実体は `data_dictionary` / `state_registry` /
+  `monitor_engine` / `observer_dispatcher` / `core_context` としてクラス化し、モジュールごとに単一インスタンス
+  （シングルトン、静的記憶域・`namespace { ... }` に隠蔽）を持つ。公開 `extern "C"` 関数は、対応するクラスの
+  メソッドへ1行で委譲するだけの薄いラッパーとする。これにより、公開APIの互換性を保ったまま実装をカプセル化する。
+- **例外・RTTI不使用**: コンストラクタは失敗しない（フィールドはデフォルト初期化のみ）。初期化の成否は
+  `init()` メソッドの戻り値（`pf_result_t`）で表現し、例外は投げない。動的多態は使わず（仮想関数なし）、
+  関数ポインタ（`pf_state_eval_fn` 等）で振る舞いを注入する（既存の設計方針を維持）。
 
 ### 5.6 命名規則
 
 | 対象 | 規則 | 例 |
 |------|------|----|
-| 公開関数 | `pf_<module>_<verb>` snake_case | `pf_data_set_u32`, `pf_observer_subscribe` |
+| 公開関数（`extern "C"`） | `pf_<module>_<verb>` snake_case | `pf_data_set_u32`, `pf_observer_subscribe` |
 | 型 | `pf_<name>_t` | `pf_value_t`, `pf_event_t`, `pf_result_t` |
 | enum 定数 | `PF_<GROUP>_<NAME>` 大文字 | `PF_TYPE_U32`, `PF_OK`, `PF_ERR_NOT_FOUND` |
 | マクロ/設定 | `PF_<NAME>` | `PF_OBSERVER_MAX` |
 | 機種側ID | `<MODEL>_RAW_*` / `<MODEL>_STATE_*` | `SAMPLE_RAW_TEMP`, `SAMPLE_STATE_MAIN` |
-| ファイル(core) | `pf_<module>.{h,c}` | `pf_monitor.c` |
-| ファイル(機種) | `model_<name>.{h,c}` | `model_sample.c` |
+| 内部クラス（非公開） | snake_case（既存のC由来の規約を維持） | `data_dictionary`, `monitor_engine` |
+| クラスのメソッド | snake_case（公開関数と対応する接尾辞） | `set_u32()`, `subscribe()` |
+| クラスの private メンバ | 末尾アンダースコア | `count_`, `desc_[]`, `init_` |
+| ファイル(core) | `pf_<module>.{h,cpp}` | `pf_monitor.cpp` |
+| ファイル(機種) | `model_<name>.{h,cpp}` | `model_sample.cpp` |
+| 内部専用ヘッダ | `pf_<name>.hpp`（非公開・インストール対象外） | `pf_priv.hpp` |
 
 ### 5.7 ライブラリ構成 / ディレクトリ構成
 
@@ -356,25 +370,29 @@ printer-fw/
 │   ├── pf_model.h           機種記述子 pf_model_t
 │   ├── pf_config.h          コンパイル時上限（PF_*_MAX 等）
 │   └── printer_fw.h         まとめ include（利用者向け単一エントリ）
-├── src/                     コア実装（機種非依存）
-│   ├── pf_core.c            初期化・全体オーケストレーション
-│   ├── pf_data.c            辞書エンジン
-│   ├── pf_state.c           評価器レジストリ
-│   ├── pf_fsm.c             FSMエンジン
-│   ├── pf_monitor.c         変化検知
-│   └── pf_observer.c        Dispatcher
-├── port/                    プラットフォーム依存サンプル
-│   ├── pf_port_baremetal.c  割込み禁止ベースの critical section 等
-│   └── pf_port_freertos.c   ミューテックス/タスク向け（スタブ）
+├── src/                     コア実装（機種非依存・C++実装。各レイヤはクラス化）
+│   ├── pf_priv.hpp          非公開の内部橋渡し（他.cppからのみ利用。インストール対象外）
+│   ├── pf_core.cpp          core_context クラス：初期化・全体オーケストレーション
+│   ├── pf_data.cpp          data_dictionary クラス：辞書エンジン
+│   ├── pf_state.cpp         state_registry クラス：評価器レジストリ
+│   ├── pf_fsm.cpp           FSMエンジン（状態を持たないため関数のまま）
+│   ├── pf_monitor.cpp       monitor_engine クラス：変化検知
+│   ├── pf_observer.cpp      observer_dispatcher クラス：Dispatcher
+│   ├── pf_result.cpp        結果コード→文字列
+│   └── pf_log.cpp           ログ出力
+├── port/                    プラットフォーム依存サンプル（C++実装）
+│   ├── pf_port_baremetal.cpp  割込み禁止ベースの critical section 等
+│   ├── pf_port_freertos.cpp   ミューテックス/タスク向け（スタブ）
+│   └── pf_port_linux.cpp      Linux(POSIX)：pthread mutex・clock_gettime・stdoutログ
 ├── models/                  機種依存サンプル（分離の実例）
 │   └── model_sample/
 │       ├── model_sample_ids.h   データID・状態ID enum
 │       ├── model_sample.h       model_sample_get() 宣言
-│       └── model_sample.c       記述子表・評価器・FSM表・Driverグルー
-├── examples/app_demo.c      最小デモ（購読→raw更新→変化→通知）
-├── tests/                   Unity/ceedling 想定の雛形
+│       └── model_sample.cpp     記述子表・評価器・FSM表・Driverグルー
+├── examples/app_demo.cpp    最小デモ（購読→raw更新→変化→通知）
+├── tests/                   ユニットテスト（Catch2/GoogleTest等へも移植容易）
 ├── docs/                    本設計書群＋draw.io
-└── CMakeLists.txt           ビルド構成
+└── CMakeLists.txt           ビルド構成（C++17）
 ```
 
 ---
@@ -426,7 +444,19 @@ printer-fw/
 - **イベントキュー化**: Observer 配信を「即時同期」から「キュー経由の非同期」に差し替えられるよう、Dispatcher を IF 化しておく。
 - **複数モデル同時** / **状態の階層化** / **ロギング用の全イベント購読** などは現構造の延長で追加可能。
 
-### 6.6 過剰設計の抑止（未使用時ゼロコスト）
+### 6.6 実装言語（2026-07-02 追記）
+
+| 案 | 概要 | 判定 | 理由 |
+|----|------|:----:|------|
+| 純C（C99/C11） | 全ファイルC・staticグローバルで状態保持（初版） | — | 最もシンプル・組込み実績豊富。ただし今回の要求（実装をC++化）は満たさない |
+| **組込み向けイディオマティックC++（採用）** | 各レイヤをクラス化・カプセル化。例外/RTTI/動的確保/STLコンテナ不使用。公開APIは`extern "C"`でC ABI維持 | ✅ | クラスによる責務のカプセル化でC版の設計思想（1レイヤ1責務・静的確保・決定的動作）をそのまま維持しつつC++化。C資産との相互運用も両立 |
+| モダンC++（STL/例外許容） | `std::function`によるObserver、`std::array/vector`、例外によるエラー通知 | ❌ | 表現力は高いが、ヒープ確保・例外の遅延不確定性が組込み・リアルタイム制約と衝突する恐れ |
+
+> 採用根拠: 「実装をC++に変更」という要求と、既存の組込み制約（全静的確保・決定的動作・C資産との相互運用）を両立するため、
+> 例外/RTTI/動的確保を禁じた「組込み向けC++サブセット」を採用。クラス化はカプセル化の手段として使うが、
+> ポリモーフィズム（仮想関数）は導入せず、既存の関数ポインタ注入方式（`pf_state_eval_fn` 等）を維持する。
+
+### 6.7 過剰設計の抑止（未使用時ゼロコスト）
 
 FSM・デバウンス・BLOBプールは要件由来（状態機械・チャタリング・可変長）だが、単純機種では不要なことがある。
 これらは**使わなければコストゼロ**になるよう設計する：
@@ -459,7 +489,8 @@ FSM・デバウンス・BLOBプールは要件由来（状態機械・チャタ�
 - **メモリ**: 全静的。フットプリントは記述子数に比例。最小構成で数KB級を想定（実測は機種記述子次第）。
 - **リアルタイム性**: データアクセス O(1)、tick は O(状態数)、通知は O(購読者数) で**有界・決定的**。動的確保なし。
 - **移植性**: HW/OS依存は port に隔離。エンディアン依存は blob 授受時に利用側責務（必要なら port で変換ヘルパ）。
-- **テスト容易性**: 評価器は純関数で単体テスト容易。core は port をスタブ注入してホストでテスト可能（Unity/ceedling）。
+- **テスト容易性**: 評価器は純関数で単体テスト容易。core は port をスタブ注入してホストでテスト可能
+  （現状は自己完結の CHECK マクロで実装。Catch2/GoogleTest や `engineering/ceedling/` の Unity/ceedling へも移植容易）。
 
 ---
 

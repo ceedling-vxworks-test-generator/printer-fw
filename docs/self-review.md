@@ -95,3 +95,35 @@
 - [ ] スケルトンが上記 F1〜F6 の規約どおりにシグネチャ/コメントへ落ちているか（E で担保）。
 - [ ] ビルド通過＋デモで「変化時のみ通知」を実証（検証フェーズ）。
 - [ ] **review部門の独立レビュー**（M5）で本自己レビューを客観検証（修正と検証の分離）。
+
+---
+
+## 6. 追補: C++実装への移行（2026-07-02）
+
+オーナー指示により、実装言語を C（C99/C11）から **組込み向けイディオマティックC++（C++17）** へ移行した。
+公開API・C ABI互換（`extern "C"`）・全静的確保／リアルタイム制約は変更しない前提での移行。
+
+### 6.1 変更内容（要約）
+- `src/*.c` → `*.cpp`。各レイヤを匿名namespace内クラス（`data_dictionary` / `state_registry` /
+  `monitor_engine` / `observer_dispatcher` / `core_context`）としてカプセル化し、モジュールごとに
+  単一インスタンス（シングルトン・静的記憶域）を保持。公開 `extern "C"` 関数は1行で委譲するだけの
+  薄いラッパーとした（詳細は detailed-design.md §0.2）。
+- `port/*.c`・`models/model_sample/*.c`・`examples/app_demo.c`・`tests/test_printer_fw.c` も `.cpp` へ。
+- `CMakeLists.txt`/`Makefile` を C++17・`g++`/`-fno-exceptions -fno-rtti` に更新。
+
+### 6.2 自己レビュー（本移行に対して）
+| 観点 | 評価 | コメント |
+|------|:---:|---------|
+| 責務分離・カプセル化 | ◎ | クラス化により private メンバでの隠蔽が明確化。C版より境界が強固 |
+| C ABI互換の維持 | ◎ | 公開ヘッダ・関数シグネチャは無変更。gccでのCリンク（`-lstdc++`要）も想定しREADMEに明記 |
+| 組込み制約の維持 | ◎ | `-fno-exceptions -fno-rtti` をビルドで強制。コンストラクタは失敗しない設計（`init()`で明示） |
+| 過剰設計の回避 | ○ | 仮想関数・テンプレート・STLコンテナは意図的に不使用。関数ポインタ注入方式を維持しC版からの逸脱を最小化 |
+| リスク | △ | C++実装のため、Cから利用する際は `libstdc++` のリンクが必要になる点は非対称性として残る（README・detailed-designに明記済み） |
+
+### 6.3 検証
+- g++ 15.2（C++17、`-Wall -Wextra -fno-exceptions -fno-rtti`）で警告0ビルド。
+- 既存ユニットテスト（`test_volume_type_reconciliation` 含む）全てALL PASS、`app_demo` の出力もC版と完全に同一であることを確認。
+- 詳細は `review/reviews/2026-07-01-printer-fw.md` の追記、および `engineering/printer-fw/CLAUDE.md` を参照。
+
+### 6.4 残課題
+- [ ] **review部門の独立レビュー（M5）** は C++移行後の版に対しても改めて実施が必要（未実施）。

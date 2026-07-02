@@ -5,22 +5,24 @@
 #   sudo make install PREFIX=/usr/local
 #   make clean
 #
+# 実装は組込み向けイディオマティックC++（-fno-exceptions -fno-rtti。動的確保・STLコンテナ不使用）。
+# 公開ヘッダ・APIは C ABI 互換（extern "C"）のため、C からもリンク可能（要 libstdc++ リンク）。
 # 本格運用は CMake を推奨（find_package / pkg-config を提供）。本 Makefile は動作確認・簡易組込み用。
 
-CC      ?= cc
+CXX     ?= g++
 AR      ?= ar
-CFLAGS  ?= -std=c11 -Wall -Wextra -O2
+CXXFLAGS ?= -std=c++17 -Wall -Wextra -fno-exceptions -fno-rtti -O2
 PREFIX  ?= /usr/local
 
 INC      := -Iinclude
 BUILD    := build
 
-CORE_SRC := src/pf_core.c src/pf_data.c src/pf_state.c src/pf_fsm.c \
-            src/pf_monitor.c src/pf_observer.c src/pf_result.c src/pf_log.c
-CORE_OBJ := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(CORE_SRC))
+CORE_SRC := src/pf_core.cpp src/pf_data.cpp src/pf_state.cpp src/pf_fsm.cpp \
+            src/pf_monitor.cpp src/pf_observer.cpp src/pf_result.cpp src/pf_log.cpp
+CORE_OBJ := $(patsubst src/%.cpp,$(BUILD)/obj/%.o,$(CORE_SRC))
 
-SAMPLE_SRC := models/model_sample/model_sample.c \
-              port/pf_port_baremetal.c port/pf_port_linux.c
+SAMPLE_SRC := models/model_sample/model_sample.cpp \
+              port/pf_port_baremetal.cpp port/pf_port_linux.cpp
 SAMPLE_INC := -Iport -Imodels/model_sample
 
 .PHONY: all lib test run install clean
@@ -28,9 +30,9 @@ all: $(BUILD)/libprinter_fw.a $(BUILD)/libprinter_fw.so $(BUILD)/app_demo $(BUIL
 
 lib: $(BUILD)/libprinter_fw.a $(BUILD)/libprinter_fw.so
 
-$(BUILD)/obj/%.o: src/%.c
+$(BUILD)/obj/%.o: src/%.cpp
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INC) -fPIC -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INC) -fPIC -c $< -o $@
 
 $(BUILD)/libprinter_fw.a: $(CORE_OBJ)
 	@mkdir -p $(BUILD)
@@ -38,14 +40,14 @@ $(BUILD)/libprinter_fw.a: $(CORE_OBJ)
 
 $(BUILD)/libprinter_fw.so: $(CORE_OBJ)
 	@mkdir -p $(BUILD)
-	$(CC) -shared -o $@ $(CORE_OBJ)
+	$(CXX) -shared -o $@ $(CORE_OBJ)
 
 $(BUILD)/app_demo: $(BUILD)/libprinter_fw.a
-	$(CC) $(CFLAGS) $(INC) $(SAMPLE_INC) examples/app_demo.c $(SAMPLE_SRC) \
+	$(CXX) $(CXXFLAGS) $(INC) $(SAMPLE_INC) examples/app_demo.cpp $(SAMPLE_SRC) \
 	    -L$(BUILD) -lprinter_fw -lpthread -o $@
 
 $(BUILD)/pf_tests: $(BUILD)/libprinter_fw.a
-	$(CC) $(CFLAGS) $(INC) $(SAMPLE_INC) tests/test_printer_fw.c $(SAMPLE_SRC) \
+	$(CXX) $(CXXFLAGS) $(INC) $(SAMPLE_INC) tests/test_printer_fw.cpp $(SAMPLE_SRC) \
 	    -L$(BUILD) -lprinter_fw -lpthread -o $@
 
 test: $(BUILD)/pf_tests

@@ -1,6 +1,8 @@
 /**
- * @file pf_fsm.c
+ * @file pf_fsm.cpp
  * @brief 主系状態の遷移エンジン実装。許可された遷移のみ通す。
+ *
+ * 保持する状態はなく（渡された記述子だけを見る純関数）、クラス化の対象外。
  */
 #include "printer_fw/pf_fsm.h"
 

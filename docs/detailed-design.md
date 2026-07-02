@@ -2,38 +2,74 @@
 
 | 項目 | 内容 |
 |------|------|
-| 版 | v1.0（2026-07-01） |
+| 版 | v1.1（2026-07-01 初版 / 2026-07-02 C++実装へ移行） |
 | 対象読者 | 本ライブラリの**利用者**（各機種への展開担当）／コア保守者 |
 | 目標 | 「**この仕様書だけで別機種へ展開できる**」こと |
 | 前提 | 上位設計は [basic-design.md](basic-design.md) を参照 |
 
 > 本書の API はスケルトン（`include/printer_fw/*.h`）と一致する契約である。
 > 型のサイズ・enum値はターゲットに合わせて `pf_config.h` で調整できる。
+> 実装は C++（C++17、組込み向けサブセット）だが、**公開ヘッダ・APIは C ABI 互換**（`extern "C"`）を
+> 維持しており、本書に記載の関数シグネチャ・構造体は C からも C++ からも同一に利用できる。
 
 ---
 
 ## 0. 全体像と命名
 
 - 公開ヘッダは `include/printer_fw/` 配下。利用者は `#include "printer_fw/printer_fw.h"`（単一エントリ）でよい。
-- 公開シンボルは `pf_` / `PF_` 接頭。内部実装シンボルは `static` または `pf_<mod>__`（二重アンダースコア）で非公開を表す。
+- 公開シンボルは `pf_` / `PF_` 接頭。内部実装（非公開）は各 `.cpp` 内のクラス（`namespace { ... }` に隠蔽）
+  として実装され、シングルトンインスタンスのメソッドとして存在する。他 `.cpp` から限定的にアクセスが必要な
+  内部専用関数（`pf_<mod>__`、二重アンダースコア）のみ `pf_priv.hpp` に宣言する。
 - **全公開関数は `pf_result_t` を返す**（値の取り出しは out 引数）。`PF_OK == 0`。
-- 公開ヘッダは `extern "C"` で囲み、C++ から利用可能。
+- 公開ヘッダは `extern "C"` で囲み、実装がC++でも C から利用可能（C ABI 互換）。
 
 ### 0.1 モジュール対応表
 
-| モジュール | ヘッダ | 実装 | レイヤ | 帰属 |
-|-----------|--------|------|--------|------|
-| 結果コード | `pf_result.h` | （ヘッダのみ＋`pf_result.c`） | 横断 | core |
-| 基本型 | `pf_types.h` | （ヘッダのみ） | 横断 | core |
-| 設定 | `pf_config.h` | （ヘッダのみ） | 横断 | core |
-| Port抽象 | `pf_port.h` | `port/pf_port_*.c` | Port | port |
-| Raw Data | `pf_data.h` | `pf_data.c` | ① | core |
-| Abstract State | `pf_state.h` | `pf_state.c` | ② | core(+model評価器) |
-| FSM | `pf_fsm.h` | `pf_fsm.c` | ③補助 | core |
-| Monitor | `pf_monitor.h` | `pf_monitor.c` | ③ | core |
-| Observer | `pf_observer.h` | `pf_observer.c` | ④ | core |
-| Model記述子 | `pf_model.h` | （ヘッダのみ／実装は機種側） | 登録口 | model |
-| Core統括 | `pf_core.h` | `pf_core.c` | 統括 | core |
+| モジュール | ヘッダ | 実装 | 内部クラス（非公開） | レイヤ | 帰属 |
+|-----------|--------|------|--------------------|--------|------|
+| 結果コード | `pf_result.h` | `pf_result.cpp` | ─（状態なし） | 横断 | core |
+| 基本型 | `pf_types.h` | （ヘッダのみ） | ─ | 横断 | core |
+| 設定 | `pf_config.h` | （ヘッダのみ） | ─ | 横断 | core |
+| ログ | `pf_log.h` | `pf_log.cpp` | ─（状態なし） | 横断 | core |
+| Port抽象 | `pf_port.h` | `port/pf_port_*.cpp` | ─（factory関数） | Port | port |
+| Raw Data | `pf_data.h` | `pf_data.cpp` | `data_dictionary` | ① | core |
+| Abstract State | `pf_state.h` | `pf_state.cpp` | `state_registry` | ② | core(+model評価器) |
+| FSM | `pf_fsm.h` | `pf_fsm.cpp` | ─（状態なし・純関数） | ③補助 | core |
+| Monitor | `pf_monitor.h` | `pf_monitor.cpp` | `monitor_engine` | ③ | core |
+| Observer | `pf_observer.h` | `pf_observer.cpp` | `observer_dispatcher` | ④ | core |
+| Model記述子 | `pf_model.h` | （ヘッダのみ／実装は機種側） | ─ | 登録口 | model |
+| Core統括 | `pf_core.h` | `pf_core.cpp` | `core_context` | 統括 | core |
+
+### 0.2 C++実装のパターン（C ABI と内部クラスの橋渡し）
+
+各モジュールは「非公開の匿名namespace内クラス＋単一のシングルトンインスタンス」＋
+「そのインスタンスへ委譲するだけの `extern "C"` 公開関数」という一貫したパターンで実装する。
+
+```cpp
+// pf_data.cpp の例（実際のコードを簡略化したもの）
+namespace {
+class data_dictionary {
+public:
+    pf_result_t init(const pf_data_desc_t* desc, size_t count);
+    pf_result_t set_u32(pf_data_id_t id, uint32_t v);
+    /* … */
+private:
+    pf_data_desc_t desc_[PF_DATA_MAX]{};   /* private member（末尾アンダースコア） */
+};
+data_dictionary g_dictionary;              /* シングルトン・静的記憶域 */
+} // namespace
+
+/* 公開API：extern "C" 宣言済み（pf_data.h）。委譲するだけの薄いラッパー */
+pf_result_t pf_data_init(const pf_data_desc_t* desc, size_t count) {
+    return g_dictionary.init(desc, count);
+}
+pf_result_t pf_data_set_u32(pf_data_id_t id, uint32_t v) {
+    return g_dictionary.set_u32(id, v);
+}
+```
+
+この形により、**公開ABIは1バイトも変えずに**、実装内部だけをクラスでカプセル化できる。
+利用者（C・C++問わず）から見た振る舞い・シグネチャは C 版と完全に同一である。
 
 ---
 
@@ -193,10 +229,10 @@ pf_result_t pf_data_get_value(pf_data_id_t id, pf_value_t* out);
 - 疎なIDが必要な機種のみ、init時に索引表（id→slot）を構築する（既定は不要）。
 - `0xFFFF` は予約（`PF_STATE_ANY`）。data/state の有効IDに使ってはならない。
 
-非公開 API（`pf_data.c` 内 `static`）:
-- `static int pf_data__index_of(pf_data_id_t)` … 既定は `id` を返す直接添字。疎ID時のみ索引表参照
-- `static uint8_t* pf_data__cell_ptr(int slot)` … 静的バッファ内のセル先頭
-- `static pf_result_t pf_data__check_type(int slot, pf_type_t)`
+非公開 API（`pf_data.cpp` 内 `data_dictionary` クラスの private メソッド）:
+- `int index_of(pf_data_id_t) const` … 既定は `id` を返す直接添字。疎ID時のみ索引表参照
+- `pf_result_t set_scalar(...)` / `pf_result_t get_scalar(...) const` … 型別APIが共有する内部実装
+- `void lock() const` / `void unlock() const` … `pf_core_port()` 経由で critical セクションへ委譲
 
 ### 3.5 内部メモリと表現（内部 vs 外部）
 - スカラ値: `static pf_value_t g_cells[PF_DATA_MAX];`（型タグ＋共用体）
@@ -415,7 +451,7 @@ void             pf_core_deinit(void);
 
 ### 10.1 データを追加する（新センサー等）
 1. `models/model_xxx/model_xxx_ids.h` の **データID enum に1つ追加**（例 `SAMPLE_RAW_HUMIDITY`）。
-2. `model_xxx.c` の `pf_data_desc_t[]` に **1行追加**（id/type/length/eps）。
+2. `model_xxx.cpp` の `pf_data_desc_t[]` に **1行追加**（id/type/length/eps）。
 3. ドライバグルー（`driver_poll`）でその値を `pf_data_set_*()` する。
 → **core 無改修**。`PF_DATA_MAX` を超える場合のみ `pf_config.h` を引き上げ。
 
@@ -431,7 +467,7 @@ void             pf_core_deinit(void);
 3. 各機種のドライバグルーで `(int32_t)` 等にキャストしてから `pf_data_set_i32()` を呼ぶ
 4. 評価器は常に正規型でしか読まないため、機種間で評価器コードを共有できる
 
-`models/model_sample/model_sample.c` の `model_sample_volume_ingest_from_short()` /
+`models/model_sample/model_sample.cpp` の `model_sample_volume_ingest_from_short()` /
 `model_sample_volume_ingest_from_long()` が実装例。どちらの関数を通しても辞書には
 同じ `SAMPLE_RAW_VOLUME`（i32）が入り、`eval_volume_level()` は型の違いを意識しない。
 
@@ -454,8 +490,8 @@ void             pf_core_deinit(void);
 → core 無改修。`pf_model_t` に glue を結線するだけ。
 
 ### 10.5 新しいモデル（機種）を追加する ― 展開の本丸
-1. `models/model_yyy/` を作成し、`model_yyy_ids.h`（ID enum）／`model_yyy.c`（記述子表・評価器・FSM表・glue）を実装。
-2. `const pf_model_t* model_yyy_get(void)` を実装。
+1. `models/model_yyy/` を作成し、`model_yyy_ids.h`（ID enum）／`model_yyy.cpp`（記述子表・評価器・FSM表・glue）を実装。
+2. `const pf_model_t* model_yyy_get()` を実装。
 3. アプリ起動時に `pf_core_init(model_yyy_get(), &port_yyy);`。
 → **core・他モデル 無改修**。`model_sample/` を雛形にコピーして差分実装するのが最短。
 
@@ -476,9 +512,9 @@ PF_LOGD(fmt, ...);  /* DEBUG */
 ```
 
 - **出力先の切替**は port 実装が担う：
-  - `pf_port_linux`（`port/pf_port_linux.c`）… `stdout` に即時 flush → Ubuntu 端末 / TeraTerm(SSH・シリアル) で閲覧。
+  - `pf_port_linux`（`port/pf_port_linux.cpp`）… `stdout` に即時 flush → Ubuntu 端末 / TeraTerm(SSH・シリアル) で閲覧。
   - 実機 … `log` を UART 送信に実装すれば TeraTerm のシリアルコンソールに出力。
-  - `log = NULL` にすればログは出ない（stdio 非搭載構成向け）。
+  - `log = nullptr` にすればログは出ない（stdio 非搭載構成向け）。
 - **設定**: `PF_LOG_LEVEL`（既定 `PF_LOG_INFO`）、`PF_LOG_ENABLE`（既定 1）。ビルド時に `-D` で上書き可能。
 - コア標準の出力箇所: `pf_core_init` 成功（INFO）／状態変化 dispatch（INFO）／FSM不正遷移の拒否（WARN）。
 
@@ -503,14 +539,21 @@ PF_LOGD(fmt, ...);  /* DEBUG */
 
 - 評価器は純関数 → 入力（辞書値）を設定して出力を assert するだけで単体テスト可能。
 - core は port をスタブ（`critical_*` を no-op、`time_now` を固定）にしてホスト上でテスト可能。
-- `tests/` に Unity/ceedling 想定の雛形を同梱（`engineering/ceedling/` のテスト自動生成と接続可能）。
+- `tests/test_printer_fw.cpp` は自己完結の CHECK マクロで実装（実行環境を選ばない）。
+  構造は Catch2/GoogleTest（C++）、Unity/ceedling（`engineering/ceedling/` のテスト自動生成、C向け）
+  のいずれにも移植容易。
 - 推奨ユニット: `pf_data`（型別get/set・型不一致・範囲外）／`pf_fsm`（許可/不許可）／`pf_monitor`（変化時のみ発火）／`pf_observer`（subscribe/unsubscribe/ANY配信）。
+- クラス化された内部実装（`data_dictionary` 等）は private だが、公開API（`pf_data_set_u32` 等）
+  経由で全機能をテストできるため、内部構造を意識したテストは不要（ブラックボックステストで十分）。
 
 ---
 
 ## 13. 利用最小例（擬似）
 
-```c
+公開APIは C ABI 互換のため、以下は **C からも C++ からも同一のコードで利用できる**
+（C の場合は `NULL`、C++ の場合は `nullptr` と書ける程度の違いのみ）。
+
+```cpp
 #include "printer_fw/printer_fw.h"
 #include "model_sample/model_sample.h"
 
@@ -518,12 +561,12 @@ static void on_change(const pf_event_t* ev, void* ctx) {
     /* 状態変化時のみ呼ばれる */
 }
 
-int main(void) {
+int main() {
     pf_port_t port = pf_port_baremetal();          /* port実装を選ぶ */
     pf_core_init(model_sample_get(), &port);       /* モデル登録＋全レイヤ初期化 */
 
     pf_subscription_t h;
-    pf_observer_subscribe(PF_STATE_ANY, on_change, NULL, &h);
+    pf_observer_subscribe(PF_STATE_ANY, on_change, nullptr, &h);
 
     for (;;) {
         pf_core_poll_and_tick();                   /* driver_poll → monitor_tick */
