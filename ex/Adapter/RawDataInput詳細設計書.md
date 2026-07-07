@@ -37,7 +37,8 @@ RawDataInputは以下の責務を持つ。
 - RawDataの受付
 - RuleResolverの呼び出し
 - Ruleの実行
-- DataStoreSinkへの送信
+- InputClassifierによる性質判別
+- CentralInputPortへの送信（性質に応じた3種post）
 - 処理結果の返却
 - 各コンポーネントの実行順序制御
 - 下位コンポーネントの実行結果の集約
@@ -76,13 +77,17 @@ RawDataInputは状態を保持しない。
 ## 7.1 利用するコンポーネント
 
 - RuleResolver
-- DataStoreSink
+- InputClassifier
+- CentralInputPort（DataStore Layer提供）
 
 RuleResolverは識別子に対応するRuleを取得するために利用する。
 
-DataStoreSinkは正規化済みデータの送信先として利用する。
+InputClassifierは識別子（Id）から入力性質（Fault / OperationReport / CurrentValue）を判別するために利用する（GAP-1）。
 
-DataStoreSinkは投入成功のみを保証する。
+CentralInputPortは正規化済みデータの送信先として利用する。性質に応じて
+`postFaultInput` / `postOperationReport` / `postCurrentValueInput` のいずれかを呼ぶ。
+
+CentralInputPortは投入成功のみを保証する。
 
 DataStoreへの反映結果は保証対象外であり、反映処理はDataStore Layerの責務とする。
 
@@ -97,10 +102,12 @@ classDiagram
 
 class RawDataInput
 class RuleResolver
-class DataStoreSink
+class InputClassifier
+class CentralInputPort
 
 RawDataInput --> RuleResolver
-RawDataInput --> DataStoreSink
+RawDataInput --> InputClassifier
+RawDataInput --> CentralInputPort
 ```
 
 ---
@@ -151,7 +158,8 @@ Contextは省略可能である。
 
 - RuleNotFound
 - ConvertError
-- QueueError
+- ClassifyError（Idから性質を判別できない：設計不備）
+- PostError（CentralInputPortへの投入失敗）
 
 ## 8.3 Result
 
@@ -181,7 +189,7 @@ Result push(RawData raw)
 
 本IFの成功はDataStoreへの保存完了を意味しない。
 
-DataStoreSinkへの投入成功のみを保証する。
+CentralInputPortへの投入成功のみを保証する。
 
 ---
 
@@ -194,7 +202,8 @@ participant Caller
 participant R as RawDataInput
 participant RR as RuleResolver
 participant Rule as Rule
-participant Q as DataStoreSink
+participant IC as InputClassifier
+participant CIP as CentralInputPort
 
 Caller ->> R : push(RawData)
 
@@ -204,8 +213,11 @@ RR -->> R : Result<Rule>
 R ->> Rule : convert(raw.rawValue, Context)
 Rule -->> R : Result<Value>
 
-R ->> Q : enqueue(raw.id, Value)
-Q -->> R : Result
+R ->> IC : classify(raw.id)
+IC -->> R : InputKind
+
+R ->> CIP : postFaultInput / postOperationReport / postCurrentValueInput (raw.id, Value)
+CIP -->> R : Result
 
 R -->> Caller : Result
 ```
@@ -214,7 +226,8 @@ R -->> Caller : Result
 
 - Rule取得成功
 - 値変換成功
-- DataStoreSinkへの投入成功
+- 性質判別成功
+- CentralInputPortへの投入成功
 
 ---
 
@@ -226,7 +239,8 @@ R -->> Caller : Result
 |-------------|--------|------|
 | RuleNotFound | RuleResolver | 設計不備によるRule未定義 |
 | ConvertError | Rule | 値変換失敗 |
-| QueueError | DataStoreSink | キュー格納失敗 |
+| ClassifyError | InputClassifier | 設計不備によるId性質未定義 |
+| PostError | CentralInputPort | Queue/Bufferへの投入失敗 |
 
 ## 11.2 挙動
 
