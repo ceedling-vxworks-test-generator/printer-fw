@@ -159,6 +159,11 @@ Capabilityごとにタスクを生成し、配信全体を管理する中核コ�
 | Event | 明示イベント（Error発生・Job完了等） | Capability Layerが明示イベントとして通知 |
 | Initial | 購読開始時の初回配信 | Subscription Broker（subscribe時） |
 
+**Rate Limitとの関係（契約）**：
+- Event配信および優先度Critical/HighはRate Limit適用除外とする（エラー等の重要通知は間引かない）。
+- Rate Limit抑制時はトレーリングエッジ配信（間隔満了後の遅延送出）により
+  **最終状態の到達を保証**する（バースト最後の変化が届かないままにならない）。
+
 **Heartbeat**（生存通知）は本Layerで生成しない。周期通知を受けて生存確認を行う
 別タスクが外部に存在すべきである（drawio注記に準拠し、本設計では廃止）。
 

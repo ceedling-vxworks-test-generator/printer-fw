@@ -49,7 +49,9 @@ struct PrinterStatus {
 
 ### 3.1 依存
 - `IMachineSnapshotReader`（DataStore Layer）
-- Capability Layerの現在状態参照IF（`getCurrentCapability()` 等）
+- Capability Layerの現在状態参照IF（**確定**：`std::shared_ptr<const CapabilitySet> getCurrentCapability()`。
+  不変オブジェクトのatomic shared_ptr取得のため**別スレッドから安全に読める**。
+  Capability詳細 §1.2/§3.1 参照。起動時の初期フル評価により常に値が存在する）
 
 ### 3.2 提供IF
 ```cpp
@@ -113,6 +115,11 @@ sequenceDiagram
 
 ## 7. 次段（未確定）
 
-- Capability Layerの現在状態参照IF（getCurrentCapability）の正式定義
 - capture失敗時の返却方針（空 vs エラー）
+  ※「未要求」と「取得失敗」をoptionalだけでは区別できない点に注意（レビューM-7）。
+  captureのResult化と合わせて確定する
 - 既定参照範囲（domains省略時）の定義
+- dataとcapabilityは**取得時点が異なる**（dataは今のRegistry、capabilityは最後のnotify時点）。
+  相互整合を保証しない旨のPrinterStatus契約明記（レビューM-10）
+
+（確定済み：getCurrentCapability＝atomic shared_ptr方式・§3.1）

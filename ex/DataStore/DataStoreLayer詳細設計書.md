@@ -193,9 +193,16 @@ using OperationReportQueue = IQueue<DataEntryItem>;
 | 優先 | 高優先で処理 | 通常 |
 | 受理時通知 | FaultDispatcherへnotify | OperationDispatcherへnotify |
 | 排他 | 内部mutex | 内部mutex |
+| **喪失契約** | **喪失不可（§10.1）** | **喪失不可（§10.1）** |
 
 - 提供IF：`enqueue(item)` / `dequeue()`（一般的なthread-safe FIFO）。
 - `enqueue` 成功時に対応Dispatcherの待機を解除（condition variable等）。
+- `dequeue()` は**停止要求（stop token）で解除可能**であること（ライフサイクル設計書参照）。
+
+> **喪失不可の理由（H-2）**：FaultRegistryは差分イベント（Raised/Cleared等）から状態を
+> 再構成する方式であり、1件の欠落が恒久的な状態不整合となる（CurrentValueと異なり
+> 自己修復しない）。OperationReportも順序・欠落禁止が要求される。
+> よって両Queueは容量・監視・再同期（§10.1）で喪失不可を担保する。
 
 ### 4.2 CurrentValueBuffer
 
@@ -236,10 +243,11 @@ public:
 
 ```cpp
 void dispatch() {   // Dispatcher専用スレッドのループ
-    for (;;) {
-        DataEntryItem item = queue.dequeue();   // 空ならブロック
-        RegistryDomain d = registry.apply(item);
-        if (changed(d)) notifier.notifyUpdated({ d });
+    while (!stopRequested()) {
+        auto item = queue.dequeue(stopToken);   // 空ならブロック（停止要求で解除）
+        if (!item) break;                       // 停止
+        std::optional<RegistryDomain> d = registry.apply(*item);
+        if (d) notifier.notifyUpdated({ *d });  // 変化なし(nullopt)なら通知しない
     }
 }
 ```
@@ -254,8 +262,8 @@ void dispatch() {   // タイマ周期で起動
     auto updated = buffer.takeUpdatedValues();
     RegistryDomainSet changed;
     for (auto& item : updated) {
-        RegistryDomain d = registry.apply(item);
-        if (isChanged(d)) changed.add(d);
+        std::optional<RegistryDomain> d = registry.apply(item);
+        if (d) changed.add(*d);   // 変化なし(nullopt)は加えない
     }
     if (!changed.empty()) notifier.notifyUpdated(changed);
 }
@@ -281,7 +289,7 @@ class FaultRegistry {
     mutable std::mutex mutex_;
     /* 発生中Faultの集合（Id -> 状態） */
 public:
-    RegistryDomain apply(const DataEntryItem& item);
+    std::optional<RegistryDomain> apply(const DataEntryItem& item); // 変化なし=nullopt
     FaultSnapshot  makeSnapshot() const;
 };
 ```
@@ -296,7 +304,7 @@ public:
 | UpdatedHeal | 登録済みエラーの状態を「回復」に更新する |
 | UpdatedActive | 登録済みエラーの状態を「発生」に更新する |
 
-- 変化があった場合、対応する `RegistryDomain` を返す（Dispatcherが通知判定に使用）。
+- 変化があった場合、対応する `RegistryDomain` を返す。変化がなければ `nullopt` を返す（Dispatcherが通知判定に使用）。
 
 ### 6.3 OperationRegistry
 
@@ -306,7 +314,7 @@ public:
 class OperationRegistry {
     mutable std::mutex mutex_;
 public:
-    RegistryDomain    apply(const DataEntryItem& item);   // Idに応じ動作報告を反映
+    std::optional<RegistryDomain> apply(const DataEntryItem& item); // Idに応じ反映。変化なし=nullopt
     OperationSnapshot makeSnapshot() const;
 };
 ```
@@ -321,7 +329,7 @@ public:
 class CurrentValueRegistry {
     mutable std::mutex mutex_;
 public:
-    RegistryDomain      apply(const DataEntryItem& item); // Idに応じ最新値を反映
+    std::optional<RegistryDomain> apply(const DataEntryItem& item); // Idに応じ最新値を反映。変化なし=nullopt
     CurrentValueSnapshot makeSnapshot() const;
 };
 ```
@@ -385,7 +393,13 @@ struct IRegistryUpdateNotifier {
 
 - **Capability Layerが実装**し、DataStore Layer（各Dispatcher）が呼び出す。
 - 通知は「どのドメインが変化したか」の契機のみ。実データはcaptureで取りに来る（Pull型）。
-- notifyUpdatedは軽量・非ブロッキングであること（Dispatcherを長時間止めない）。
+
+**層間契約（H-1対応・確定）**：
+- `notifyUpdated` は **3つのDispatcherスレッドから並行に呼ばれ得る**。実装はスレッドセーフであること。
+- 実装は **pendingドメイン集合へのOR合流 + wake** とする（Capability詳細 §1.1）。
+  キューイングではないため通知の溢れ・喪失は構造的に発生しない。
+- `notifyUpdated` は非ブロッキング・O(1)で戻ること（Dispatcherを長時間止めない）。
+- 通知欠落への最終救済として、Capability側が低頻度の周期フル再評価を行う（同 §1.1）。
 
 ---
 
@@ -459,10 +473,33 @@ sequenceDiagram
 
 ## 10. エラー処理
 
+### 10.1 喪失不可レーンの容量超過と再同期（H-2対応）
+
+Fault / OperationReport は喪失不可データである。以下の多段防御で担保する。
+
+**(1) 予防：サイジングとブロッキングpost**
+- 両Queueは最悪バースト（Fault嵐・cfgで定義）を収容できる容量とする。
+- `postFaultInput` / `postOperationReport` は容量超過時に**即時エラーを返さず、
+  短時間（cfg上限）のブロッキング待機**を行う（Fault消費は高優先スレッドのため通常は即空きが出る）。
+
+**(2) 検知：ウォーターマーク監視**
+- Queue使用率がハイウォーターマーク（cfg）を超えた時点で警告ログを出す。
+- 上限待機タイムアウトまで空かず投入に失敗した場合、**喪失発生**として扱い(3)へ移行する。
+
+**(3) 回復：フル再同期プロトコル**
+- 喪失発生時、DataStore Layerは該当レーンを**Degraded状態**とし、以下を実行する。
+  - Fault：FaultRegistryへ `AllCleared` を適用 → 入力元へ**現況再送要求**
+    （Adapter経由の resync 要求IF。入力元は発生中Faultを全件再Raiseする）→ 完了で復帰。
+  - Operation：入力元へ現況スナップショットの再送を要求し、OperationRegistryを再構築する。
+- 再同期IFの具体形（Adapter⇔入力元間の契約）は次段で定義するが、
+  **「喪失＝検知して再同期する」ことを層間契約として必須とする**（黙って続行しない）。
+
+### 10.2 その他
+
 | 事象 | 発生元 | 挙動 |
 |------|--------|------|
 | 分類/型不一致 | CentralInputPort | `false` 返却・投入せず・ログ（設計不備） |
-| Queue容量超過 | Queue | `enqueue` 失敗を返す・データ破棄しないのは呼び出し側責務 |
+| CurrentValueBuffer | — | 上書き方式のため容量超過なし（自己修復型） |
 | 未定義Id | Registry.apply | 反映せず・ログ |
 | makeSnapshot中の異常 | Registry/Reader | 呼び出し元へ通知・Readerはリカバリしない |
 
@@ -487,5 +524,8 @@ sequenceDiagram
 
 - `DataValue` / 各ドメインの具体スキーマ（Env等）の型定義
 - RegistryDomainの正式な列挙とId→Domain対応表
-- Queue容量・CurrentValueDispatcher周期・Fault優先度の具体値（cfg化）
-- notifyUpdatedの実装形態（直接呼び出し / イベントキュー）の確定
+- Queue容量（最悪バースト定義）・ウォーターマーク・post待機上限・CurrentValueDispatcher周期・Fault優先度の具体値（cfg化）
+- 再同期IF（Adapter⇔入力元の現況再送要求）の具体契約（§10.1）
+
+（確定済み：notifyUpdated＝pendingドメイン集合方式（§8・Capability詳細§1.1）、
+apply戻り値＝std::optional<RegistryDomain>、起動/停止＝ライフサイクル設計書）

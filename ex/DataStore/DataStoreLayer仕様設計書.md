@@ -435,11 +435,12 @@ mutable std::mutex mutex_;
 
 #### 6.9.2 提供IF
 ```
-void apply(const DataEntryItem &item);
+std::optional<RegistryDomain> apply(const DataEntryItem &item);
 ```
 
 DataEntryItem.context内のFaultStateに応じて、発生中のFaultを操作する。
-- Rased
+変化があった場合は該当RegistryDomainを、変化がなければnulloptを返す（Dispatcherの通知判定に用いる）。
+- Raised
   新規エラーの登録  
 - Cleared
   エラーのクリア
@@ -471,10 +472,11 @@ mutable std::mutex mutex_;
 
 #### 6.9.2 提供IF
 ```
-void apply(const DataEntryItem &item)
+std::optional<RegistryDomain> apply(const DataEntryItem &item)
 ```
 
 Idに応じて動作報告を反映する。
+変化があった場合は該当RegistryDomainを、変化がなければnulloptを返す。
 
 ```
 OperationSnapshot makeSnapshot()
@@ -497,10 +499,11 @@ mutable std::mutex mutex_;
 
 #### 6.10.2 提供IF
 ```
-RegistryDomain apply(const DataEntryItem &item)
+std::optional<RegistryDomain> apply(const DataEntryItem &item)
 ```
 
 Idに応じて保存先へ最新値を反映する。
+変化があった場合は該当RegistryDomainを、変化がなければnulloptを返す。
 
 ```
 CurrentValueSnapshot makeSnapshot()
@@ -570,7 +573,7 @@ Contextはkeyと値の組の集合で構成される。
 
 Contextに利用可能なkeyはData種別ごとに定義する。
 - FaultState:異常系で用いられるkey。
-  Rased,Cleared,AllCleared,UpdatedHeal,UpdatedActiveの5種類の値をとる。
+  Raised,Cleared,AllCleared,UpdatedHeal,UpdatedActiveの5種類の値をとる。
   FaultReposityへのapply()時にそれぞれ個別の挙動を行う。
   詳細はFaultRepositry章にて記載。
 
@@ -782,6 +785,8 @@ Capability Layerへ提供するsnapshotは生成時点でのドメインごと�
 - Adapter LayerはDataStore Layer内部状態へアクセスしない
 - DispatcherはCapability Layerへ更新通知のみを行う
 - 更新通知にはRegistryDomainSetを利用する
+- FaultInputおよびOperationReportは喪失不可データである。喪失発生時は検知して再同期する
+  （詳細設計 §10.1 のフル再同期プロトコルを必須とする。黙って続行しない）
 
 ---
 

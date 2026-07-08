@@ -30,14 +30,61 @@ flowchart TB
     CM -->|notify(capability)| Pub
 ```
 
-### 1.1 スレッドモデル
+### 1.1 スレッドモデルと通知受理機構（H-1対応）
+
 - Capability Layerは専用スレッドで動作し、DataStore処理スレッドから独立する。
-- `onRegistryUpdated(domains)` は通知契機を受けるのみ（軽量）。実処理は本スレッドで直列実行。
-- 直列実行のため、前回Capability保持に追加ロックは不要（単一スレッド更新）。
+- `onRegistryUpdated(domains)` は**3つのDispatcherスレッドから並行に呼ばれる**前提とし、
+  以下の **pendingドメイン集合方式** で受理する。
+
+```cpp
+class CapabilityManager {
+    RegistryDomainSet pending_;        // 未処理ドメインの集合（OR合流）
+    std::mutex        pendingMutex_;
+    std::condition_variable wake_;
+public:
+    // Dispatcherスレッドから呼ばれる（非ブロッキング・軽量）
+    void onRegistryUpdated(const RegistryDomainSet& domains) {
+        { std::lock_guard lk(pendingMutex_); pending_ |= domains; }
+        wake_.notify_one();
+    }
+    // Capability専用スレッドのループ
+    void run() {
+        while (!stopRequested()) {
+            RegistryDomainSet domains;
+            { std::unique_lock lk(pendingMutex_);
+              wake_.wait_for(lk, fullReevalPeriod_, [&]{ return !pending_.empty() || stopRequested(); });
+              domains = std::exchange(pending_, {}); }
+            if (domains.empty()) domains = AllDomains;   // 周期フル再評価（セーフティネット）
+            process(domains);                            // §3.2
+        }
+    }
+};
+```
+
+**この方式の保証**：
+- 通知は**キューではなく集合へのOR合流**であるため、溢れ・喪失が構造的に発生しない
+  （同一ドメインの多重通知は自然に合流し、処理は常に最新Registry状態のcaptureで行われる）。
+- 処理中に届いた通知は `pending_` に蓄積され、次周回で必ず処理される。
+- `wait_for` のタイムアウト（`fullReevalPeriod_`・低頻度、cfg）により、
+  万一の通知欠落があっても**周期フル再評価**で回復する（レベルトリガの救済）。
 
 ### 1.2 排他
+
 - Registryは直接ロックしない。参照はMachineSnapshotReaderのcapture（Registry単位短時間ロック）に委ねる。
-- 前回Publish済Capabilityは本層スレッドのみが更新するため内部ロック不要。
+- 前回Publish済Capabilityは **不変オブジェクト + atomicなshared_ptr差し替え** で保持する（H-7対応）。
+  更新は本層スレッドのみが行い、**Accessor Layer等の他スレッドはatomic loadで安全に読める**。
+
+```cpp
+std::shared_ptr<const CapabilitySet> prev_;   // std::atomic_load/storeで読み書き
+
+// 本層スレッド：Publish後に差し替え
+std::atomic_store(&prev_, std::make_shared<const CapabilitySet>(merged));
+
+// 他スレッド（Accessor）：現在状態の取得
+std::shared_ptr<const CapabilitySet> getCurrentCapability() const {
+    return std::atomic_load(&prev_);
+}
+```
 
 ---
 
@@ -75,28 +122,44 @@ struct StatusDiffResult {
 
 ### 3.1 提供IF
 ```cpp
-void onRegistryUpdated(const RegistryDomainSet& domains);  // IRegistryUpdateNotifier実装
+void onRegistryUpdated(const RegistryDomainSet& domains);          // IRegistryUpdateNotifier実装
+std::shared_ptr<const CapabilitySet> getCurrentCapability() const; // Accessor向け現在状態参照（H-7）
 ```
 
-### 3.2 内部処理
+### 3.2 内部処理（process）
 ```text
-onRegistryUpdated(domains):
+process(domains):
   1. Snapshot取得範囲を決定（§3.3）
   2. MachineSnapshotReader.capture(request) → MachineSnapshot
-  3. CapabilityBuilder.build(snapshot) → CapabilitySet（今回）
-  4. CapabilityDiffChecker.hasDifference(prev, current) → StatusDiffResult
-  5. 差分なし → 終了（Publishしない）
-  6. CapabilityPriorityChecker.check(current) → priority
-  7. Capability を構築（changedKinds/changedDomains/explicitEvents 設定）
+  3. CapabilityBuilder.build(snapshot) → 部分CapabilitySet（評価したKindのみ値あり）
+  4. 【マージ】merged = prevのコピーに、部分Setの値ありKindのみを上書き（H-3対応・§3.4）
+  5. CapabilityDiffChecker.hasDifference(prev, merged) → StatusDiffResult
+     （比較は常に完全Set同士。未評価Kindはprev値を引き継ぐため偽差分は生じない）
+  6. 差分なし → 終了（Publishしない）
+  7. CapabilityPriorityChecker.check(merged) → priority
+  8. Capability を構築（set=merged【完全Set】, changedKinds/changedDomains/explicitEvents 設定）
      - Error/Job に変化 → explicitEvents に追加
-  8. IPublisher.notify(capability)
-  9. 前回Publish済Capabilityを current で更新
+  9. IPublisher.notify(capability)
+ 10. prev を merged でatomicに差し替え（§1.2）
 ```
 
 ### 3.3 Snapshot取得範囲決定
-- 更新された `RegistryDomainSet` から、影響を受けるCapabilityの依存ドメインを逆引きし、
-  必要最小限のドメインのみを `SnapshotRequest.domains` に含める。
+- 更新された `RegistryDomainSet` から、影響を受けるCapability群を逆引きし、
+  **それらのCapabilityの依存ドメインの和集合（依存クロージャ）** を `SnapshotRequest.domains` に含める。
+  （変更ドメインだけでは複数ドメイン依存のCap（PrintCap等）が評価不能になるため、
+  「影響Capの依存全部」を取得することが必須である）
 - 依存表（Capability → RegistryDomain）は静的に定義する（基本設計 §4.2）。
+
+### 3.4 CapabilitySetマージ規則（H-3対応・正式契約）
+
+| 規則 | 内容 |
+|------|------|
+| 部分評価 | buildは要求ドメインに対応するEvaluatorのみ実行し、未評価Kindは nullopt |
+| マージ | `merged[k] = current[k].has_value() ? current[k] : prev[k]`（未評価=前回値維持） |
+| 差分判定 | 常に完全Set（prev vs merged）で比較する。nullopt との比較は行わない |
+| prev更新 | 完全Setである merged のみを保存する。**部分Setでprevを上書きしない** |
+| 下流受け渡し | Publisher / Accessor へは常に完全Setを渡す。部分Setは本層内部表現に留める |
+| 評価不能 | Snapshot不整合等で評価できなかったKindは「未評価」と同じくprev値を維持し、ログ出力する |
 
 ### 3.4 非責務
 - Registry更新・直接参照、Snapshotの実コピー、判定式の詳細ロジック、実配信は行わない。
@@ -218,4 +281,7 @@ sequenceDiagram
 - CapabilityValueの種別ごとスキーマ
 - Capability → RegistryDomain 依存表の正式定義
 - PriorityChecker判定条件の確定
-- getCurrentCapability（Accessor向け現在状態参照IF）の提供
+- 周期フル再評価の周期値（fullReevalPeriod_）のcfg定義
+
+（確定済み：通知受理機構=pendingドメイン集合方式(§1.1)、CapabilitySetマージ規則(§3.4)、
+getCurrentCapability=atomic shared_ptr方式(§1.2/§3.1)）

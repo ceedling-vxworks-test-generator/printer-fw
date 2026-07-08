@@ -83,27 +83,60 @@ enum class PublishTrigger { OnChange, Periodic, Threshold, Event, Initial };
 ### 3.1 責務
 `notify(capability)` を受理し、Capabilityごとのタスクで配信要否を決定して配信を起動する。
 
-### 3.2 内部構造
-- Capabilityごとの受理キュー / タスク（タスク数はcfgから決定）。
-- Rate Limitポリシ（Capability種別ごと）。
+### 3.2 内部構造とデマルチ（H-4対応）
+
+Capability Layerからのnotifyは**8種を内包する集約Capability**（完全CapabilitySet +
+changedKinds + explicitEvents）である。一方、配信処理は**Kind単位のタスク**で行う。
+両者の橋渡しとして、受理時に**デマルチ（Kind別分解）**を行う。
+
+```cpp
+// タスク入力型（notify引数の集約Capabilityとは別の型）
+struct KindDeliveryItem {
+    CapabilityKind     kind;
+    CapabilityValue    value;          // 完全Setから抽出した当該Kindの値
+    CapabilityPriority priority;       // 集約Capability由来
+    bool               explicitEvent;  // kind ∈ explicitEvents（Event配信対象）
+};
+```
+
+- Kindごとの受理キュー / タスク（タスク数はcfgから決定）。
+- Rate Limitポリシ（Kind種別ごと）。
 
 ### 3.3 提供IF
 ```cpp
-void notify(const Capability& capability);   // IPublisher実装
+void notify(const Capability& capability);   // IPublisher実装（受理・デマルチのみで即戻る）
 ```
 
-### 3.4 処理アルゴリズム（Capabilityタスク）
+### 3.4 処理アルゴリズム
+
+**受理（notify・呼び出しスレッド）**：
 ```text
-1. 受理キューからCapabilityを取り出す
-2. 変更ドメイン/優先度を確認する（Capability.publish優先度, 変更ドメイン）
-3. Publishトリガーを決定する（§6）
-4. Subscription Brokerへ対象購読者を要求（関心Cap一致）
-5. 各対象購読者について State Repository で配信的差分を判定
-6. Rate Limit を適用（lastDeliveredAt から最小間隔未満なら送出保留）
-7. 配信対象を Subscription Broker.publish() へ渡す
+1. capability.changedKinds の各Kindについて KindDeliveryItem を生成
+   （value=set[kind], priority, explicitEvent=kind∈explicitEvents）
+2. 各Kindの受理キューへ投入して即戻る
+```
+
+**Kindタスク**：
+```text
+1. 受理キューから KindDeliveryItem を取り出す
+2. Publishトリガーを決定する（§6・notify駆動パス）
+3. Subscription Brokerへ対象購読者を要求（resolve(kind)・関心Cap一致）
+4. 各対象購読者について State Repository で配信的差分を判定
+5. Rate Limit を適用（§3.5）
+6. 配信対象を Subscription Broker.publish() へ渡す
 ```
 
 - 優先度Critical/Highは他タスクに優先して処理する（優先度は CapabilityPriorityChecker 由来）。
+
+### 3.5 Rate Limit（H-5対応：トレーリングエッジ配信・Event除外）
+
+| 規則 | 内容 |
+|------|------|
+| 適用単位 | 購読者×Kind |
+| 抑制 | lastDeliveredAt から最小間隔未満の場合、即時送出しない |
+| **トレーリングエッジ** | 抑制時は当該(購読者,Kind)に**保留中フラグ+最新値**を記録し、**間隔満了タイマで遅延送出**する。これにより「バースト最後の変化が永久に届かない」ことを防ぐ（最終状態の到達保証） |
+| 保留の上書き | 保留中に新しい値が来たら保留値を最新に置き換える（送るのは常に最新1件） |
+| **適用除外** | `explicitEvent=true`（Event配信）および priority=Critical/High は **Rate Limit適用除外**（即時送出） |
 
 ---
 
@@ -139,6 +172,13 @@ public:
 ### 4.4 update
 配信成功後にのみ `lastDelivered` / `lastDeliveredAt` を更新する（送出失敗時は更新しない）。
 
+### 4.5 removeSubscriber（M-9対応）
+```cpp
+void removeSubscriber(SubscriberId);
+```
+unsubscribe時にBrokerから呼ばれ、当該Subscriberの全DeliveryRecordを削除する。
+これにより再subscribe時はInitial判定（記録なし=初回）が正しく機能し、レコードリークも防ぐ。
+
 ---
 
 ## 5. Subscription Broker（③購読管理・配信）
@@ -155,7 +195,7 @@ class SubscriptionBroker {
     std::shared_mutex mutex_;
 public:
     void subscribe(const Subscriber&, const SubscriptionSet&);
-    void unsubscribe(SubscriberId);
+    void unsubscribe(SubscriberId);   // StateRepositoryの当該DeliveryRecordも削除する（§4.5）
     std::vector<SubscriberId> resolve(CapabilityKind);   // 関心Cap一致（登録順）
     void publish(SubscriberId, const Capability&);       // Push送出
 };
@@ -170,22 +210,38 @@ public:
 
 ---
 
-## 6. Publishトリガー決定
+## 6. Publishトリガー決定（2パス構成・M-5対応）
+
+トリガーは**notify駆動パス**と**タイマ駆動パス**の2系統に分離する。
+
+### 6.1 notify駆動パス（KindDeliveryItem受理時）
 
 ```mermaid
 flowchart TD
-    A[notify受理] --> B{明示イベント?}
-    B -- Yes --> E[Event配信]
-    B -- No --> C{閾値跨ぎ通知?}
-    C -- Yes --> T[Threshold配信]
-    C -- No --> D{周期到来?}
-    D -- Yes --> P[Periodic配信]
-    D -- No --> O{配信的差分あり?}
+    A[KindDeliveryItem受理] --> B{explicitEvent?}
+    B -- Yes --> E[Event配信（Rate Limit除外・無条件）]
+    B -- No --> T{閾値跨ぎ由来?}
+    T -- Yes --> TH[Threshold配信]
+    T -- No --> O{配信的差分あり?}
     O -- Yes --> OC[OnChange配信]
     O -- No --> N[配信なし]
 ```
 
-- Initialは subscribe 時に別途、現在Capを初回配信する経路で扱う。
+- 同時成立時の優先： **Event > Threshold > OnChange**（上位1つのトリガ種別として配信）。
+
+### 6.2 タイマ駆動パス（Periodic・notifyと独立）
+
+```mermaid
+flowchart TD
+    P[周期タイマ満了] --> Q[Periodic購読者を列挙]
+    Q --> R[getCurrentの最新値を配信（値不変でも配信）]
+    P2[Rate Limit保留タイマ満了] --> S[保留中の最新値を遅延送出（§3.5）]
+```
+
+- Periodicは**notifyが来なくても**周期で配信する（値不変でも配信する契約）。
+  配信値はStateRepositoryの保留最新値、なければ最後にnotifyされた値を用いる。
+- Initialは subscribe 時に、Capability Layerの getCurrentCapability() から現在Capを取得して初回配信する
+  （起動時の初期フル評価により現在Capは常に存在する。ライフサイクル設計書 Phase 3 参照）。
 - Heartbeatは本層に存在しない（外部タスクの責務）。
 
 ---
@@ -241,7 +297,12 @@ sequenceDiagram
 
 ## 10. 次段（未確定）
 
-- RateLimitPolicyの具体仕様（最小間隔・バースト許容）
+- RateLimitPolicyの具体値（最小間隔・バースト許容）のcfg定義
 - 受理キュー溢れ時の間引き方針の確定
-- Initial配信（subscribe時初回）の現在Cap取得経路（Accessor併用可否）
+  ※間引きを行う場合、changedKinds/explicitEvents のエッジ情報は**後続レコードへORマージして保存必須**
+  （エッジ情報を黙って破棄してはならない）（レビューM-8）
 - 購読先ハンドルの抽象（コールバック / メッセージキュー）の確定
+- 送出失敗時の再試行ポリシ（回数・間隔）の確定
+
+（確定済み：デマルチ=KindDeliveryItem方式(§3.2/§3.4)、Rate Limitトレーリングエッジ+Event/Critical除外(§3.5)、
+トリガ2パス分離(§6)、Initial=getCurrentCapability経由(§6.2)、unsubscribe時レコード削除(§4.5)）
