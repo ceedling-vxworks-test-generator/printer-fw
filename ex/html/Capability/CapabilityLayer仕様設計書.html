@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CapabilityLayer仕様設計書</title>
+<style>
+body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
+       max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
+h1 { border-bottom: 3px solid #0969da; padding-bottom:.3em; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom:.25em; margin-top:2em; }
+h3 { margin-top:1.6em; }
+table { border-collapse: collapse; margin: 1em 0; width:100%; font-size:.95em; }
+th, td { border: 1px solid #d0d7de; padding: 6px 12px; text-align:left; vertical-align:top; }
+th { background:#f6f8fa; }
+tr:nth-child(even) td { background:#fafbfc; }
+code { background:#f6f8fa; padding:.15em .4em; border-radius:4px;
+       font-family:"Consolas","MS Gothic",monospace; font-size:.9em; }
+pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:6px; padding:14px; overflow-x:auto; }
+pre code { background:none; padding:0; }
+blockquote { border-left:4px solid #0969da; margin:1em 0; padding:.3em 1em; color:#57606a; background:#f6f8fa; }
+.mermaid { background:#fff; border:1px dashed #d0d7de; border-radius:6px;
+           padding:12px; margin:1em 0; text-align:center; }
+.docnav { font-size:.9em; margin-bottom:1.2em; }
+.docnav a { color:#0969da; text-decoration:none; }
+footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0d7de; padding-top:1em; }
+</style>
+</head>
+<body>
+<nav class="docnav"><a href="../index.html">&#8962; 設計書一覧へ</a></nav>
+<h1 id="capability-layer">Capability Layer 基本設計書</h1>
+<h2 id="1">1. はじめに</h2>
+<h3 id="11">1.1 本書の目的</h3>
+<p>本設計は、Capability Layerの役割・責務・構成および設計原則を定義することを目的とする。
+Capability Layerは、Domain DataStoreに保持された事実データを入力として受け取り、意味のある状態（Capability）を導出する層である。
+本設計により、
+- 状態の意味解釈を一箇所に集約
+- 判定ロジックの分散防止
+- UI・制御・外部連携に対する一貫した状態提供
+を実現する。</p>
+<h3 id="12">1.2 対象範囲</h3>
+<p>本書で扱う範囲を明確化する。</p>
+<h3 id="13">1.3 用語定義</h3>
+<table>
+<thead>
+<tr>
+<th>用語</th>
+<th>説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DataEntryItem</td>
+<td>DataStore Layer内部で利用する標準データモデル</td>
+</tr>
+<tr>
+<td>Data</td>
+<td>Mediator外部から入力される情報。</td>
+</tr>
+<tr>
+<td>State</td>
+<td>Dataを解釈した結果。Dataから再計算可能なものである。Capability Layerにて用いられる。</td>
+</tr>
+<tr>
+<td>DataId</td>
+<td>データ種別識別子。DataStore Layerにおいては保存先特定を主目的として利用する。</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>データに付与される補足情報</td>
+</tr>
+<tr>
+<td>Registry</td>
+<td>システム内のデータを集約して管理するコンポーネント</td>
+</tr>
+<tr>
+<td>RegistryDomain</td>
+<td>Registry内の保存領域を示すドメイン。例えばRegistry内の温度湿度関係データのドメインといったように指定可能。</td>
+</tr>
+<tr>
+<td>RegistryDomainSet</td>
+<td>RegistryDomainの複数指定版</td>
+</tr>
+<tr>
+<td>FaultInput</td>
+<td>異常系の入力。Error、Warningなど緊急性が高く、すぐにでも処理する必要がある入力。</td>
+</tr>
+<tr>
+<td>OperationReport</td>
+<td>動作報告系の入力。動作報告は順序を守る必要があるため、欠落や処理順序の入れ替えなどが起きてはいけない入力。</td>
+</tr>
+<tr>
+<td>CurrentValue</td>
+<td>最新値系の入力。ドライバから上がってくるセンサの値など最新値が欲しい入力。</td>
+</tr>
+<tr>
+<td>Snapshot</td>
+<td>ある時点のRegistry状態を読み取り専用で表現したデータ</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-capability-layer">2. Capability Layerの位置づけ</h2>
+<h3 id="21">2.1 システム全体構成</h3>
+<p>Adapter Layer（正規化・変換）<br />
+        ↓<br />
+DataStore Layer（事実保持）<br />
+        ↓<br />
+Capability Layer（意味・判断）<br />
+        ↓<br />
+Hint / Facade（解釈・制御補助）<br />
+        ↓<br />
+Publisher / 外部IF（公開）  </p>
+<h3 id="22-capability-layer">2.2 Capability Layerの責務</h3>
+<ul>
+<li>Registry更新通知（onRegistryUpdated）の受理</li>
+<li>必要範囲のSnapshot取得（MachineSnapshotReader経由）</li>
+<li>Snapshotから意味のある状態（Capability）を導出する</li>
+<li>閾値跨ぎ（Threshold）の判定と派生イベントの発行</li>
+<li>前回Capabilityとの意味的差分の判定</li>
+<li>Publish優先度の判定</li>
+<li>Publisher LayerへのCapability通知</li>
+</ul>
+<h3 id="23-capability-layer">2.3 Capability Layerの非責務</h3>
+<ul>
+<li>Registryの直接参照・更新（DataStore Layer）</li>
+<li>Snapshotの実コピー処理（MachineSnapshotReader）</li>
+<li>状態の永続保持（DataStore Layerが正本）</li>
+<li>購読者への実配信・配信的差分の管理（Publisher Layer）</li>
+<li>現在値の参照提供（Accessor Layer）</li>
+</ul>
+<h2 id="3">3. 入出力仕様</h2>
+<h3 id="31">3.1 入力</h3>
+<p>Capability Layerへの主な入力はDataStore LayerからのRegistry更新通知である。</p>
+<p>入力内容：<br />
+- 更新されたRegistry領域がどこかわかるもの</p>
+<h3 id="32">3.2 参照データ</h3>
+<p>Capability Layerは直接DataStore LayerのRegistryを読まず、SnapshotReaderを介して参照する。</p>
+<h3 id="33">3.3 出力</h3>
+<p>Capability LayerはPublisherへ生成済みCapabilityを渡す。</p>
+<p>出力内容：
+生成されたCapability。</p>
+<h2 id="4-capability">4. Capability生成方針</h2>
+<h3 id="41">4.1 基本方針</h3>
+<p>Capability Layerは、DataStoreLayerから更新通知を受けたあと、必要なSnapshotを取得し、現在状態を生成する。
+Registry更新通知<br />
+    ↓<br />
+必要Snapshot決定<br />
+    ↓
+Snapshot取得
+    ↓
+Capability生成
+    ↓
+前回Capabilityと比較
+    ↓
+変化ありならPublisherへ通知（ErrorCapおよびJobCapに変化があったならばそれに加えて明示イベントとしても通知する）</p>
+<h3 id="42-capability">4.2 Capability生成単位</h3>
+<p>Capabilityは意味のある製品状態の単位で生成する。本システムでは以下の8種を対象とする。</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>意味</th>
+<th>主な依存Registry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ErrorCap</td>
+<td>エラー集約</td>
+<td>FaultRegistry</td>
+</tr>
+<tr>
+<td>JobCap</td>
+<td>ジョブ進捗</td>
+<td>OperationRegistry</td>
+</tr>
+<tr>
+<td>EnvCap</td>
+<td>温湿度範囲</td>
+<td>CurrentValueRegistry</td>
+</tr>
+<tr>
+<td>MaintCap</td>
+<td>メンテ要否</td>
+<td>OperationRegistry / CurrentValueRegistry</td>
+</tr>
+<tr>
+<td>HealthCap</td>
+<td>ユニット死活/劣化</td>
+<td>FaultRegistry / OperationRegistry</td>
+</tr>
+<tr>
+<td>SafetyCap</td>
+<td>カバー/E-Stop</td>
+<td>FaultRegistry / CurrentValueRegistry</td>
+</tr>
+<tr>
+<td>ConsumableCap</td>
+<td>インク/ワイパー残量</td>
+<td>CurrentValueRegistry</td>
+</tr>
+<tr>
+<td>PrintCap</td>
+<td>印字可能性</td>
+<td>（下記参照）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-capability">4.3 Capability構成</h3>
+<p>各Capabilityは、Snapshot（観測事実）から導出される再計算可能な状態である。</p>
+<ul>
+<li>Capabilityは状態（名詞）であり、判定式の適用結果として得られる</li>
+<li>CapabilityはDataStoreの値のみに依存し、他Capabilityには依存しない</li>
+</ul>
+<blockquote>
+<p><strong>PrintCap（印字可能性）の設計原則</strong>：PrintCapは一見他Cap（Error/Safety/Consumable等）を
+参照するように見えるが、<strong>実際にはDataStore（Registry/Snapshot）の値にのみ依存する</strong>。
+複数Capを合成した「印字可能か」の総合判断が必要な場合、その合成はFacade側で行い、
+Capability Layer内でCap同士を相互参照させない。</p>
+</blockquote>
+<h3 id="44-capability">4.4 Capability生成ルール</h3>
+<ul>
+<li>各Capabilityの種類ごとに判定クラス（判定式）を持つ（CapabilityBuilder配下）</li>
+<li>判定式はSnapshotを入力とし、対応するCapabilityを出力する</li>
+<li><strong>閾値跨ぎ（Threshold）の判定は本層で行う</strong>。連続値が閾値を跨いだ場合、
+  該当Capabilityの変化として扱い、派生イベントを発行する
+  （閾値の「跨ぎ判定」は判断であり本層の責務。配信タイミング制御はPublisher Layer）</li>
+<li>ErrorCap / JobCap に変化があった場合は、通常の変更通知に加えて明示イベントとしても通知する</li>
+</ul>
+<h2 id="5-snapshot">5. Snapshot取得設計</h2>
+<p>Capability Layerは毎回すべてのRegistryを参照せず、更新内容に応じて必要なSnapshotのみ取得する。<br />
+Snapshot取得対象は、RegistrtyDomainで指定する。(DataStore Layer参照)<br />
+Snapshot取得時の排他はSnapshotReader側で行う。
+ステータス管理モジュールはRegistryを直接ロックしない。</p>
+<h2 id="6-capability">6. Capability生成設計</h2>
+<p>Capability Layerは取得したSnapshotを元にCapabilityを生成する。<br />
+Capabilityの種類ごとに判定クラスが存在しており、それを用いてSnapshotからCapabilityの生成を行う。<br />
+各判定クラスについては現在TBD</p>
+<h2 id="7">7. 差分検知設計</h2>
+<p>Capability Layerは生成したCapabilityと前回生成済のCapabilityを比較する。
+差分がある場合、Capability変更検知通知をPublisher Layerに通知する。
+差分のある箇所がErrorCapおよびJobCapならば、それに加えて明示イベントとしても通知する。</p>
+<h2 id="8">8. クラス構成</h2>
+<p>Capability Layerを構成するクラス、およびCapability Layerが利用する外部IFについて定義する。</p>
+<p>Capability Layer内のクラスは、以下を対象とする。
+- CapabilityManager
+- CapabilityBuilder
+- CapabilityDiffChecker
+- CapabilityPriorityChecker</p>
+<p>また、Capability Layerは以下の外部IFを利用する。
+- IMachineSnapshotReader
+- IPublisher</p>
+<h3 id="81">8.1 クラス構成概要</h3>
+<p>Capability Layerのクラス構成図を以下に示す。</p>
+<p><pre><code>TBD</code></pre></p>
+<p>CapabilityManagerは、DataStor Layerからの更新通知を契機として、Snapshot取得、Capability生成、差分判定、Publisher通知を制御する。</p>
+<p>CapabilityBuilderは、SnapshotからCapabilityを生成する。</p>
+<p>CapabilityDiffCheckerは、前回のCapabilityと今回生成したCapabilityを比較し、Publisherへ通知すべき差分があるかを判定する。</p>
+<p>CapabilityPriorityCheckerは、今回生成した、Capabilityの内容をもとに、Publish優先度を判定する。</p>
+<h3 id="82-capability-layer">8.2 Capability Layerクラス一覧</h3>
+<table>
+<thead>
+<tr>
+<th>クラス</th>
+<th>概要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CapabilityManager</td>
+<td>Capability Layer処理の中心クラス</td>
+</tr>
+<tr>
+<td>CapabilityBuilder</td>
+<td>SnapshotからCapabilityを生成するクラス</td>
+</tr>
+<tr>
+<td>CapabilityDiffChecker</td>
+<td>前回Capabilityと今回Capabilityの差分を判定するクラス</td>
+</tr>
+<tr>
+<td>CapabilityPriorityChecker</td>
+<td>今回生成したCapabilityの内容をもとに、Publish優先度を判定するクラス。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="83-if">8.3 外部依存IF一覧</h3>
+<table>
+<thead>
+<tr>
+<th>IF</th>
+<th>所属Layer</th>
+<th>概要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IMachineSnapshotReader</td>
+<td>DataStore Layer</td>
+<td>RegistryからSnapshotを取得するためのIF</td>
+</tr>
+<tr>
+<td>IPublisher</td>
+<td>Publisher Layer</td>
+<td>生成したCapabilityをPublisher層へ渡すためのIF</td>
+</tr>
+</tbody>
+</table>
+<p>上記クラスは、Capability Layer内のクラスではない。
+ただしCapability Layerが処理を行うために利用する外部依存IFとして、本章に記載する。</p>
+<h3 id="84-capabilitymanager">8.4 CapabilityManager</h3>
+<h4 id="841">8.4.1 責務</h4>
+<p>CapabilityManagerは、Capability Layer処理全体を制御する中心クラスである。</p>
+<p>主な責務を以下に示す。
+- Registry更新通知を受ける。
+- 更新されたRegistryDomainをもとにSnapshot取得範囲を決定する。
+- IMachineSnapshotReaderを介してSnapshotを取得する。
+- CapabilityBuilderにCapability生成を依頼する。
+- CapabilityDiffCheckerに差分判定を依頼する。
+- CapabilityPriorityCheckerにPublish優先度判定を依頼する。
+- Publishが必要な場合、IPublisherへKachineStatusを渡す
+- 前回Publish済のCapabilityを保持する。</p>
+<h3 id="842">8.4.2 非責務</h3>
+<p>CapabilityManagerは、以下を行わない。
+- Registryへの入力反映
+- Registryの直接参照
+- Registryの直接六
+- Snapshotの実コピー処理
+- Capabilityの詳細な生成ロジック
+- Subscriberへの実配信処理</p>
+<h3 id="843-if">8.4.3 提供IF</h3>
+<p>CapabilityManagerの提供IFを以下に示す。</p>
+<table>
+<thead>
+<tr>
+<th>IF</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>onRegistryUpdated(RegistryDomainSet&amp; domains)</td>
+<td>DataStore LayerからのRegistry更新通知を受け、ステータス生成処理を開始する。</td>
+</tr>
+</tbody>
+</table>
+<p>※IFは疑似コードであり、特定の言語の実装に準拠しない。</p>
+<h3 id="844">8.4.4 内部処理</h3>
+<p>Registry更新通知<br />
+    ↓<br />
+Snapshot取得範囲決定<br />
+    ↓<br />
+Snapshot取得要求<br />
+    ↓<br />
+Capability生成<br />
+    ↓<br />
+差分判定<br />
+    ↓<br />
+重要度判定<br />
+    ↓
+Publisher Layerへ通知</p>
+<h3 id="845">8.4.5 データ型</h3>
+<pre><code>sturct Capability {
+    Capability全体,
+    publish優先度,
+    変更ドメイン,
+}
+</code></pre>
+<h2 id="85-capabilitybuilder">8.5 CapabilityBuilder</h2>
+<h3 id="851">8.5.1 責務</h3>
+<p>CapabilityBuilderは、SnapshotからCapabilityを生成するクラスである。</p>
+<p>主な責務を以下に示す。
+- SnapshotからCapabilityを生成する。</p>
+<h3 id="852">8.5.2 非責務</h3>
+<p>CapabilityBuilderは、いかを行わない。
+- Registry更新通知の受信
+- Snapshot取得
+- 前回Capabilityとの差分判定
+- Publisher Layerへの通知
+- Registryの直接参照</p>
+<h3 id="853-if">8.5.3 提供IF</h3>
+<p>CapabilityBuilderの提供IFを以下に示す。</p>
+<table>
+<thead>
+<tr>
+<th>IF</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>build(Snapshot)</td>
+<td>Snapshotを元にCapabilityを生成する。</td>
+</tr>
+</tbody>
+</table>
+<p>※IFは疑似コードであり、特定の言語の実装に準拠しない。</p>
+<h2 id="86-capabilitydiffchecker">8.6 CapabilityDiffChecker</h2>
+<h3 id="861">8.6.1 責務</h3>
+<p>CapabilityDiffCheckerは、前回生成済のCapabilityと今回生成したCapabilityを比較し、Publisher Layerへ通知すべき差分があるかを判定するクラスである。</p>
+<p>主な責務を以下に示す。
+- 前回Capabilityと今回Capabilityを比較する。
+- Capabilityに差分があるか判定する。</p>
+<h3 id="862">8.6.2 非責務</h3>
+<p>CapabilityDiffCheckerは以下を行わない。
+- Capabilityの生成
+- Snapshotの取得
+- Publisher Layerへの通知
+- 前回Capabilityの更新管理</p>
+<h3 id="863-if">8.6.3 提供IF</h3>
+<p>CapabilityDiffCheckerの提供IFを以下に示す。
+| IF | 内容 |
+|--------|--------|
+| hasDifference(previousCapability, currentCapability) | 前回Capabilityと今回Capabilityを比較し、差分がある場合に差分有無と変更Capabilityを返す。 |</p>
+<h3 id="864">8.6.4 データ型</h3>
+<pre><code>struct StatusDiffResult{
+    変更有無,
+    変更Capabilityがどれか
+}
+
+</code></pre>
+<h2 id="87-capabilityprioritycheckertbd">8.7 CapabilityPriorityChecker（TBD）</h2>
+<p>TBD
+CapabilityPriorityCheckerは今回生成したCapabilityの内容をもとに、Publish優先度を判定するクラスである。
+Publisher層でPublishの優先度を制御するために用いられる。</p>
+<h3 id="871">8.7.1 責務</h3>
+<p>主な責務を以下に示す。
+- Capabilityの内容から優先度を判定する</p>
+<h3 id="872">8.7.2 非責務</h3>
+<p>CapabilityPriorityCheckerは以下を行わない。
+- Capabilityの生成
+- Snapshotの取得
+- Publisher Layerへの通知
+- 前回Capabilityの更新管理</p>
+<h3 id="873">8.7.3 関連データ型</h3>
+<pre><code>CapabilityPriority
+</code></pre>
+<p>Low、Normal、High、Criticalのいずれかの値をとるenum。</p>
+<h3 id="874-if">8.7.4 提供IF</h3>
+<p>CapabilityPriorityCheckerの提供IFを以下に示す。
+| IF | 内容 |
+|--------|--------|
+| check(capability) | Capabilityの内容を元にPublish優先度を返す。 |</p>
+<h2 id="87-imachinesnapshotreaderif">8.7 IMachineSnapshotReader（外部依存IF）</h2>
+<p>本クラスはDataStore Layerが提供するSnapshot取得IFである。
+CapabilityaManagerがRegistry情報を参照するために利用する。
+| IF | 内容 |
+|--------|--------|
+| capture(SnapshotRequest request) | 指定されたRegistryDomainSetに対応するSnapshotを取得する。 |</p>
+<p>詳細については、DataStore Layerの設計書を参照すること。</p>
+<h2 id="88-ipublisher">8.8 IPublisher</h2>
+<p>本クラスはPublisher Layerが提供するSnapshot取得IFである。
+CapabilityManagerがPublisher LayerにPublish Triggerを通知するために用いる。
+| IF | 内容 |
+|--------|--------|
+| notify(capability) | capabilityを渡す。 |</p>
+<h2 id="89">8.9 クラス間の呼び出し関係</h2>
+<p>TBD</p>
+<h2 id="810">8.10 クラス構成上の方針</h2>
+<p>本構成では以下の方針とする。
+- CapabilityManagerに処理を集中させすぎない。
+- Capability LayerはRegistryを直接参照しない
+- Capability LayerはSubscriberに直接Publishしない。</p>
+<h2 id="9">9. 処理シーケンス</h2>
+<p>TBD</p>
+<h2 id="10">10. 異常処理設計</h2>
+<h3 id="101-snapshot">10.1 Snapshot取得失敗</h3>
+<p>Snapshot取得失敗時は、Capability生成を中止し、ログを出力する。</p>
+<h3 id="102-snapshot">10.2 不整合Snapshot</h3>
+<p>Snapshot内のデータに不整合がある場合、軽微であれば可能な範囲でCapabilityを生成する。<br />
+重大な不整合の場合はCapability生成を中止し、ログを出力する。  </p>
+<h2 id="11_1">11. 排他・リアルタイム性設計</h2>
+<p>Capability LayerはRegistyを直接ロックしない。<br />
+MachineSnacpshotReaderが必要なRegistry領域のみ短時間ロックし、Snapshotをコピーする。<br />
+参照渡しではなくコピーであるのは書き込みと読み込みが競合してしまうことを防ぐためである。　</p>
+<p>Snapshotタイミング以外でRegistryロックを行わない。</p>
+<h2 id="12_1">12. テスト方針</h2>
+<p>TBD</p>
+<h2 id="13_1">13. 未決事項</h2>
+<footer>printer-fw FSI 設計書（Markdown原本: Capability/CapabilityLayer仕様設計書.md）</footer>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>

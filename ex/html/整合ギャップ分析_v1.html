@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>整合ギャップ分析_v1</title>
+<style>
+body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
+       max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
+h1 { border-bottom: 3px solid #0969da; padding-bottom:.3em; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom:.25em; margin-top:2em; }
+h3 { margin-top:1.6em; }
+table { border-collapse: collapse; margin: 1em 0; width:100%; font-size:.95em; }
+th, td { border: 1px solid #d0d7de; padding: 6px 12px; text-align:left; vertical-align:top; }
+th { background:#f6f8fa; }
+tr:nth-child(even) td { background:#fafbfc; }
+code { background:#f6f8fa; padding:.15em .4em; border-radius:4px;
+       font-family:"Consolas","MS Gothic",monospace; font-size:.9em; }
+pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:6px; padding:14px; overflow-x:auto; }
+pre code { background:none; padding:0; }
+blockquote { border-left:4px solid #0969da; margin:1em 0; padding:.3em 1em; color:#57606a; background:#f6f8fa; }
+.mermaid { background:#fff; border:1px dashed #d0d7de; border-radius:6px;
+           padding:12px; margin:1em 0; text-align:center; }
+.docnav { font-size:.9em; margin-bottom:1.2em; }
+.docnav a { color:#0969da; text-decoration:none; }
+footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0d7de; padding-top:1em; }
+</style>
+</head>
+<body>
+<nav class="docnav"><a href="index.html">&#8962; 設計書一覧へ</a></nav>
+<h1 id="v1drawio-md">整合ギャップ分析 v1（drawio ↔ 仕様書mdの照合）</h1>
+<h2 id="0">0. 本書の位置づけ</h2>
+<p>本書は、<code>ex/</code> 配下の設計資料（drawio・各層仕様書/詳細設計書）を照合し、
+不一致点・用語ゆれ・廃止/採用判断を一覧化するものである。</p>
+<p><strong>本書で合意した内容を確定してから、改善版 drawio と各層仕様書の作成に進む。</strong></p>
+<h3 id="01">0.1 正となる設計（合意済み）</h3>
+<ul>
+<li><strong>③ 最新の基本設計（2026-07-07）を正とする。</strong></li>
+<li><code>DataStore/DataStoreLayer仕様設計書.md</code>（7/7 13:39）</li>
+<li><code>Capability/CapabilityLayer仕様設計書.md</code>（7/7 17:44）</li>
+<li>drawio・② 7/3詳細設計群・Adapter仕様書は、③に揃える方向で更新する。</li>
+<li>③に存在しない層（Publisher / Accessor）は、drawioを唯一の根拠として新規に仕様化する。</li>
+</ul>
+<hr />
+<h2 id="1">1. 設計世代マップ</h2>
+<p>現状、<code>ex/</code> には<strong>3つの設計世代が混在</strong>している。これが「drawioとmdが一致しない」根本原因である。</p>
+<table>
+<thead>
+<tr>
+<th>世代</th>
+<th>位置づけ</th>
+<th>該当ファイル</th>
+<th>更新日</th>
+<th>入力分類</th>
+<th>Store構造</th>
+<th>Snapshot配送</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>① drawio</strong></td>
+<td>思想の原点</td>
+<td><code>モジュール構想図_FSI.drawio</code></td>
+<td>07-03</td>
+<td>Domain Data Store + 14カテゴリ</td>
+<td>カテゴリ別</td>
+<td>「除去」と注記</td>
+</tr>
+<tr>
+<td><strong>② 詳細設計群</strong></td>
+<td>旧・詳細</td>
+<td><code>DataStore/*.md</code>（Dispatcher/Queue/DomainDataStore/SnapshotTrigger/SystemSnapshot）</td>
+<td>07-03</td>
+<td>単一Queue→単一Dispatcher</td>
+<td>意味別 7 Store</td>
+<td><strong>Push型</strong>（Trigger→Full Snapshot）</td>
+</tr>
+<tr>
+<td><strong>③ 基本設計</strong></td>
+<td><strong>正（最新）</strong></td>
+<td><code>DataStoreLayer仕様設計書.md</code> / <code>CapabilityLayer仕様設計書.md</code></td>
+<td><strong>07-07</strong></td>
+<td><strong>3レーン</strong>（Fault/Operation/CurrentValue）</td>
+<td><strong>性質別 3 Registry</strong> + MachineRegistry集約</td>
+<td><strong>Pull型</strong>（notify→capture）</td>
+</tr>
+<tr>
+<td>（補）隠蔽詳細</td>
+<td>旧・大部</td>
+<td><code>DataStore/隠蔽/DataStoreLayer詳細設計書.md</code></td>
+<td>07-03</td>
+<td>混在（SystemSnapshot語彙残存）</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>（補）Adapter</td>
+<td>旧</td>
+<td><code>Adapter/*.md</code></td>
+<td>07-02</td>
+<td>単一 DataStoreSink 前提</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>②と③は互換性がない</strong>（構造・配送方式が根本的に異なる）。③に一本化する。</p>
+<hr />
+<h2 id="2">2. 用語統一表（旧 → 正）</h2>
+<table>
+<thead>
+<tr>
+<th>分類</th>
+<th>旧語（① drawio / ② 詳細）</th>
+<th>正語（③）</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adapter変換規則</td>
+<td>TransformRule / TransformRuleResolver（drawio）</td>
+<td><strong>Rule / RuleResolver</strong></td>
+<td>③隣接のAdapter仕様書に準拠</td>
+</tr>
+<tr>
+<td>DataStore入口</td>
+<td>（単一）DataStoreSink</td>
+<td><strong>CentralInputPort</strong>（3種post）※要調整</td>
+<td>4章 参照。Sinkとの関係は未決</td>
+</tr>
+<tr>
+<td>入力保持</td>
+<td>Domain Data Store / 単一Queue</td>
+<td><strong>FaultInputQueue / OperationReportQueue / CurrentValueBuffer</strong></td>
+<td>性質別3レーン</td>
+</tr>
+<tr>
+<td>振り分け</td>
+<td>DataStoreDispatcher（単一）+ StoreResolver</td>
+<td><strong>FaultDispatcher / OperationDispatcher / CurrentValueDispatcher</strong></td>
+<td>性質別3個</td>
+</tr>
+<tr>
+<td>保存</td>
+<td>7 Store（Env/Safety/Consumable/Error/Job/Maint/Time）/ 14カテゴリ</td>
+<td><strong>FaultRegistry / OperationRegistry / CurrentValueRegistry</strong> + <strong>MachineRegistry</strong>（集約ファサード）</td>
+<td>意味別Storeは廃止</td>
+</tr>
+<tr>
+<td>状態コピー生成</td>
+<td>SnapshotProvider / SystemSnapshot（Full）</td>
+<td><strong>MachineSnapshotReader</strong> / <strong>MachineSnapshot</strong>（部分・domain指定）</td>
+<td>4章 参照</td>
+</tr>
+<tr>
+<td>生成タイミング</td>
+<td>SnapshotTrigger</td>
+<td><strong>（廃止）</strong> Dispatcherが直接 notifyUpdated</td>
+<td>4章 参照</td>
+</tr>
+<tr>
+<td>更新通知</td>
+<td>（Push配送）</td>
+<td><strong>IRegistryUpdateNotifier.notifyUpdated(RegistryDomainSet)</strong></td>
+<td>Capability側が実装</td>
+</tr>
+<tr>
+<td>標準データ</td>
+<td>StoreData / DataStoreItem</td>
+<td><strong>DataEntryItem</strong>{ id, value, context }</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3">3. 層別 照合・ギャップ表</h2>
+<h3 id="31-adapter-layerl1">3.1 Adapter Layer（L1）</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>drawio</th>
+<th>md（仕様書/詳細）</th>
+<th>③整合後のあるべき姿</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>名称</td>
+<td>Data Transform Layer / Adapter</td>
+<td>Adapter Layer</td>
+<td><strong>Adapter Layer</strong>（別名: Data Transform）</td>
+</tr>
+<tr>
+<td>変換規則</td>
+<td>TransformRule(Resolver)</td>
+<td>Rule / RuleResolver</td>
+<td><strong>Rule / RuleResolver</strong></td>
+</tr>
+<tr>
+<td>構成</td>
+<td>—</td>
+<td>RawDataInput → RuleResolver → Rule → DataStoreSink</td>
+<td>同左（送信先のみ要調整）</td>
+</tr>
+<tr>
+<td>timestamp</td>
+<td>「付与する」</td>
+<td>「現状対象外」(§13.5)</td>
+<td><strong>当面は付与しない</strong>（将来拡張として残す）。drawioの「timestamp付与」は削除</td>
+</tr>
+<tr>
+<td>送信先</td>
+<td>—</td>
+<td><strong>DataStoreSink.enqueue(id, Value)</strong>（単一）</td>
+<td><strong>要調整</strong>：③は入口が3種post。→ 4章 GAP-1</td>
+</tr>
+</tbody>
+</table>
+<p><strong>GAP-1（重要）</strong>：Adapterは「単一Sink（enqueue）」前提だが、③DataStoreは入口が
+<code>postFaultInput / postOperationReport / postCurrentValueInput</code> の3種。
+③§6.1が「postの種類とIdの分類の一致を確認」と述べる通り、<strong>Adapter側がデータ性質（Fault/Operation/CurrentValue）を判別してpost先を選ぶ</strong>必要がある。
+→ Adapter仕様書に「性質分類（Idベース）と3レーン投入」を追記する。</p>
+<h3 id="32-datastore-layerl2">3.2 DataStore Layer（L2）— 最大の改修対象</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>① drawio</th>
+<th>② 詳細(7/3)</th>
+<th>③ 正(7/7)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入口</td>
+<td>—</td>
+<td>DataStoreSink（単一）</td>
+<td><strong>CentralInputPort</strong>（3種post）</td>
+</tr>
+<tr>
+<td>入力保持</td>
+<td>Domain Data Store+14カテゴリ+キュー</td>
+<td>単一 DataStoreQueue</td>
+<td><strong>3レーン</strong>: FaultInputQueue / OperationReportQueue / CurrentValueBuffer</td>
+</tr>
+<tr>
+<td>振り分け</td>
+<td>データ格納タスク</td>
+<td>単一 DataStoreDispatcher</td>
+<td><strong>3 Dispatcher</strong>（Fault/Operation/CurrentValue）</td>
+</tr>
+<tr>
+<td>保存</td>
+<td>14カテゴリ</td>
+<td>7 Domain Store</td>
+<td><strong>3 Registry</strong> ← <strong>MachineRegistry</strong>が集約</td>
+</tr>
+<tr>
+<td>差分/時刻</td>
+<td>各メンバ最終更新時刻+変更フラグ</td>
+<td>—</td>
+<td>CurrentValueBuffer の dirty + Registry.apply。<strong>最終更新時刻の保持要否は未決</strong>（GAP-2）</td>
+</tr>
+<tr>
+<td>Snapshot</td>
+<td>「除去」</td>
+<td>SnapshotProvider→SystemSnapshot(Full) をPush</td>
+<td><strong>MachineSnapshotReader.capture(request)→MachineSnapshot(部分)</strong> をCapabilityがPull</td>
+</tr>
+<tr>
+<td>タイミング制御</td>
+<td>—</td>
+<td>SnapshotTrigger</td>
+<td><strong>廃止</strong>（Dispatcherが更新時に notifyUpdated）</td>
+</tr>
+<tr>
+<td>排他</td>
+<td>Mutex</td>
+<td>Store単位</td>
+<td><strong>domain単位 mutex</strong>（各Registry内）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>入力性質の定義（③）</strong>：
+- <strong>FaultInput</strong>：異常系（Error/Warning）。高優先・FIFO・即時。FaultState（Raised/Cleared/AllCleared/UpdatedHeal/UpdatedActive）で挙動分岐。
+- <strong>OperationReport</strong>：動作報告系。順序保証・FIFO（欠落/順序入替不可）。
+- <strong>CurrentValue</strong>：最新値系（センサ等）。Idごと上書き・dirty管理・周期取り出し（takeUpdatedValues）。</p>
+<p><strong>GAP-2</strong>：drawioの「各メンバごとの最終更新時刻＋変更フラグ」を③で保持するか。
+③はdirty/差分通知で代替しているが、最終更新時刻の外部提供要否（Accessor経由）が未確定。</p>
+<h3 id="33-capability-layerl3">3.3 Capability Layer（L3）</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>drawio</th>
+<th>md（③ 7/7）</th>
+<th>整合後</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入力</td>
+<td>Domain Data Storeから取得</td>
+<td>onRegistryUpdated(RegistryDomainSet) → capture</td>
+<td>③に一致（Pull型Snapshot）</td>
+</tr>
+<tr>
+<td>構成</td>
+<td>ルール評価＋8 Cap</td>
+<td>CapabilityManager / Builder / DiffChecker / PriorityChecker</td>
+<td>③に一致。8 Capは生成対象として明記</td>
+</tr>
+<tr>
+<td>Cap一覧</td>
+<td>Error/Job/Env/Maint/Health/Safety/Consumable/Print（8種）</td>
+<td>md §4.2〜4.3 が <strong>TBD</strong></td>
+<td><strong>drawioの8 Capをmdに反映</strong>（TBD解消の入力にする）</td>
+</tr>
+<tr>
+<td>差分検知</td>
+<td>（Capability側で変更検知）＋Publisher側でも差分管理</td>
+<td>CapabilityDiffChecker が担当</td>
+<td><strong>差分検知はCapabilityが担当</strong>。Publisher側①との重複を整理（GAP-3）</td>
+</tr>
+<tr>
+<td>派生イベント</td>
+<td>Threshold/Event 派生イベント発行</td>
+<td>Error/Job変化時に明示イベント通知（§7）</td>
+<td>③に一致。Thresholdの扱いは下記</td>
+</tr>
+<tr>
+<td>Threshold</td>
+<td>「閾値跨ぎ判定はCapability層で行う」（drawio注記）</td>
+<td>記載なし</td>
+<td><strong>Capability層で閾値跨ぎを判定</strong>しイベント化する旨をmdに追記</td>
+</tr>
+<tr>
+<td>PrintCap</td>
+<td>「他Capではなく DataStore にのみ依存。Cap合成はFacadeで」</td>
+<td>記載なし</td>
+<td>設計原則としてmdに明記</td>
+</tr>
+</tbody>
+</table>
+<p><strong>GAP-3</strong>：差分管理の所在。drawio Publisher①「State Repository（最終配信値・差分管理）」と
+Capability の CapabilityDiffChecker が重複。
+→ <strong>意味的差分（Capが変わったか）＝Capability</strong>、<strong>配信的差分（各購読者へ前回何を送ったか）＝Publisher</strong>、と役割分担で切り分ける方針を提案。</p>
+<h3 id="34-accessor-layer">3.4 Accessor Layer（参照専用）— <strong>仕様書 未作成</strong></h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>drawio</th>
+<th>md</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>責務</td>
+<td>DataStore/Stateの現在値を任意タイミングで外部提供。通知はしない</td>
+<td><strong>なし</strong></td>
+</tr>
+<tr>
+<td>対外</td>
+<td>PrinterStatus 外部からの値取得</td>
+<td><strong>なし</strong></td>
+</tr>
+</tbody>
+</table>
+<p>→ <strong>新規作成対象</strong>。drawioを根拠に「AccessorLayer仕様設計書.md」を起こす。
+DataStore（MachineSnapshotReader）・Capability（現在Cap）への参照専用IFとして定義する。</p>
+<h3 id="35-publisher-layer">3.5 Publisher Layer（配信専用）— <strong>仕様書 未作成</strong></h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>drawio</th>
+<th>md</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>構成</td>
+<td>①State Repository（最終配信値・差分管理）／②Publish Engine（Capごとタスク）／③Subscription Broker（購読管理・配信）</td>
+<td><strong>なし</strong>（Capability仕様に IPublisher.notify のみ）</td>
+</tr>
+<tr>
+<td>トリガ</td>
+<td>OnChange / Periodic / Threshold / Event / Initial（＋Heartbeat=廃止予定）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>制御</td>
+<td>Rate Limit、関心Cap一致は Publish Dispatcher で判定</td>
+<td>—</td>
+</tr>
+<tr>
+<td>前回値</td>
+<td>「前回値は保持しない（L3が変更項目を知る）」との注記あり ↔ ①名称は「差分管理」</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>→ <strong>新規作成対象</strong>。drawioの3分割（State Repository / Publish Engine / Subscription Broker）を基に
+「PublisherLayer仕様設計書.md」を起こす。①の「差分管理」と「前回値を保持しない」注記の矛盾は GAP-4 で解消。</p>
+<p><strong>GAP-4</strong>：Publisher①State Repositoryは「最終配信値」を保持するのか否か。
+OnChange/Threshold配信を購読者単位で行うなら<strong>配信済み値の保持が必要</strong>。
+drawio注記「前回値保持しない」はCapability層の話（意味的差分）と混線している可能性。
+→ <strong>Publisherは購読者ごとの最終配信値のみ保持</strong>、Capの前回値はCapabilityが持つ、で切り分け提案。</p>
+<h3 id="36">3.6 外部購読者 / 駆動軸</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>drawio</th>
+<th>整合後</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>外部購読者</td>
+<td>UI / Logger / 診断 / リモート監視（情報軸の境界外）</td>
+<td>図として維持。仕様化対象外（外部）</td>
+</tr>
+<tr>
+<td>駆動軸</td>
+<td>アプリ層→ドライバ層→駆動軸（Notifier API / listener / 動作報告）</td>
+<td>図として維持。情報軸との接点（動作報告→Adapter）を明示</td>
+</tr>
+<tr>
+<td>Heartbeat Generator</td>
+<td>「廃止予定（生存確認は外部タスクが持つべき）」</td>
+<td><strong>廃止</strong>。図から本体を除去し、外部タスクとして注記のみ残す</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4">4. 廃止 / 採用 判断一覧</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>対象</th>
+<th>出所</th>
+<th>判断</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Snapshot方式</td>
+<td>drawio「除去」 vs ③「採用」</td>
+<td><strong>採用（③のPull型 MachineSnapshotReader）</strong></td>
+<td>最新③が全面採用。drawioの「除去」注記は撤回</td>
+</tr>
+<tr>
+<td>2</td>
+<td>SnapshotTrigger / SnapshotProvider / SystemSnapshot</td>
+<td>② 7/3詳細</td>
+<td><strong>廃止</strong></td>
+<td>③はTrigger無し・Dispatcher直接notify・部分Snapshot</td>
+</tr>
+<tr>
+<td>3</td>
+<td>単一Queue / 単一Dispatcher</td>
+<td>② 7/3詳細</td>
+<td><strong>廃止</strong></td>
+<td>③は3レーン</td>
+</tr>
+<tr>
+<td>4</td>
+<td>意味別7 Store / 14カテゴリ</td>
+<td>② / drawio</td>
+<td><strong>廃止</strong></td>
+<td>③は性質別3 Registry</td>
+</tr>
+<tr>
+<td>5</td>
+<td>TransformRule 名称</td>
+<td>drawio</td>
+<td><strong>廃止→Rule</strong></td>
+<td>Adapter仕様書に統一</td>
+</tr>
+<tr>
+<td>6</td>
+<td>timestamp付与（Adapter）</td>
+<td>drawio</td>
+<td><strong>保留（当面付与しない）</strong></td>
+<td>③Adapter §13.5に従う</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Heartbeat Generator</td>
+<td>drawio</td>
+<td><strong>廃止</strong></td>
+<td>drawio自身が「廃止予定・外部タスク化」</td>
+</tr>
+<tr>
+<td>8</td>
+<td>意味別差分 vs 配信別差分</td>
+<td>drawio/③</td>
+<td><strong>分離採用</strong></td>
+<td>Capability=意味的差分 / Publisher=配信的差分</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-drawio">5. drawio 修正指示一覧（<strong>レイアウトは現状を維持</strong>）</h2>
+<p>現行drawioの2軸レイアウト（情報軸＝縦のレイヤ帯、駆動軸＝右、外部購読者＝外周）は維持し、
+<strong>DataStore帯の中身</strong>と<strong>用語ラベル</strong>のみ差し替える。</p>
+<ol>
+<li><strong>DataStore帯を③構造に置換</strong>：
+   - <code>CentralInputPort</code> → [<code>FaultInputQueue</code>／<code>OperationReportQueue</code>／<code>CurrentValueBuffer</code>] → [<code>FaultDispatcher</code>／<code>OperationDispatcher</code>／<code>CurrentValueDispatcher</code>] → [<code>FaultRegistry</code>／<code>OperationRegistry</code>／<code>CurrentValueRegistry</code>] ← <code>MachineRegistry</code>（集約） → <code>MachineSnapshotReader</code>
+   - 「Domain Data Store / 14カテゴリ / Domain Status Store Snapshot / 山下案」ブロックは撤去</li>
+<li><strong>Snapshot経路をPull型に</strong>：Dispatcher …notifyUpdated(domains)…▶ Capability、Capability ─capture(request)▶ MachineSnapshotReader</li>
+<li><strong>Adapterラベル</strong>：TransformRule → Rule、TransformRuleResolver → RuleResolver、「timestamp付与」除去、送信先を「性質判別→3種post（CentralInputPort）」に</li>
+<li><strong>Capability帯</strong>：8 Cap（Error/Job/Env/Maint/Health/Safety/Consumable/Print）を明示、「閾値跨ぎ判定＝当層」「PrintCapはDataStore依存・合成はFacade」注記を保持</li>
+<li><strong>Publisher帯</strong>：①State Repository（配信的差分）／②Publish Engine／③Subscription Broker と5トリガ（OnChange/Periodic/Threshold/Event/Initial）を保持。Heartbeat本体は撤去し外部タスク注記化</li>
+<li><strong>凡例</strong>：タスク／イベント／処理の流れ／データを伴う処理の流れ／外部取得、を維持</li>
+</ol>
+<hr />
+<h2 id="6">6. 各ファイル 対応方針</h2>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>世代</th>
+<th>対応</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DataStoreLayer仕様設計書.md</code></td>
+<td>③</td>
+<td><strong>正・微修正</strong>（誤記・章番号重複の整理）</td>
+</tr>
+<tr>
+<td><code>CapabilityLayer仕様設計書.md</code></td>
+<td>③</td>
+<td><strong>正・TBD解消</strong>（8 Cap / 生成単位 / Threshold）</td>
+</tr>
+<tr>
+<td><code>Adapter/*.md</code></td>
+<td>旧</td>
+<td><strong>更新</strong>（GAP-1：3レーン投入を追記。用語はほぼ整合済み）</td>
+</tr>
+<tr>
+<td><code>DataStore/DataStoreDispatcher/Queue/DomainDataStore/SnapshotTrigger/SystemSnapshot 詳細.md</code></td>
+<td>②</td>
+<td><strong>廃止 or 全面改稿</strong>（③の3レーン詳細へ）</td>
+</tr>
+<tr>
+<td><code>DataStore/隠蔽/DataStoreLayer詳細設計書.md</code>（93KB）</td>
+<td>補</td>
+<td><strong>要精査</strong>（③語彙へ寄せる箇所を抽出。次段で判断）</td>
+</tr>
+<tr>
+<td><code>AccessorLayer仕様設計書.md</code></td>
+<td>—</td>
+<td><strong>新規作成</strong></td>
+</tr>
+<tr>
+<td><code>PublisherLayer仕様設計書.md</code></td>
+<td>—</td>
+<td><strong>新規作成</strong></td>
+</tr>
+<tr>
+<td><code>モジュール構想図_FSI.drawio</code></td>
+<td>①</td>
+<td><strong>改訂</strong>（5章の指示に従う。レイアウト維持）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-2026-07-08">7. 確定事項（2026-07-08 合意済み）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>論点</th>
+<th>決定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GAP-1</td>
+<td>Adapter→DataStoreの入口</td>
+<td><strong>CentralInputPort（3種post）に一本化する</strong>。DataStoreSinkは残さない</td>
+</tr>
+<tr>
+<td>GAP-2</td>
+<td>最終更新時刻の保持・外部提供</td>
+<td><strong>しない</strong>（③のdirty/通知方式のみ）</td>
+</tr>
+<tr>
+<td>GAP-3/4</td>
+<td>差分管理の分離</td>
+<td><strong>分離する</strong>：Capability=意味的差分／Publisher=配信的差分（購読者ごと最終配信値のみPublisher保持）</td>
+</tr>
+<tr>
+<td>旧世代</td>
+<td>② 7/3詳細群・隠蔽詳細</td>
+<td><strong>廃止（削除）してよい</strong></td>
+</tr>
+<tr>
+<td>駆動軸</td>
+<td>仕様化対象</td>
+<td><strong>含めない</strong>（図では外部・接点のみ）</td>
+</tr>
+</tbody>
+</table>
+<p>これらを前提に、改善版 drawio と各層仕様書を作成する。</p>
+<footer>printer-fw FSI 設計書（Markdown原本: 整合ギャップ分析_v1.md）</footer>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>

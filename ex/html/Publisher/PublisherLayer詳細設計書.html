@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PublisherLayer詳細設計書</title>
+<style>
+body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
+       max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
+h1 { border-bottom: 3px solid #0969da; padding-bottom:.3em; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom:.25em; margin-top:2em; }
+h3 { margin-top:1.6em; }
+table { border-collapse: collapse; margin: 1em 0; width:100%; font-size:.95em; }
+th, td { border: 1px solid #d0d7de; padding: 6px 12px; text-align:left; vertical-align:top; }
+th { background:#f6f8fa; }
+tr:nth-child(even) td { background:#fafbfc; }
+code { background:#f6f8fa; padding:.15em .4em; border-radius:4px;
+       font-family:"Consolas","MS Gothic",monospace; font-size:.9em; }
+pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:6px; padding:14px; overflow-x:auto; }
+pre code { background:none; padding:0; }
+blockquote { border-left:4px solid #0969da; margin:1em 0; padding:.3em 1em; color:#57606a; background:#f6f8fa; }
+.mermaid { background:#fff; border:1px dashed #d0d7de; border-radius:6px;
+           padding:12px; margin:1em 0; text-align:center; }
+.docnav { font-size:.9em; margin-bottom:1.2em; }
+.docnav a { color:#0969da; text-decoration:none; }
+footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0d7de; padding-top:1em; }
+</style>
+</head>
+<body>
+<nav class="docnav"><a href="../index.html">&#8962; 設計書一覧へ</a></nav>
+<h1 id="publisher-layer-l4">Publisher Layer 詳細設計書（L4）</h1>
+<p>本書は <code>PublisherLayer仕様設計書.md</code> を親とし、各コンポーネントの内部データ構造・
+インターフェース・排他制御・スレッドモデル・処理アルゴリズムを定義する。</p>
+<hr />
+<h2 id="1">1. 全体構成とスレッドモデル</h2>
+<p><div class="mermaid">flowchart TB
+    Cap[Capability Layer]
+
+    subgraph PublisherLayer
+        PE[Publish Engine]
+        SR[State Repository]
+        SB[Subscription Broker]
+    end
+
+    Sub[外部購読者]
+
+    Cap --&gt;|notify(capability)| PE
+    PE --&gt;|対象解決| SB
+    PE --&gt;|配信的差分判定| SR
+    PE --&gt;|publish| SB
+    SB --&gt;|Push| Sub
+    SB --&gt;|最終配信値更新| SR
+    Sub -.-&gt;|subscribe/unsubscribe| SB</div></p>
+<h3 id="11">1.1 スレッドモデル</h3>
+<table>
+<thead>
+<tr>
+<th>実行主体</th>
+<th>駆動</th>
+<th>対象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Capability Layerスレッド</td>
+<td>notify呼び出し</td>
+<td>Publish Engineの受理（キュー投入まで）</td>
+</tr>
+<tr>
+<td>Publish Engineタスク（Capabilityごと）</td>
+<td>イベント/周期</td>
+<td>トリガ評価・差分判定・配信起動</td>
+</tr>
+<tr>
+<td>Subscription Brokerスレッド</td>
+<td>subscribe/unsubscribe要求</td>
+<td>購読者テーブル更新</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><code>notify</code> は受理して即戻る（Capability Layerを長時間ブロックしない）。</li>
+<li>配信処理はPublish Engineの各Capabilityタスクで非同期に実行する。</li>
+<li>Rate Limitはタスク単位で適用する。</li>
+</ul>
+<h3 id="12">1.2 排他制御</h3>
+<table>
+<thead>
+<tr>
+<th>資源</th>
+<th>ロック</th>
+<th>保持者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>購読者テーブル（Subscriber×関心Cap）</td>
+<td>Broker内部mutex（読み多め→RWロック可）</td>
+<td>Subscription Broker</td>
+</tr>
+<tr>
+<td>配信記録（DeliveryRecord）</td>
+<td>購読者×Cap単位mutex</td>
+<td>State Repository</td>
+</tr>
+<tr>
+<td>受理キュー</td>
+<td>キュー内部mutex</td>
+<td>Publish Engine</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2">2. データモデル</h2>
+<pre><code class="language-cpp">using SubscriberId = /* 一意ID */;
+enum class CapabilityKind { Error, Job, Env, Maint, Health, Safety, Consumable, Print };
+
+struct Subscriber {
+    SubscriberId id;
+    // 配信先ハンドル（コールバック/キュー等・実装依存）
+};
+
+struct SubscriptionSet {
+    FlagSet&lt;CapabilityKind&gt; interested;   // 関心Capability
+    RateLimitPolicy         rate;         // 最小配信間隔等（任意）
+};
+
+struct DeliveryRecord {
+    SubscriberId  subscriber;
+    CapabilityKind kind;
+    Value         lastDelivered;          // 最終配信値（配信的差分の基準）
+    Timestamp     lastDeliveredAt;        // Rate Limit / Periodic判定に使用
+};
+
+enum class PublishTrigger { OnChange, Periodic, Threshold, Event, Initial };
+</code></pre>
+<hr />
+<h2 id="3-publish-engine2">3. Publish Engine（②配信管理）</h2>
+<h3 id="31">3.1 責務</h3>
+<p><code>notify(capability)</code> を受理し、Capabilityごとのタスクで配信要否を決定して配信を起動する。</p>
+<h3 id="32-h-4">3.2 内部構造とデマルチ（H-4対応）</h3>
+<p>Capability Layerからのnotifyは<strong>8種を内包する集約Capability</strong>（完全CapabilitySet +
+changedKinds + explicitEvents）である。一方、配信処理は<strong>Kind単位のタスク</strong>で行う。
+両者の橋渡しとして、受理時に<strong>デマルチ（Kind別分解）</strong>を行う。</p>
+<pre><code class="language-cpp">// タスク入力型（notify引数の集約Capabilityとは別の型）
+struct KindDeliveryItem {
+    CapabilityKind     kind;
+    CapabilityValue    value;          // 完全Setから抽出した当該Kindの値
+    CapabilityPriority priority;       // 集約Capability由来
+    bool               explicitEvent;  // kind ∈ explicitEvents（Event配信対象）
+};
+</code></pre>
+<ul>
+<li>Kindごとの受理キュー / タスク（タスク数はcfgから決定）。</li>
+<li>Rate Limitポリシ（Kind種別ごと）。</li>
+</ul>
+<h3 id="33-if">3.3 提供IF</h3>
+<pre><code class="language-cpp">void notify(const Capability&amp; capability);   // IPublisher実装（受理・デマルチのみで即戻る）
+</code></pre>
+<h3 id="34">3.4 処理アルゴリズム</h3>
+<p><strong>受理（notify・呼び出しスレッド）</strong>：</p>
+<pre><code class="language-text">1. capability.changedKinds の各Kindについて KindDeliveryItem を生成
+   （value=set[kind], priority, explicitEvent=kind∈explicitEvents）
+2. 各Kindの受理キューへ投入して即戻る
+</code></pre>
+<p><strong>Kindタスク</strong>：</p>
+<pre><code class="language-text">1. 受理キューから KindDeliveryItem を取り出す
+2. Publishトリガーを決定する（§6・notify駆動パス）
+3. Subscription Brokerへ対象購読者を要求（resolve(kind)・関心Cap一致）
+4. 各対象購読者について State Repository で配信的差分を判定
+5. Rate Limit を適用（§3.5）
+6. 配信対象を Subscription Broker.publish() へ渡す
+</code></pre>
+<ul>
+<li>優先度Critical/Highは他タスクに優先して処理する（優先度は CapabilityPriorityChecker 由来）。</li>
+</ul>
+<h3 id="35-rate-limith-5event">3.5 Rate Limit（H-5対応：トレーリングエッジ配信・Event除外）</h3>
+<table>
+<thead>
+<tr>
+<th>規則</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>適用単位</td>
+<td>購読者×Kind</td>
+</tr>
+<tr>
+<td>抑制</td>
+<td>lastDeliveredAt から最小間隔未満の場合、即時送出しない</td>
+</tr>
+<tr>
+<td><strong>トレーリングエッジ</strong></td>
+<td>抑制時は当該(購読者,Kind)に<strong>保留中フラグ+最新値</strong>を記録し、<strong>間隔満了タイマで遅延送出</strong>する。これにより「バースト最後の変化が永久に届かない」ことを防ぐ（最終状態の到達保証）</td>
+</tr>
+<tr>
+<td>保留の上書き</td>
+<td>保留中に新しい値が来たら保留値を最新に置き換える（送るのは常に最新1件）</td>
+</tr>
+<tr>
+<td><strong>適用除外</strong></td>
+<td><code>explicitEvent=true</code>（Event配信）および priority=Critical/High は <strong>Rate Limit適用除外</strong>（即時送出）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-state-repository1">4. State Repository（①最終配信値・配信的差分）</h2>
+<h3 id="41">4.1 責務</h3>
+<p>購読者×Capability単位の最終配信値を保持し、配信的差分を判定する。</p>
+<h3 id="42">4.2 内部構造</h3>
+<pre><code class="language-cpp">class StateRepository {
+    // key = (SubscriberId, CapabilityKind)
+    std::unordered_map&lt;Key, DeliveryRecord&gt; records_;
+    std::mutex mutex_;   // 実装によりkeyシャーディング可
+public:
+    bool shouldDeliver(SubscriberId, const Capability&amp;, PublishTrigger);
+    void update(SubscriberId, const Capability&amp;);   // 送出成功後に最終配信値更新
+};
+</code></pre>
+<h3 id="43-shoulddeliver">4.3 shouldDeliver 判定</h3>
+<table>
+<thead>
+<tr>
+<th>トリガー</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OnChange</td>
+<td>lastDelivered と今回値が異なれば配信</td>
+</tr>
+<tr>
+<td>Threshold</td>
+<td>Capability Layerが閾値跨ぎと判定済み → 配信（本層は再判定しない）</td>
+</tr>
+<tr>
+<td>Periodic</td>
+<td>前回配信から周期経過で配信（値不変でも可）</td>
+</tr>
+<tr>
+<td>Event</td>
+<td>無条件配信（明示イベント）</td>
+</tr>
+<tr>
+<td>Initial</td>
+<td>記録が無い（初回）→ 配信</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>意味的差分（Capが変わったか）はCapability Layerの領域</strong>。本層は購読者ごとの
+  「前回配信値との差（配信的差分）」のみを見る。</li>
+</ul>
+<h3 id="44-update">4.4 update</h3>
+<p>配信成功後にのみ <code>lastDelivered</code> / <code>lastDeliveredAt</code> を更新する（送出失敗時は更新しない）。</p>
+<h3 id="45-removesubscriberm-9">4.5 removeSubscriber（M-9対応）</h3>
+<pre><code class="language-cpp">void removeSubscriber(SubscriberId);
+</code></pre>
+<p>unsubscribe時にBrokerから呼ばれ、当該Subscriberの全DeliveryRecordを削除する。
+これにより再subscribe時はInitial判定（記録なし=初回）が正しく機能し、レコードリークも防ぐ。</p>
+<hr />
+<h2 id="5-subscription-broker3">5. Subscription Broker（③購読管理・配信）</h2>
+<h3 id="51">5.1 責務</h3>
+<p>購読者の登録/解除、関心Cap一致による対象解決、実配信（Push）。</p>
+<h3 id="52">5.2 内部構造</h3>
+<pre><code class="language-cpp">class SubscriptionBroker {
+    // 登録順を保持（配信順の安定化）
+    std::vector&lt;Subscriber&gt; order_;
+    std::unordered_map&lt;SubscriberId, SubscriptionSet&gt; subs_;
+    std::shared_mutex mutex_;
+public:
+    void subscribe(const Subscriber&amp;, const SubscriptionSet&amp;);
+    void unsubscribe(SubscriberId);   // StateRepositoryの当該DeliveryRecordも削除する（§4.5）
+    std::vector&lt;SubscriberId&gt; resolve(CapabilityKind);   // 関心Cap一致（登録順）
+    void publish(SubscriberId, const Capability&amp;);       // Push送出
+};
+</code></pre>
+<h3 id="53">5.3 配信順序</h3>
+<p><code>order_</code> により購読者登録順で配信する（決定的順序）。</p>
+<h3 id="54-publish">5.4 publish</h3>
+<p>購読先ハンドルへ非ブロッキングに送出する。送出結果をPublish Engineへ返し、
+成功時のみ State Repository.update を行う。</p>
+<hr />
+<h2 id="6-publish2m-5">6. Publishトリガー決定（2パス構成・M-5対応）</h2>
+<p>トリガーは<strong>notify駆動パス</strong>と<strong>タイマ駆動パス</strong>の2系統に分離する。</p>
+<h3 id="61-notifykinddeliveryitem">6.1 notify駆動パス（KindDeliveryItem受理時）</h3>
+<p><div class="mermaid">flowchart TD
+    A[KindDeliveryItem受理] --&gt; B{explicitEvent?}
+    B -- Yes --&gt; E[Event配信（Rate Limit除外・無条件）]
+    B -- No --&gt; T{閾値跨ぎ由来?}
+    T -- Yes --&gt; TH[Threshold配信]
+    T -- No --&gt; O{配信的差分あり?}
+    O -- Yes --&gt; OC[OnChange配信]
+    O -- No --&gt; N[配信なし]</div></p>
+<ul>
+<li>同時成立時の優先： <strong>Event &gt; Threshold &gt; OnChange</strong>（上位1つのトリガ種別として配信）。</li>
+</ul>
+<h3 id="62-periodicnotify">6.2 タイマ駆動パス（Periodic・notifyと独立）</h3>
+<p><div class="mermaid">flowchart TD
+    P[周期タイマ満了] --&gt; Q[Periodic購読者を列挙]
+    Q --&gt; R[getCurrentの最新値を配信（値不変でも配信）]
+    P2[Rate Limit保留タイマ満了] --&gt; S[保留中の最新値を遅延送出（§3.5）]</div></p>
+<ul>
+<li>Periodicは<strong>notifyが来なくても</strong>周期で配信する（値不変でも配信する契約）。
+  配信値はStateRepositoryの保留最新値、なければ最後にnotifyされた値を用いる。</li>
+<li>Initialは subscribe 時に、Capability Layerの getCurrentCapability() から現在Capを取得して初回配信する
+  （起動時の初期フル評価により現在Capは常に存在する。ライフサイクル設計書 Phase 3 参照）。</li>
+<li>Heartbeatは本層に存在しない（外部タスクの責務）。</li>
+</ul>
+<hr />
+<h2 id="7-notify">7. シーケンス（notify→配信）</h2>
+<p><div class="mermaid">sequenceDiagram
+    participant Cap as Capability
+    participant PE as Publish Engine
+    participant SB as Subscription Broker
+    participant SR as State Repository
+    participant Sub as 購読者
+
+    Cap-&gt;&gt;PE: notify(capability)
+    Note over PE: Capabilityタスクで非同期処理
+    PE-&gt;&gt;SB: resolve(kind)
+    SB--&gt;&gt;PE: 対象購読者[登録順]
+    loop 各購読者
+        PE-&gt;&gt;SR: shouldDeliver(sub, cap, trigger)
+        SR--&gt;&gt;PE: 配信要否
+        alt 配信要 かつ Rate Limit OK
+            PE-&gt;&gt;SB: publish(sub, capability)
+            SB-&gt;&gt;Sub: Push
+            PE-&gt;&gt;SR: update(sub, capability)
+        end
+    end</div></p>
+<hr />
+<h2 id="8">8. エラー処理</h2>
+<table>
+<thead>
+<tr>
+<th>事象</th>
+<th>挙動</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>購読者送出失敗</td>
+<td>当該購読者のみスキップ、State Repository更新せず、次周期で再送機会</td>
+</tr>
+<tr>
+<td>受理キュー溢れ</td>
+<td>優先度低のCapabilityを間引く/最新優先（cfg方針）。ログ出力</td>
+</tr>
+<tr>
+<td>未登録購読者への配信</td>
+<td>resolve結果に含めない（発生しない前提）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9">9. 非機能・設計原則の対応</h2>
+<table>
+<thead>
+<tr>
+<th>要件</th>
+<th>担保</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>notifyでCapabilityを長時間ブロックしない</td>
+<td>受理即戻り + 非同期タスク</td>
+</tr>
+<tr>
+<td>高頻度notifyの抑制</td>
+<td>Rate Limit（購読者×Cap単位）</td>
+</tr>
+<tr>
+<td>配信順序の安定</td>
+<td>Subscription Brokerの登録順配信</td>
+</tr>
+<tr>
+<td>差分の責務分離</td>
+<td>配信的差分=本層 / 意味的差分=Capability</td>
+</tr>
+<tr>
+<td>テスト容易性</td>
+<td>3コンポーネント独立、購読先はモック可</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10">10. 次段（未確定）</h2>
+<ul>
+<li>RateLimitPolicyの具体値（最小間隔・バースト許容）のcfg定義</li>
+<li>受理キュー溢れ時の間引き方針の確定
+  ※間引きを行う場合、changedKinds/explicitEvents のエッジ情報は<strong>後続レコードへORマージして保存必須</strong>
+  （エッジ情報を黙って破棄してはならない）（レビューM-8）</li>
+<li>購読先ハンドルの抽象（コールバック / メッセージキュー）の確定</li>
+<li>送出失敗時の再試行ポリシ（回数・間隔）の確定</li>
+</ul>
+<p>（確定済み：デマルチ=KindDeliveryItem方式(§3.2/§3.4)、Rate Limitトレーリングエッジ+Event/Critical除外(§3.5)、
+トリガ2パス分離(§6)、Initial=getCurrentCapability経由(§6.2)、unsubscribe時レコード削除(§4.5)）</p>
+<footer>printer-fw FSI 設計書（Markdown原本: Publisher/PublisherLayer詳細設計書.md）</footer>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>

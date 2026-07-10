@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設計レビュー結果_v1</title>
+<style>
+body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
+       max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
+h1 { border-bottom: 3px solid #0969da; padding-bottom:.3em; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom:.25em; margin-top:2em; }
+h3 { margin-top:1.6em; }
+table { border-collapse: collapse; margin: 1em 0; width:100%; font-size:.95em; }
+th, td { border: 1px solid #d0d7de; padding: 6px 12px; text-align:left; vertical-align:top; }
+th { background:#f6f8fa; }
+tr:nth-child(even) td { background:#fafbfc; }
+code { background:#f6f8fa; padding:.15em .4em; border-radius:4px;
+       font-family:"Consolas","MS Gothic",monospace; font-size:.9em; }
+pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:6px; padding:14px; overflow-x:auto; }
+pre code { background:none; padding:0; }
+blockquote { border-left:4px solid #0969da; margin:1em 0; padding:.3em 1em; color:#57606a; background:#f6f8fa; }
+.mermaid { background:#fff; border:1px dashed #d0d7de; border-radius:6px;
+           padding:12px; margin:1em 0; text-align:center; }
+.docnav { font-size:.9em; margin-bottom:1.2em; }
+.docnav a { color:#0969da; text-decoration:none; }
+footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0d7de; padding-top:1em; }
+</style>
+</head>
+<body>
+<nav class="docnav"><a href="index.html">&#8962; 設計書一覧へ</a></nav>
+<h1 id="v12026-07-08">設計レビュー結果 v1（独立レビュー・2026-07-08）</h1>
+<p>本書は、PR #1 の設計文書群に対して実施した独立レビュー（レビューアは設計作成に非関与）と
+作成者の自己レビューを統合した結果、および対応状況を記録する。</p>
+<p><strong>対応方針</strong>：修正（engineering）と検証（review）は別部隊で独立に行う。
+本書の「対応状況」は修正側の申告であり、再検証は別途独立レビューで行う。</p>
+<hr />
+<h2 id="high">High（層間契約の欠陥）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>欠陥</th>
+<th>検出</th>
+<th>対応状況</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H-1</td>
+<td><strong>通知喪失に回復手段がない</strong>：notifyUpdatedはエッジトリガ&amp;Pull型なのに通知機構が未確定。取りこぼすと次の変更まで再評価されない</td>
+<td>両者一致</td>
+<td><strong>反映済み</strong>：pendingドメイン集合方式（OR合流・喪失構造的に不可）+周期フル再評価セーフティネット（Capability詳細§1.1、DataStore詳細§8）</td>
+</tr>
+<tr>
+<td>H-2</td>
+<td><strong>Faultレーンが自己修復しない</strong>：イベントストリーム型で1件欠落が恒久不整合。責務がたらい回しで誰も回復しない</td>
+<td>両者一致</td>
+<td><strong>反映済み</strong>：喪失不可契約+多段防御（ブロッキングpost/ウォーターマーク監視/フル再同期プロトコル）（DataStore詳細§4.1/§10.1、仕様§10.1）。再同期IFの具体契約は次段</td>
+</tr>
+<tr>
+<td>H-3</td>
+<td><strong>部分Snapshot×CapabilitySetの意味論欠落</strong>：未評価Kind=nulloptでprev上書き→prev破壊→偽差分・偽Publish</td>
+<td>両者一致</td>
+<td><strong>反映済み</strong>：マージ規則を正式契約化（未評価=前回値維持、比較・prev更新・下流受け渡しは常に完全Set）+依存クロージャでのSnapshot取得（Capability詳細§3.2〜3.4）</td>
+</tr>
+<tr>
+<td>H-4</td>
+<td><strong>Capability(集約notify)⇔Publisher(Kind単位タスク)のデマルチ未定義</strong>：実装者ごとに解釈が割れる</td>
+<td>レビューア</td>
+<td><strong>反映済み</strong>：KindDeliveryItem型と受理時デマルチ工程を定義（Publisher詳細§3.2/§3.4）</td>
+</tr>
+<tr>
+<td>H-5</td>
+<td><strong>Rate Limitトレーリングエッジ未配達</strong>＋EventとRate Limitの優先関係未定義</td>
+<td>両者一致</td>
+<td><strong>反映済み</strong>：保留+間隔満了タイマの遅延送出（最終状態到達保証）、Event/Critical/High適用除外（Publisher詳細§3.5、仕様§8）</td>
+</tr>
+<tr>
+<td>H-6</td>
+<td><strong>ライフサイクル全文書不在</strong>：起動順序・初期評価・停止手段（<code>for(;;)</code>+ブロッキングdequeue）</td>
+<td>レビューア</td>
+<td><strong>反映済み</strong>：<code>共通/システムライフサイクル設計書.md</code> 新設（起動4フェーズ/初期フル評価/停止4フェーズ/stop token）</td>
+</tr>
+<tr>
+<td>H-7</td>
+<td><strong>前回Capabilityのスレッド境界矛盾</strong>：Capability詳細「ロック不要」vs Accessorが別スレッド読取</td>
+<td>自己レビュー</td>
+<td><strong>反映済み</strong>：不変オブジェクト+atomic shared_ptr差し替え、getCurrentCapability確定（Capability詳細§1.2/§3.1、Accessor詳細§3.1）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="medium">Medium</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>欠陥</th>
+<th>対応状況</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-1</td>
+<td>Registry間弱整合の過渡不整合（実在しない状態の組合せ）が抑制なしに外部Push。複数ドメインCapの安全側規則欠落</td>
+<td><strong>未対応</strong>（各Evaluator判定式定義時に「過渡不整合時に安全側へ倒す」規則を必須記載とする）</td>
+</tr>
+<tr>
+<td>M-2</td>
+<td>ロック粒度と整合性保証の記述が三つ巴で矛盾（単一mutex vs ドメイン単位 vs 単一時点整合の無限定表記）</td>
+<td><strong>未対応</strong>（粒度定義の一元化が必要）</td>
+</tr>
+<tr>
+<td>M-3</td>
+<td>SafetyCap（カバー/E-Stop）が損失性のCurrentValueレーン依存。周期未満パルス不可視・遅延蓄積</td>
+<td><strong>未対応・要ユーザ判断</strong>：安全機能がFW下位層で担保済みか？ → Faultレーンへ分類変更 or 「表示用」前提の明記</td>
+</tr>
+<tr>
+<td>M-4</td>
+<td>Fault高優先がCapability単一スレッド直列で打ち消される（E2Eレイテンシ非拘束）</td>
+<td><strong>未対応</strong>（E2Eレイテンシ目標の定義が先）</td>
+</tr>
+<tr>
+<td>M-5</td>
+<td>Periodicトリガがnotify駆動フローに混在（notifyが来ないと周期配信されない矛盾）</td>
+<td><strong>反映済み</strong>：トリガ2パス分離（Publisher詳細§6）</td>
+</tr>
+<tr>
+<td>M-6</td>
+<td>同一購読者内のCap間・Event/OnChange間の配信順序保証なし</td>
+<td><strong>未対応</strong>（順序契約 or シーケンス番号提供の設計判断が必要）</td>
+</tr>
+<tr>
+<td>M-7</td>
+<td>captureに失敗チャネルなし。「未要求」と「取得失敗」を区別不能</td>
+<td><strong>未対応</strong>（capture Result化を次段に記録・Accessor詳細§7）</td>
+</tr>
+<tr>
+<td>M-8</td>
+<td>Publisher受理キュー間引きでchangedKinds/explicitEventsのエッジ情報消失</td>
+<td><strong>一部反映</strong>：間引き時のエッジ情報ORマージ必須を次段に契約として記録（Publisher詳細§10）</td>
+</tr>
+<tr>
+<td>M-9</td>
+<td>unsubscribe時のDeliveryRecord掃除未定義→再subscribeでInitial不発+リーク</td>
+<td><strong>反映済み</strong>：removeSubscriber追加（Publisher詳細§4.5/§5.2）</td>
+</tr>
+<tr>
+<td>M-10</td>
+<td>PrinterStatusの「取得時点整合」不成立（dataとcapabilityは別時点）</td>
+<td><strong>一部反映</strong>：相互整合非保証の契約明記を次段に記録（Accessor詳細§7）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="low">Low</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>内容</th>
+<th>対応状況</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L-1</td>
+<td>Rased/Raised綴り不一致、apply()戻り値の仕様/詳細不一致、章番号重複、誤記（vlue/KachineStatus等）</td>
+<td><strong>一部反映</strong>：Raised統一・applyを<code>std::optional&lt;RegistryDomain&gt;</code>に統一（仕様+詳細）。章番号重複・他誤記は未対応</td>
+</tr>
+<tr>
+<td>L-2</td>
+<td>Id→分類表がAdapter(InputClassifier)とDataStore(IdClassifier)で二重管理</td>
+<td><strong>未対応</strong>（単一ソース化を実装時に規定）</td>
+</tr>
+<tr>
+<td>L-3</td>
+<td>CapabilityKind enumがCapability詳細とPublisher詳細で二重定義</td>
+<td><strong>未対応</strong>（共通ヘッダ所属の明記）</td>
+</tr>
+<tr>
+<td>L-4</td>
+<td>観測timestamp不在が障害解析性・弱整合デバッグと緊張関係</td>
+<td><strong>未対応</strong>（GAP-2/Adapter§13.5の決定事項。M-1解析手段として将来再検討）</td>
+</tr>
+<tr>
+<td>L-5</td>
+<td>DataStore仕様§8.3シーケンス図の表記不備</td>
+<td><strong>未対応</strong>（表記修正のみ）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_1">総括（レビュー時点）</h2>
+<p>個々のコンポーネント設計（3レーン分離、Pull型Snapshot、意味的差分/配信的差分の分離）は筋が良い一方、
+層間の「つなぎ目」の契約が未確定・不整合だった。High 7件はすべて本ブランチで設計反映済み。</p>
+<p><strong>残課題の優先順</strong>：
+1. M-3（SafetyCapレーン分類）— ユーザ判断待ち
+2. M-1（弱整合の安全側規則）— Evaluator判定式定義とセット
+3. M-2（ロック粒度の一元定義）
+4. M-6（購読者視点の順序契約）
+5. M-7/M-10（capture Result化・PrinterStatus契約）</p>
+<p><strong>次アクション</strong>：H対応の再検証を独立レビューで実施する（修正と検証の分離）。</p>
+<footer>printer-fw FSI 設計書（Markdown原本: 設計レビュー結果_v1.md）</footer>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>
