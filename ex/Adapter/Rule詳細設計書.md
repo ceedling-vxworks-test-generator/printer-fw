@@ -143,7 +143,7 @@ RuleはRawValueをValueへ変換する。
 
 ValueはRuleによる変換後の値であり、後続Layerで利用する標準表現である。
 
-ValueはAdapter Layerから後続Layerへ受け渡される。
+ValueはRIM_AdapterLayerから後続Layerへ受け渡される。
 
 ## 8.3 Context
 
@@ -168,7 +168,7 @@ RuleはContextの内容を変更しない。
 - RuleNotFound
 - ConvertError
 
-ErrorCodeはAdapter Layer共通契約として扱う。
+ErrorCodeはRIM_AdapterLayer共通契約として扱う。
 
 ## 8.5 Result<T>
 
@@ -176,7 +176,7 @@ Result<T>は値を伴う処理結果を表す。
 
 RuleResolverおよびRuleの戻り値として利用する。
 
-Result<T>はAdapter Layer共通契約として扱う。
+Result<T>はRIM_AdapterLayer共通契約として扱う。
 
 ---
 
@@ -284,8 +284,8 @@ Ruleは変換処理に失敗した場合、ConvertErrorを返却する。
 
 - RuleResolverはRule選択のみを行う
 - Ruleは変換処理のみを行う
-- RuleはDataStore Layerへ依存しない
-- RuleはCapability Layerへ依存しない
+- RuleはRIM_DatastoreLayerへ依存しない
+- RuleはRIM_CapabilityLayerへ依存しない
 
 ## 12.2 機能制約
 

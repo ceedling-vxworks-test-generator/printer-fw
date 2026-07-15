@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>実装言語比較_C_vs_Cpp</title>
+<title>RIM（ReactiveInfoManager）実装言語比較：C vs C++（実装者目線）</title>
 <style>
 body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
        max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
@@ -27,18 +27,53 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </style>
 </head>
 <body>
-<nav class="docnav"><a href="../index.html">&#8962; 設計書一覧へ</a></nav>
-<h1 id="fsic-vs-c">FSI実装言語比較：C vs C++（実装者目線）</h1>
-<p>本書は、FSI（Adapter → DataStore → Capability → Publisher / Accessor）を
+<h1>RIM（ReactiveInfoManager）実装言語比較：C vs C++（実装者目線）</h1>
+<p>本書は、RIM（ReactiveInfoManager＝L1 RIM_AdapterLayer → L2 RIM_DatastoreLayer →
+L3 RIM_CapabilityLayer → L4 RIM_PublisherLayer、および隣接する Accessor Layer）を
 <strong>C（C99/C11）で実装する場合</strong>と<strong>C++（C++17）で実装する場合</strong>の得失を、
 本設計の具体的な構成要素に即して比較する。一般論ではなく「この設計を書くとき何が起きるか」を扱う。</p>
+<hr />
+<h2>0. 採用決定（2026-07-14・チーム事情による方針確定）</h2>
+<blockquote>
+<p>本節は§1〜§7の<strong>分析より上位の「確定した採用方針」</strong>である。分析上の最有力は
+§1・§6のとおり <strong>C++-firstハイブリッド</strong>だが、<strong>実装担当がC言語専門</strong>という
+チーム事情を最優先し、以下の <strong>C-firstハイブリッド</strong> を採用する。以降の各節は
+この決定の根拠・留意点として読むこと（§1・§6の「推奨」は分析上の結論であり、
+本§0が実運用上の決定で上書きする）。</p>
+</blockquote>
+<p><strong>採用方針：C-firstハイブリッド（IFはextern "C"、内部は基本C・C++は2箇所に限定）</strong></p>
+<ol>
+<li><strong>公開IFはすべて <code>extern "C"</code></strong>：RIMの層間IF・公開APIはC ABIで提供し、
+   <strong>C言語の解釈でそのまま使用できる</strong>ようにする（C専門の開発者が主読者・主実装者）。
+   ヘッダは純Cとして解釈可能な形（<code>pf_*_t</code> 様式、関数ポインタテーブル＋ctx）で書く。</li>
+<li><strong>内部実装は基本C</strong>：タグ付きunion、<code>bool + out引数</code>（<code>std::optional</code> 不使用）、
+   <code>has_xxx</code> フラグ（optionalメンバ不使用）、関数ポインタテーブル（抽象クラス不使用）、
+   DataId連番enum＋固定長配列（<code>unordered_map</code> 不使用）、短時間mutex＋構造体コピー
+   （atomic <code>shared_ptr</code> 不使用＝H-7緩和）で書く。→ §4 の設計差分6点を正式採用。</li>
+<li><strong>C++を用いる箇所は次の2つに限定</strong>（ここだけC++の仕組みを持ち込む）：
+   - <strong>(a) 可変長Listの仕組み</strong>：容量固定・静的確保の可変長コンテナ（<code>takeUpdatedValues()</code>
+     の戻り、購読者リスト、SnapshotのドメインListなど）は C++ テンプレートの
+     固定容量コンテナ（<code>rim::FixedVector&lt;T, N&gt;</code> 相当）で実装し、要素型ごとの
+     ボイラープレートを排除する。<strong>動的確保はしない</strong>（内部は固定長配列＋サイズ）。
+   - <strong>(b) RIM_AdapterLayer でデータを受け取る箇所の型の自由さ</strong>：<code>RawValue</code> は
+     入力元ごとに型が異なるため、受理点のみ C++ の型機構（テンプレート／<code>std::variant</code>
+     相当の型安全union）で「型の自由さ」を確保する。境界を越えて後続層へ渡す時点で
+     正規化済みの <code>DataValue</code>（タグ付きunion・C表現）へ落とす。</li>
+<li><strong>それ以外でのC++機能（例外・RTTI・STLコンテナ・atomic shared_ptr・
+   テンプレートメタプロ）は持ち込まない</strong>（<code>-fno-exceptions -fno-rtti</code> 継続）。</li>
+<li><strong>ビルドは C++ でリンク</strong>（(a)(b)がC++のため）。公開IFがC ABIなので、
+   利用側のCコードからは <code>-lstdc++</code>（またはリンカにg++）でリンクする。</li>
+</ol>
+<p>この方針の実体スケルトンは <code>rim/</code>（<code>rim/include/rim/*.h</code>＝extern "C"公開ヘッダ、
+<code>rim/src/*.cpp</code>＝C++実装）に置く。§4の設計差分6点は本方針で「必須」として適用済みとする。</p>
+<hr />
 <p><strong>前提（本リポジトリの現状）</strong>
 - 既存コードは「C ABIヘッダ（<code>extern "C"</code> / <code>pf_*_t</code>）＋ C++17実装」のハイブリッド構成
 - 組込みフラグは <code>-fno-exceptions -fno-rtti</code>（例外・RTTI不使用）で運用中
 - port層は baremetal / FreeRTOS / Linux を想定。テストはCeedling系（C）資産あり
 - 設計書（詳細設計）の疑似コードはC++語彙（<code>std::optional</code> / <code>shared_ptr</code> / <code>condition_variable</code> 等）で記述されている</p>
 <hr />
-<h2 id="1">1. 結論サマリ</h2>
+<h2>1. 結論サマリ</h2>
 <table>
 <thead>
 <tr>
@@ -95,12 +130,13 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tr>
 </tbody>
 </table>
-<p><strong>推奨</strong>：本設計に対しては <strong>「C ABI公開ヘッダ＋C++17内部実装（例外/RTTI無効・動的確保は初期化時のみ）」</strong>、
-つまり<strong>既存printer-fwと同じハイブリッド</strong>が最有力。理由は§6。純Cにする合理性があるのは
-「C++17ツールチェーンが用意できないターゲットが確定している」場合のみ。</p>
+<p><strong>分析上の推奨</strong>：純粋に技術得失だけで見れば <strong>「C ABI公開ヘッダ＋C++17内部実装（例外/RTTI無効・
+動的確保は初期化時のみ）」</strong>（C++-firstハイブリッド）が最有力。理由は§6。
+<strong>ただし実運用の採用方針は §0 の C-firstハイブリッドで確定</strong>（実装者がC専門というチーム事情を優先）。
+本表の「C」列は、その C-first 内部実装で実際に何が起きるかの予習として読むこと。</p>
 <hr />
-<h2 id="2">2. 設計要素別の比較（本設計で実際に書くもの）</h2>
-<h3 id="21-dataentryitemdatavalue-variant-datacontext">2.1 DataEntryItem（DataValue variant + DataContext）</h3>
+<h2>2. 設計要素別の比較（本設計で実際に書くもの）</h2>
+<h3>2.1 DataEntryItem（DataValue variant + DataContext）</h3>
 <p>設計：<code>DataValue</code> は種別ごとの型のバリアント、<code>DataContext</code> は key-value 集合。</p>
 <p><strong>C++</strong></p>
 <pre><code class="language-cpp">using DataValue = std::variant&lt;Celsius, Percent, JobProgress, FaultCode /*...*/&gt;;
@@ -124,7 +160,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <li>実装工数そのものは大差ないが、<strong>種別追加のたびに switch 文が全域に増殖</strong>するのがC。
   C++はvisit/テンプレートで追加点が局所化する。</li>
 </ul>
-<h3 id="22-stdoptionalregistrydomain-applynullopt">2.2 <code>std::optional&lt;RegistryDomain&gt; apply()</code>（変化なし=nullopt 契約）</h3>
+<h3>2.2 <code>std::optional&lt;RegistryDomain&gt; apply()</code>（変化なし=nullopt 契約）</h3>
 <p><strong>C</strong></p>
 <pre><code class="language-c">/* 戻り値bool＋出力引数が定石 */
 bool pf_fault_registry_apply(pf_fault_registry_t* self,
@@ -136,7 +172,7 @@ bool pf_fault_registry_apply(pf_fault_registry_t* self,
   （設計のoptional契約はこの曖昧さを型で消している）。
   Cでは全Registry/Dispatcherで規約を統一し、レビューで守るしかない。</li>
 </ul>
-<h3 id="23-machinesnapshotoptionalsnapshot">2.3 MachineSnapshot（optionalメンバの部分Snapshot）</h3>
+<h3>2.3 MachineSnapshot（optionalメンバの部分Snapshot）</h3>
 <p><strong>C</strong></p>
 <pre><code class="language-c">typedef struct {
     bool has_fault;        pf_fault_snapshot_t fault;
@@ -148,7 +184,7 @@ bool pf_fault_registry_apply(pf_fault_registry_t* self,
 <li><code>has_xxx</code> フラグ方式で素直に書ける。<strong>Cでも大きな困難はない</strong>。</li>
 <li>ただし「フラグを見ずにメンバを読む」事故はCでは防げない（C++のoptionalは参照時に意図が明示される）。</li>
 </ul>
-<h3 id="24-iregistryupdatenotifier-ipublisher-imachinesnapshotreader">2.4 層間インターフェース（IRegistryUpdateNotifier / IPublisher / IMachineSnapshotReader）</h3>
+<h3>2.4 層間インターフェース（IRegistryUpdateNotifier / IPublisher / IMachineSnapshotReader）</h3>
 <p><strong>C++</strong>：抽象クラス。モック注入も自然。</p>
 <p><strong>C</strong>：関数ポインタテーブル＋コンテキストポインタの定石。</p>
 <pre><code class="language-c">typedef struct {
@@ -161,7 +197,7 @@ bool pf_fault_registry_apply(pf_fault_registry_t* self,
 <li>欠点は「<code>ctx</code> の型消失（void*）」。渡し間違いはコンパイラが検出しない。</li>
 <li>IF数が少ない本設計（層間IFは実質4本）では<strong>Cのハンデは小さい</strong>。</li>
 </ul>
-<h3 id="25-h-7capabilityatomic">2.5 H-7：前回Capabilityのatomic共有（最大の分岐点）</h3>
+<h3>2.5 H-7：前回Capabilityのatomic共有（最大の分岐点）</h3>
 <p>設計契約：Capabilityスレッドが更新し、Accessor等の<strong>別スレッドがロックレスで読む</strong>。</p>
 <p><strong>C++</strong>：定石どおり一行級。</p>
 <pre><code class="language-cpp">std::atomic_store(&amp;prev_, std::make_shared&lt;const CapabilitySet&gt;(merged));
@@ -178,14 +214,14 @@ auto snap = std::atomic_load(&amp;prev_);   // 読側：寿命はshared_ptrが�
      設計意図（Accessor詳細§10.2）が弱まる。実害は小さい可能性が高く、<strong>Cならこれを推奨</strong>。</p>
 <p><strong>実装者への正直な忠告</strong>：Cで1.を選ぶと本設計最悪の沼になる。Cなら3.（短時間mutex＋構造体コピー）に
 契約を緩める設計変更をセットで行うべき。C++なら設計書のまま書けば終わる。</p>
-<h3 id="26-pendingwakeh-1">2.6 pendingドメイン集合＋wake（H-1機構）</h3>
+<h3>2.6 pendingドメイン集合＋wake（H-1機構）</h3>
 <ul>
 <li>中身は「ビットマスクOR＋mutex＋条件変数（またはRTOSイベントフラグ）」。</li>
 <li><strong>C/C++で難易度差はほぼない</strong>。FreeRTOSなら <code>xEventGroupSetBits</code> が
   そのままpending集合になるため、<strong>Cのほうが素直</strong>なくらいである。</li>
 <li><code>FlagSet&lt;RegistryDomain&gt;</code> も実体は <code>uint32_t</code> ビット演算。Cで全く問題ない。</li>
 </ul>
-<h3 id="27-queue-bufferiqueuedataentryitemcurrentvaluebufferslot-map">2.7 Queue / Buffer（IQueue\&lt;DataEntryItem&gt;、CurrentValueBufferのslot map）</h3>
+<h3>2.7 Queue / Buffer（IQueue\&lt;DataEntryItem&gt;、CurrentValueBufferのslot map）</h3>
 <p><strong>C++</strong>：テンプレート1つで3レーン共用。<code>unordered_map</code> は組込みでは静的配列に置換推奨。</p>
 <p><strong>C</strong>：
 - ジェネリックQueueは「void<em>＋要素サイズ」or「マクロ生成」or「レーン別に3回書く」。
@@ -193,7 +229,7 @@ auto snap = std::atomic_load(&amp;prev_);   // 読側：寿命はshared_ptrが�
 - CurrentValueBufferの <code>slots_</code> は、</em><em>DataIdを連番enumにして固定長配列</em><em>にすれば
   mapより単純・高速・静的確保。</em><em>これはC/C++どちらでも採るべき組込み定石</em>*であり、
   設計書の <code>unordered_map</code> はホスト向け表記と割り切る。</p>
-<h3 id="28-raii">2.8 RAIIとロック（全層）</h3>
+<h3>2.8 RAIIとロック（全層）</h3>
 <p><strong>C++</strong>：<code>lock_guard</code> / <code>unique_lock</code>。早期returnでも解放漏れなし。
   H-1のwait_for述語つき待機も標準ライブラリで書ける。</p>
 <p><strong>C</strong>：</p>
@@ -208,20 +244,20 @@ pf_mutex_unlock(&amp;reg-&gt;mutex);
 <li>Dispatcherの <code>while(!stop)</code> ＋停止token解除（ライフサイクル設計）もCで書けるが、
   条件変数の spurious wakeup 処理などの様式美を全員が守る必要がある。</li>
 </ul>
-<h3 id="29-evaluator-8capability">2.9 Evaluator 8種（Capability判定式）</h3>
+<h3>2.9 Evaluator 8種（Capability判定式）</h3>
 <ul>
 <li>C++：<code>ICapabilityEvaluator</code> 実装8クラス。</li>
 <li>C：関数ポインタ配列 <code>pf_evaluator_fn evaluators[PF_CAP_KIND_COUNT]</code>。</li>
 <li><strong>どちらでも綺麗に書ける</strong>。差はほぼない（状態を持たない純関数群のため）。</li>
 </ul>
-<h3 id="210-capabilityseth-3">2.10 CapabilitySetマージ規則（H-3）</h3>
+<h3>2.10 CapabilitySetマージ規則（H-3）</h3>
 <ul>
 <li>実体は「Kindごとの has_value 判定＋コピー」。<strong>C/C++で難易度差なし</strong>。</li>
 <li>ただしCは <code>optional</code> がないため「有効フラグ配列＋値配列」で表現することになり、
   §2.3と同じく<strong>フラグ見落とし事故はレビュー頼み</strong>。</li>
 </ul>
 <hr />
-<h2 id="3">3. テスト戦略の違い（実装者の日常に直結）</h2>
+<h2>3. テスト戦略の違い（実装者の日常に直結）</h2>
 <table>
 <thead>
 <tr>
@@ -262,7 +298,7 @@ pf_mutex_unlock(&amp;reg-&gt;mutex);
 <strong>ThreadSanitizer / AddressSanitizer が回せるC++（ホストビルド）の検証力は大きな武器</strong>。
 Cでも回せるが、参照カウント自作（§2.5）のような検証対象を増やすのはC側である。</p>
 <hr />
-<h2 id="4-c">4. C実装を選ぶ場合の設計書からの差分（必要な設計変更）</h2>
+<h2>4. C実装を選ぶ場合の設計書からの差分（必要な設計変更）</h2>
 <p>Cで作るなら、以下を<strong>設計書側も修正</strong>して整合させること（暗黙変更は禁止）。</p>
 <ol>
 <li><strong>H-7の緩和</strong>：atomic shared_ptr → 「短時間mutex＋構造体コピー」契約へ変更（§2.5）</li>
@@ -272,7 +308,7 @@ Cでも回せるが、参照カウント自作（§2.5）のような検証対�
 <li><code>unordered_map</code> 系 → DataId連番enum＋固定長配列に置換（これはC++でも推奨）</li>
 <li>エラー戻り値 → 既存 <code>pf_result_t</code> 体系に統一</li>
 </ol>
-<h2 id="5-c">5. C++実装を選ぶ場合の規律（既存方針の継承＋追加）</h2>
+<h2>5. C++実装を選ぶ場合の規律（既存方針の継承＋追加）</h2>
 <ol>
 <li><strong>例外・RTTI無効</strong>（既存 <code>-fno-exceptions -fno-rtti</code> を継続）。エラーは戻り値</li>
 <li><strong>動的確保は初期化フェーズのみ</strong>（ライフサイクル設計 Phase 1）。
@@ -283,8 +319,8 @@ Cでも回せるが、参照カウント自作（§2.5）のような検証対�
 <li>テンプレートは「Queue等の器」まで。メタプログラミングは持ち込まない（デバッグ性維持）</li>
 </ol>
 <hr />
-<h2 id="6">6. 総合評価と推奨</h2>
-<h3 id="_1">工数感（本設計・相対値）</h3>
+<h2>6. 総合評価と推奨</h2>
+<h3>工数感（本設計・相対値）</h3>
 <table>
 <thead>
 <tr>
@@ -316,9 +352,14 @@ Cでも回せるが、参照カウント自作（§2.5）のような検証対�
 </tr>
 </tbody>
 </table>
-<h3 id="_2">推奨：<strong>ハイブリッド（現状踏襲）</strong></h3>
+<h3>分析上の推奨：<strong>C++-firstハイブリッド</strong> ／ 実運用の採用：<strong>C-firstハイブリッド（§0）</strong></h3>
+<blockquote>
+<p>以下は技術得失のみで見た分析上の結論。<strong>実運用では §0 の C-firstハイブリッドを採用</strong>し、
+C++ は「可変長List」と「RIM_AdapterLayer受理点の型の自由さ」の2箇所に限定する。
+§0採用時は下記の6点（§4の設計差分）を必須で適用する。</p>
+</blockquote>
 <ul>
-<li><strong>公開ヘッダ＝C ABI、内部実装＝C++17（例外/RTTI無効）</strong></li>
+<li><strong>（分析上の最有力）公開ヘッダ＝C ABI、内部実装＝C++17（例外/RTTI無効）</strong></li>
 <li>根拠：
   1. 設計書の契約（optional/variant/atomic shared_ptr）がそのまま実装になり、<strong>設計と実装の乖離が最小</strong>
   2. H-7をはじめ並行契約の実装・検証コストが<strong>C比で明確に低い</strong>（TSan活用含む）
@@ -328,7 +369,7 @@ Cでも回せるが、参照カウント自作（§2.5）のような検証対�
   その際は§4の設計変更6点を先に実施すること。</li>
 </ul>
 <hr />
-<h2 id="7">7. 判断チェックリスト（着手前に埋める）</h2>
+<h2>7. 判断チェックリスト（着手前に埋める）</h2>
 <ul>
 <li>[ ] ターゲットMCU/RTOSのツールチェーンはC++17対応か（VxWorks版数・GCCバージョン）</li>
 <li>[ ] コーディング規約（MISRA-C / AUTOSAR C++等）の指定はあるか</li>
@@ -336,7 +377,7 @@ Cでも回せるが、参照カウント自作（§2.5）のような検証対�
 <li>[ ] テスト環境はCeedling継続か、gtestホストテスト併用か</li>
 <li>[ ] チームのC++習熟度（variant/atomic/所有権の設計レビューができる人数）</li>
 </ul>
-<footer>printer-fw FSI 設計書（Markdown原本: 共通/実装言語比較_C_vs_Cpp.md）</footer>
+<footer>printer-fw RIM 設計書（Markdown原本: 共通/実装言語比較_C_vs_Cpp.md）</footer>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });

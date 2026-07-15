@@ -22,7 +22,7 @@ flowchart LR
 ```
 
 Accessor Layerは状態を保持せず、都度DataStore（MachineSnapshotReader）と
-Capability Layer（現在状態参照）から取得して合成し返す。
+RIM_CapabilityLayer（現在状態参照）から取得して合成し返す。
 
 ---
 
@@ -48,8 +48,8 @@ struct PrinterStatus {
 ## 3. PrinterStatusReader
 
 ### 3.1 依存
-- `IMachineSnapshotReader`（DataStore Layer）
-- Capability Layerの現在状態参照IF（**確定**：`std::shared_ptr<const CapabilitySet> getCurrentCapability()`。
+- `IMachineSnapshotReader`（RIM_DatastoreLayer）
+- RIM_CapabilityLayerの現在状態参照IF（**確定**：`std::shared_ptr<const CapabilitySet> getCurrentCapability()`。
   不変オブジェクトのatomic shared_ptr取得のため**別スレッドから安全に読める**。
   Capability詳細 §1.2/§3.1 参照。起動時の初期フル評価により常に値が存在する）
 
@@ -62,14 +62,14 @@ PrinterStatus getPrinterStatus(const PrinterStatusRequest& request) const;
 ```text
 1. request.domains から SnapshotRequest を構築
 2. MachineSnapshotReader.capture(request) で現在値を取得
-3. request.includeCapability が真なら Capability Layer から現在Capを取得
+3. request.includeCapability が真なら RIM_CapabilityLayer から現在Capを取得
 4. PrinterStatus に詰めて返す（capturedAt を付与）
 ```
 
 ### 3.4 排他
 - Accessor自身はロックを持たない。
 - 現在値の整合はMachineSnapshotReader（Registry単位ロック・短時間コピー）に委ねる。
-- 現在Capの取得はCapability Layerの参照IFに委ねる（Capabilityは不変オブジェクト前提）。
+- 現在Capの取得はRIM_CapabilityLayerの参照IFに委ねる（Capabilityは不変オブジェクト前提）。
 
 ---
 
@@ -80,7 +80,7 @@ sequenceDiagram
     participant Ext as 外部
     participant PSR as PrinterStatusReader
     participant MSR as MachineSnapshotReader
-    participant Cap as Capability Layer
+    participant Cap as RIM_CapabilityLayer
 
     Ext->>PSR: getPrinterStatus(request)
     PSR->>MSR: capture(request.domains)

@@ -16,7 +16,7 @@
         </mxCell>
 
         <!-- ===== L1 Adapter band ===== -->
-        <mxCell id="adpBg" value="L1　Adapter Layer（データ取得・正規化）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+        <mxCell id="adpBg" value="L1　RIM_AdapterLayer（データ取得・正規化）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
           <mxGeometry x="40" y="110" width="1300" height="180" as="geometry" />
         </mxCell>
         <mxCell id="a_rdi" value="RawDataInput&lt;br&gt;入力の起点・処理制御" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
@@ -40,7 +40,7 @@
         <mxCell id="e_a4" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="a_rdi" target="a_post"><mxGeometry relative="1" as="geometry" /></mxCell>
 
         <!-- ===== L2 DataStore band ===== -->
-        <mxCell id="dsBg" value="L2　DataStore Layer（観測事実の保持・Single Source of Truth）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+        <mxCell id="dsBg" value="L2　RIM_DatastoreLayer（観測事実の保持・Single Source of Truth）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
           <mxGeometry x="40" y="310" width="1300" height="352" as="geometry" />
         </mxCell>
         <mxCell id="ds_cip" value="CentralInputPort　postFaultInput / postOperationReport / postCurrentValueInput（post種別とId分類の一致を検証）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
@@ -105,7 +105,7 @@
         <mxCell id="e_ds13" value="makeSnapshot" style="endArrow=block;html=1;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="ds_mr" target="ds_reader"><mxGeometry relative="1" as="geometry" /></mxCell>
 
         <!-- ===== L3 Capability band ===== -->
-        <mxCell id="capBg" value="L3　Capability Layer（事実→意味への状態変換・判定）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+        <mxCell id="capBg" value="L3　RIM_CapabilityLayer（事実→意味への状態変換・判定）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
           <mxGeometry x="40" y="682" width="1300" height="250" as="geometry" />
         </mxCell>
         <mxCell id="cap_mgr" value="CapabilityManager&lt;br&gt;onRegistryUpdated(domains)&lt;br&gt;制御中枢（取得→生成→差分→優先度→通知）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;fontStyle=1;" vertex="1" parent="1">
@@ -152,7 +152,7 @@
         </mxCell>
 
         <!-- ===== L4 Publisher band ===== -->
-        <mxCell id="pubBg" value="L4　Publisher Layer（配信専用）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+        <mxCell id="pubBg" value="L4　RIM_PublisherLayer（配信専用）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;align=left;fontStyle=1;fontSize=14;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
           <mxGeometry x="420" y="962" width="920" height="248" as="geometry" />
         </mxCell>
         <mxCell id="pub_engine" value="② Publish Engine&lt;br&gt;Capability ごとにタスク生成&lt;br&gt;配信管理・Rate Limit" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">

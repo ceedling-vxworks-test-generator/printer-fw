@@ -1,6 +1,6 @@
 # 1. 概要
 
-RawDataInputはAdapter Layerの入力エントリポイントである。
+RawDataInputはRIM_AdapterLayerの入力エントリポイントである。
 
 本コンポーネントは入力元コンポーネントから渡されたRawDataを受け取り、Rule選択、値変換およびDataStoreへの送信処理を実行する。
 
@@ -12,13 +12,13 @@ RawDataInput自身はRule選択や値変換の詳細ロジックを保持せず�
 
 本コンポーネントの目的は、入力データの受付からDataStoreへの送信要求までの処理を一元管理することである。
 
-入力処理の起点を明確にし、Adapter Layer内部の処理フローを統制する。
+入力処理の起点を明確にし、RIM_AdapterLayer内部の処理フローを統制する。
 
 ---
 
 # 3. 背景・採用理由
 
-Adapter Layerは外部仕様との差異を吸収し、後続Layerへ統一されたデータ形式を提供する責務を持つ。
+RIM_AdapterLayerは外部仕様との差異を吸収し、後続Layerへ統一されたデータ形式を提供する責務を持つ。
 
 RawDataInputはその入口として機能し、入力受付からDataStore送信までの処理フローを統括する。
 
@@ -78,7 +78,7 @@ RawDataInputは状態を保持しない。
 
 - RuleResolver
 - InputClassifier
-- CentralInputPort（DataStore Layer提供）
+- CentralInputPort（RIM_DatastoreLayer提供）
 
 RuleResolverは識別子に対応するRuleを取得するために利用する。
 
@@ -89,7 +89,7 @@ CentralInputPortは正規化済みデータの送信先として利用する。�
 
 CentralInputPortは投入成功のみを保証する。
 
-DataStoreへの反映結果は保証対象外であり、反映処理はDataStore Layerの責務とする。
+DataStoreへの反映結果は保証対象外であり、反映処理はRIM_DatastoreLayerの責務とする。
 
 ## 7.2 利用されるコンポーネント
 

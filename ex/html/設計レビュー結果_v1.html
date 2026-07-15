@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>設計レビュー結果_v1</title>
+<title>設計レビュー結果 v1（独立レビュー・2026-07-08）</title>
 <style>
 body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
        max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
@@ -27,14 +27,13 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </style>
 </head>
 <body>
-<nav class="docnav"><a href="index.html">&#8962; 設計書一覧へ</a></nav>
-<h1 id="v12026-07-08">設計レビュー結果 v1（独立レビュー・2026-07-08）</h1>
+<h1>設計レビュー結果 v1（独立レビュー・2026-07-08）</h1>
 <p>本書は、PR #1 の設計文書群に対して実施した独立レビュー（レビューアは設計作成に非関与）と
 作成者の自己レビューを統合した結果、および対応状況を記録する。</p>
 <p><strong>対応方針</strong>：修正（engineering）と検証（review）は別部隊で独立に行う。
 本書の「対応状況」は修正側の申告であり、再検証は別途独立レビューで行う。</p>
 <hr />
-<h2 id="high">High（層間契約の欠陥）</h2>
+<h2>High（層間契約の欠陥）</h2>
 <table>
 <thead>
 <tr>
@@ -89,7 +88,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tr>
 </tbody>
 </table>
-<h2 id="medium">Medium</h2>
+<h2>Medium</h2>
 <table>
 <thead>
 <tr>
@@ -151,7 +150,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tr>
 </tbody>
 </table>
-<h2 id="low">Low</h2>
+<h2>Low</h2>
 <table>
 <thead>
 <tr>
@@ -189,7 +188,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tbody>
 </table>
 <hr />
-<h2 id="_1">総括（レビュー時点）</h2>
+<h2>総括（レビュー時点）</h2>
 <p>個々のコンポーネント設計（3レーン分離、Pull型Snapshot、意味的差分/配信的差分の分離）は筋が良い一方、
 層間の「つなぎ目」の契約が未確定・不整合だった。High 7件はすべて本ブランチで設計反映済み。</p>
 <p><strong>残課題の優先順</strong>：
@@ -199,7 +198,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 4. M-6（購読者視点の順序契約）
 5. M-7/M-10（capture Result化・PrinterStatus契約）</p>
 <p><strong>次アクション</strong>：H対応の再検証を独立レビューで実施する（修正と検証の分離）。</p>
-<footer>printer-fw FSI 設計書（Markdown原本: 設計レビュー結果_v1.md）</footer>
+<footer>printer-fw RIM 設計書（Markdown原本: 設計レビュー結果_v1.md）</footer>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });

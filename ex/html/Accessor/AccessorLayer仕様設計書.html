@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AccessorLayer仕様設計書</title>
+<title>Accessor Layer 仕様設計書</title>
 <style>
 body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
        max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
@@ -27,15 +27,14 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </style>
 </head>
 <body>
-<nav class="docnav"><a href="../index.html">&#8962; 設計書一覧へ</a></nav>
-<h1 id="accessor-layer">Accessor Layer 仕様設計書</h1>
-<h2 id="1">1. 概要</h2>
-<p>Accessor Layerは、DataStore Layerの現在値およびCapability Layerの現在状態（Capability）を、
+<h1>Accessor Layer 仕様設計書</h1>
+<h2>1. 概要</h2>
+<p>Accessor Layerは、RIM_DatastoreLayerの現在値およびRIM_CapabilityLayerの現在状態（Capability）を、
 外部から任意タイミングで参照可能にする参照専用Layerである。</p>
 <p>本Layerは<strong>Pull（要求に応じた参照提供）</strong>を担い、状態変化の<strong>通知（Push）は行わない</strong>。
-通知はPublisher Layerの責務である。</p>
+通知はRIM_PublisherLayerの責務である。</p>
 <hr />
-<h2 id="2">2. 用語</h2>
+<h2>2. 用語</h2>
 <table>
 <thead>
 <tr>
@@ -50,42 +49,46 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tr>
 <tr>
 <td>現在値</td>
-<td>DataStore Layerが保持する観測事実の最新値</td>
+<td>RIM_DatastoreLayerが保持する観測事実の最新値</td>
 </tr>
 <tr>
 <td>現在Capability</td>
-<td>Capability Layerが最後に生成したCapability</td>
+<td>RIM_CapabilityLayerが最後に生成したCapability</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="3">3. 位置づけ</h2>
-<p><div class="mermaid">flowchart TD
-    DS[DataStore Layer] -. 現在値参照 .-&gt; Acc[Accessor Layer（参照専用）]
-    Cap[Capability Layer] -. 現在Cap参照 .-&gt; Acc
-    Ext[外部（UI/診断/保守ツール等）] --&gt;|getPrinterStatus()| Acc</div></p>
-<p>Accessor LayerはPublisher Layer（Push）と対を成し、外部が「今の状態を知りたい」
+<h2>3. 位置づけ</h2>
+<div class="mermaid">
+flowchart TD
+    DS[RIM_DatastoreLayer] -. 現在値参照 .-&gt; Acc[Accessor Layer（参照専用）]
+    Cap[RIM_CapabilityLayer] -. 現在Cap参照 .-&gt; Acc
+    Ext[外部（UI/診断/保守ツール等）] --&gt;|getPrinterStatus()| Acc
+</div>
+<p>Accessor LayerはRIM_PublisherLayer（Push）と対を成し、外部が「今の状態を知りたい」
 任意のタイミングで参照するための入口を提供する。</p>
 <hr />
-<h2 id="4">4. 目的</h2>
+<h2>4. 目的</h2>
 <ul>
 <li>DataStore / Capability の現在値を外部から取得可能にする</li>
 <li>任意タイミングでの参照を提供する</li>
 <li>配信（Push）とは独立した参照経路を提供する</li>
 </ul>
 <hr />
-<h2 id="5">5. 責務</h2>
+<h2>5. 責務</h2>
 <ul>
-<li>DataStore Layerの現在値の参照提供</li>
-<li>Capability Layerの現在状態の参照提供</li>
+<li>RIM_DatastoreLayerの現在値の参照提供</li>
+<li>RIM_CapabilityLayerの現在状態の参照提供</li>
 <li>参照要求に対する読み取り専用データの返却</li>
 </ul>
-<p><div class="mermaid">flowchart LR
-    A[参照要求受理] --&gt; B[現在値/現在Cap取得] --&gt; C[読取専用データ返却]</div></p>
+<div class="mermaid">
+flowchart LR
+    A[参照要求受理] --&gt; B[現在値/現在Cap取得] --&gt; C[読取専用データ返却]
+</div>
 <hr />
-<h2 id="6">6. 非責務</h2>
+<h2>6. 非責務</h2>
 <ul>
-<li>状態変化の通知（それはPublisher Layer）</li>
+<li>状態変化の通知（それはRIM_PublisherLayer）</li>
 <li>状態の保持（正本はDataStore / 現在CapはCapabilityが保持）</li>
 <li>状態の解釈・判断</li>
 <li>データの更新</li>
@@ -95,22 +98,24 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 Accessor Layerは自前で状態を保持せず、都度DataStore/Capabilityから取得して返す。</p>
 </blockquote>
 <hr />
-<h2 id="7">7. コンポーネント構成</h2>
+<h2>7. コンポーネント構成</h2>
 <p>Accessor Layerは以下のコンポーネントで構成される。</p>
 <ul>
 <li>PrinterStatusReader</li>
 </ul>
-<p><div class="mermaid">flowchart LR
+<div class="mermaid">
+flowchart LR
     subgraph AccessorLayer
         PSR[PrinterStatusReader]
     end
     PSR --&gt;|capture(request)| MSR[MachineSnapshotReader（DataStore）]
-    PSR --&gt;|現在Cap取得| Cap[Capability Layer]
-    Ext[外部] --&gt;|getPrinterStatus| PSR</div></p>
-<h3 id="71-printerstatusreader">7.1 PrinterStatusReader</h3>
+    PSR --&gt;|現在Cap取得| Cap[RIM_CapabilityLayer]
+    Ext[外部] --&gt;|getPrinterStatus| PSR
+</div>
+<h3>7.1 PrinterStatusReader</h3>
 <p>外部からの参照要求に応じ、DataStoreの現在値（MachineSnapshotReader経由）および
-Capability Layerの現在状態を取得して返す。</p>
-<h4 id="711-if">7.1.1 提供IF</h4>
+RIM_CapabilityLayerの現在状態を取得して返す。</p>
+<h4>7.1.1 提供IF</h4>
 <table>
 <thead>
 <tr>
@@ -125,13 +130,13 @@ Capability Layerの現在状態を取得して返す。</p>
 </tr>
 </tbody>
 </table>
-<h4 id="712">7.1.2 非責務</h4>
+<h4>7.1.2 非責務</h4>
 <ul>
 <li>状態保持を行わない</li>
 <li>通知を行わない</li>
 </ul>
 <hr />
-<h2 id="8">8. データモデル</h2>
+<h2>8. データモデル</h2>
 <pre><code class="language-text">struct PrinterStatusRequest {
     RegistryDomainSet domains;      // 参照したい範囲（任意）
     bool includeCapability;         // 現在Capを含めるか
@@ -144,12 +149,13 @@ struct PrinterStatus {
 </code></pre>
 <p>PrinterStatusは読み取り専用・取得時点整合とする。</p>
 <hr />
-<h2 id="9">9. 処理フロー</h2>
-<p><div class="mermaid">sequenceDiagram
+<h2>9. 処理フロー</h2>
+<div class="mermaid">
+sequenceDiagram
     participant Ext as 外部
     participant PSR as PrinterStatusReader
     participant MSR as MachineSnapshotReader
-    participant Cap as Capability Layer
+    participant Cap as RIM_CapabilityLayer
 
     Ext-&gt;&gt;PSR: getPrinterStatus(request)
     PSR-&gt;&gt;MSR: capture(request.domains)
@@ -158,31 +164,32 @@ struct PrinterStatus {
         PSR-&gt;&gt;Cap: 現在Capability取得
         Cap--&gt;&gt;PSR: Capability
     end
-    PSR--&gt;&gt;Ext: PrinterStatus（読取専用）</div></p>
+    PSR--&gt;&gt;Ext: PrinterStatus（読取専用）
+</div>
 <hr />
-<h2 id="10">10. 設計方針</h2>
-<h3 id="101-pull">10.1 Pull方式</h3>
+<h2>10. 設計方針</h2>
+<h3>10.1 Pull方式</h3>
 <p>Accessor Layerは要求に応じて返すPull方式である。能動的な配信は行わない。</p>
-<h3 id="102">10.2 状態非保持</h3>
+<h3>10.2 状態非保持</h3>
 <p>Accessor Layerは状態を保持せず、正本（DataStore）と現在Cap（Capability）から都度取得する。
 これにより二重管理による不整合を避ける。</p>
-<h3 id="103-publisher">10.3 Publisherとの分離</h3>
+<h3>10.3 Publisherとの分離</h3>
 <p>「変化を届ける」＝Publisher（Push）、「今を尋ねる」＝Accessor（Pull）と役割を分離する。</p>
 <hr />
-<h2 id="11">11. 制約事項</h2>
+<h2>11. 制約事項</h2>
 <ul>
-<li>Accessor LayerはDataStore Layer内部を直接参照せず、MachineSnapshotReader経由で取得する</li>
+<li>Accessor LayerはRIM_DatastoreLayer内部を直接参照せず、MachineSnapshotReader経由で取得する</li>
 <li>Accessor Layerは状態を保持しない</li>
 <li>Accessor Layerは通知を行わない</li>
 </ul>
 <hr />
-<h2 id="12">12. 非機能要件</h2>
+<h2>12. 非機能要件</h2>
 <ul>
 <li>参照は読み取り専用・取得時点整合であること</li>
 <li>参照処理がDataStore/Capabilityの更新処理を阻害しないこと</li>
 <li>コンポーネント単位でテスト可能であること</li>
 </ul>
-<footer>printer-fw FSI 設計書（Markdown原本: Accessor/AccessorLayer仕様設計書.md）</footer>
+<footer>printer-fw RIM 設計書（Markdown原本: Accessor/AccessorLayer仕様設計書.md）</footer>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });

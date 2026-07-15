@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>整合ギャップ分析_v1</title>
+<title>整合ギャップ分析 v1（drawio ↔ 仕様書mdの照合）</title>
 <style>
 body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
        max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
@@ -27,22 +27,21 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </style>
 </head>
 <body>
-<nav class="docnav"><a href="index.html">&#8962; 設計書一覧へ</a></nav>
-<h1 id="v1drawio-md">整合ギャップ分析 v1（drawio ↔ 仕様書mdの照合）</h1>
-<h2 id="0">0. 本書の位置づけ</h2>
+<h1>整合ギャップ分析 v1（drawio ↔ 仕様書mdの照合）</h1>
+<h2>0. 本書の位置づけ</h2>
 <p>本書は、<code>ex/</code> 配下の設計資料（drawio・各層仕様書/詳細設計書）を照合し、
 不一致点・用語ゆれ・廃止/採用判断を一覧化するものである。</p>
 <p><strong>本書で合意した内容を確定してから、改善版 drawio と各層仕様書の作成に進む。</strong></p>
-<h3 id="01">0.1 正となる設計（合意済み）</h3>
+<h3>0.1 正となる設計（合意済み）</h3>
 <ul>
 <li><strong>③ 最新の基本設計（2026-07-07）を正とする。</strong></li>
-<li><code>DataStore/DataStoreLayer仕様設計書.md</code>（7/7 13:39）</li>
-<li><code>Capability/CapabilityLayer仕様設計書.md</code>（7/7 17:44）</li>
+<li><code>DataStore/RIM_DatastoreLayer仕様設計書.md</code>（7/7 13:39）</li>
+<li><code>Capability/RIM_CapabilityLayer仕様設計書.md</code>（7/7 17:44）</li>
 <li>drawio・② 7/3詳細設計群・Adapter仕様書は、③に揃える方向で更新する。</li>
 <li>③に存在しない層（Publisher / Accessor）は、drawioを唯一の根拠として新規に仕様化する。</li>
 </ul>
 <hr />
-<h2 id="1">1. 設計世代マップ</h2>
+<h2>1. 設計世代マップ</h2>
 <p>現状、<code>ex/</code> には<strong>3つの設計世代が混在</strong>している。これが「drawioとmdが一致しない」根本原因である。</p>
 <table>
 <thead>
@@ -78,7 +77,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <tr>
 <td><strong>③ 基本設計</strong></td>
 <td><strong>正（最新）</strong></td>
-<td><code>DataStoreLayer仕様設計書.md</code> / <code>CapabilityLayer仕様設計書.md</code></td>
+<td><code>RIM_DatastoreLayer仕様設計書.md</code> / <code>RIM_CapabilityLayer仕様設計書.md</code></td>
 <td><strong>07-07</strong></td>
 <td><strong>3レーン</strong>（Fault/Operation/CurrentValue）</td>
 <td><strong>性質別 3 Registry</strong> + MachineRegistry集約</td>
@@ -87,7 +86,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <tr>
 <td>（補）隠蔽詳細</td>
 <td>旧・大部</td>
-<td><code>DataStore/隠蔽/DataStoreLayer詳細設計書.md</code></td>
+<td><code>DataStore/隠蔽/RIM_DatastoreLayer詳細設計書.md</code></td>
 <td>07-03</td>
 <td>混在（SystemSnapshot語彙残存）</td>
 <td>—</td>
@@ -106,7 +105,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </table>
 <p><strong>②と③は互換性がない</strong>（構造・配送方式が根本的に異なる）。③に一本化する。</p>
 <hr />
-<h2 id="2">2. 用語統一表（旧 → 正）</h2>
+<h2>2. 用語統一表（旧 → 正）</h2>
 <table>
 <thead>
 <tr>
@@ -174,8 +173,8 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tbody>
 </table>
 <hr />
-<h2 id="3">3. 層別 照合・ギャップ表</h2>
-<h3 id="31-adapter-layerl1">3.1 Adapter Layer（L1）</h3>
+<h2>3. 層別 照合・ギャップ表</h2>
+<h3>3.1 RIM_AdapterLayer（L1）</h3>
 <table>
 <thead>
 <tr>
@@ -189,8 +188,8 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <tr>
 <td>名称</td>
 <td>Data Transform Layer / Adapter</td>
-<td>Adapter Layer</td>
-<td><strong>Adapter Layer</strong>（別名: Data Transform）</td>
+<td>RIM_AdapterLayer</td>
+<td><strong>RIM_AdapterLayer</strong>（別名: Data Transform）</td>
 </tr>
 <tr>
 <td>変換規則</td>
@@ -222,7 +221,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <code>postFaultInput / postOperationReport / postCurrentValueInput</code> の3種。
 ③§6.1が「postの種類とIdの分類の一致を確認」と述べる通り、<strong>Adapter側がデータ性質（Fault/Operation/CurrentValue）を判別してpost先を選ぶ</strong>必要がある。
 → Adapter仕様書に「性質分類（Idベース）と3レーン投入」を追記する。</p>
-<h3 id="32-datastore-layerl2">3.2 DataStore Layer（L2）— 最大の改修対象</h3>
+<h3>3.2 RIM_DatastoreLayer（L2）— 最大の改修対象</h3>
 <table>
 <thead>
 <tr>
@@ -289,7 +288,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 - <strong>CurrentValue</strong>：最新値系（センサ等）。Idごと上書き・dirty管理・周期取り出し（takeUpdatedValues）。</p>
 <p><strong>GAP-2</strong>：drawioの「各メンバごとの最終更新時刻＋変更フラグ」を③で保持するか。
 ③はdirty/差分通知で代替しているが、最終更新時刻の外部提供要否（Accessor経由）が未確定。</p>
-<h3 id="33-capability-layerl3">3.3 Capability Layer（L3）</h3>
+<h3>3.3 RIM_CapabilityLayer（L3）</h3>
 <table>
 <thead>
 <tr>
@@ -347,7 +346,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <p><strong>GAP-3</strong>：差分管理の所在。drawio Publisher①「State Repository（最終配信値・差分管理）」と
 Capability の CapabilityDiffChecker が重複。
 → <strong>意味的差分（Capが変わったか）＝Capability</strong>、<strong>配信的差分（各購読者へ前回何を送ったか）＝Publisher</strong>、と役割分担で切り分ける方針を提案。</p>
-<h3 id="34-accessor-layer">3.4 Accessor Layer（参照専用）— <strong>仕様書 未作成</strong></h3>
+<h3>3.4 Accessor Layer（参照専用）— <strong>仕様書 未作成</strong></h3>
 <table>
 <thead>
 <tr>
@@ -371,7 +370,7 @@ Capability の CapabilityDiffChecker が重複。
 </table>
 <p>→ <strong>新規作成対象</strong>。drawioを根拠に「AccessorLayer仕様設計書.md」を起こす。
 DataStore（MachineSnapshotReader）・Capability（現在Cap）への参照専用IFとして定義する。</p>
-<h3 id="35-publisher-layer">3.5 Publisher Layer（配信専用）— <strong>仕様書 未作成</strong></h3>
+<h3>3.5 RIM_PublisherLayer（配信専用）— <strong>仕様書 未作成</strong></h3>
 <table>
 <thead>
 <tr>
@@ -404,12 +403,12 @@ DataStore（MachineSnapshotReader）・Capability（現在Cap）への参照専�
 </tbody>
 </table>
 <p>→ <strong>新規作成対象</strong>。drawioの3分割（State Repository / Publish Engine / Subscription Broker）を基に
-「PublisherLayer仕様設計書.md」を起こす。①の「差分管理」と「前回値を保持しない」注記の矛盾は GAP-4 で解消。</p>
+「RIM_PublisherLayer仕様設計書.md」を起こす。①の「差分管理」と「前回値を保持しない」注記の矛盾は GAP-4 で解消。</p>
 <p><strong>GAP-4</strong>：Publisher①State Repositoryは「最終配信値」を保持するのか否か。
 OnChange/Threshold配信を購読者単位で行うなら<strong>配信済み値の保持が必要</strong>。
 drawio注記「前回値保持しない」はCapability層の話（意味的差分）と混線している可能性。
 → <strong>Publisherは購読者ごとの最終配信値のみ保持</strong>、Capの前回値はCapabilityが持つ、で切り分け提案。</p>
-<h3 id="36">3.6 外部購読者 / 駆動軸</h3>
+<h3>3.6 外部購読者 / 駆動軸</h3>
 <table>
 <thead>
 <tr>
@@ -437,7 +436,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 </tbody>
 </table>
 <hr />
-<h2 id="4">4. 廃止 / 採用 判断一覧</h2>
+<h2>4. 廃止 / 採用 判断一覧</h2>
 <table>
 <thead>
 <tr>
@@ -508,7 +507,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 </tbody>
 </table>
 <hr />
-<h2 id="5-drawio">5. drawio 修正指示一覧（<strong>レイアウトは現状を維持</strong>）</h2>
+<h2>5. drawio 修正指示一覧（<strong>レイアウトは現状を維持</strong>）</h2>
 <p>現行drawioの2軸レイアウト（情報軸＝縦のレイヤ帯、駆動軸＝右、外部購読者＝外周）は維持し、
 <strong>DataStore帯の中身</strong>と<strong>用語ラベル</strong>のみ差し替える。</p>
 <ol>
@@ -522,7 +521,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 <li><strong>凡例</strong>：タスク／イベント／処理の流れ／データを伴う処理の流れ／外部取得、を維持</li>
 </ol>
 <hr />
-<h2 id="6">6. 各ファイル 対応方針</h2>
+<h2>6. 各ファイル 対応方針</h2>
 <table>
 <thead>
 <tr>
@@ -533,12 +532,12 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 </thead>
 <tbody>
 <tr>
-<td><code>DataStoreLayer仕様設計書.md</code></td>
+<td><code>RIM_DatastoreLayer仕様設計書.md</code></td>
 <td>③</td>
 <td><strong>正・微修正</strong>（誤記・章番号重複の整理）</td>
 </tr>
 <tr>
-<td><code>CapabilityLayer仕様設計書.md</code></td>
+<td><code>RIM_CapabilityLayer仕様設計書.md</code></td>
 <td>③</td>
 <td><strong>正・TBD解消</strong>（8 Cap / 生成単位 / Threshold）</td>
 </tr>
@@ -553,7 +552,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 <td><strong>廃止 or 全面改稿</strong>（③の3レーン詳細へ）</td>
 </tr>
 <tr>
-<td><code>DataStore/隠蔽/DataStoreLayer詳細設計書.md</code>（93KB）</td>
+<td><code>DataStore/隠蔽/RIM_DatastoreLayer詳細設計書.md</code>（93KB）</td>
 <td>補</td>
 <td><strong>要精査</strong>（③語彙へ寄せる箇所を抽出。次段で判断）</td>
 </tr>
@@ -563,7 +562,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 <td><strong>新規作成</strong></td>
 </tr>
 <tr>
-<td><code>PublisherLayer仕様設計書.md</code></td>
+<td><code>RIM_PublisherLayer仕様設計書.md</code></td>
 <td>—</td>
 <td><strong>新規作成</strong></td>
 </tr>
@@ -575,7 +574,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 </tbody>
 </table>
 <hr />
-<h2 id="7-2026-07-08">7. 確定事項（2026-07-08 合意済み）</h2>
+<h2>7. 確定事項（2026-07-08 合意済み）</h2>
 <table>
 <thead>
 <tr>
@@ -613,7 +612,7 @@ drawio注記「前回値保持しない」はCapability層の話（意味的差�
 </tbody>
 </table>
 <p>これらを前提に、改善版 drawio と各層仕様書を作成する。</p>
-<footer>printer-fw FSI 設計書（Markdown原本: 整合ギャップ分析_v1.md）</footer>
+<footer>printer-fw RIM 設計書（Markdown原本: 整合ギャップ分析_v1.md）</footer>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });

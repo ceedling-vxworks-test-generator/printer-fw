@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DataStoreLayer仕様設計書</title>
+<title>RIM_DatastoreLayer 仕様設計書</title>
 <style>
 body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
        max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
@@ -27,14 +27,13 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </style>
 </head>
 <body>
-<nav class="docnav"><a href="../index.html">&#8962; 設計書一覧へ</a></nav>
-<h1 id="datastore-layer">DataStore Layer 仕様設計書</h1>
-<h2 id="1">1. 概要</h2>
-<p>DataStore Layerはシステム内のデータを集約して管理するLayerである。</p>
-<p>本LayerはAdapter Layerから入力されたデータを一元管理し、Capability Layerへ整合したSnapshotを提供する。</p>
+<h1>RIM_DatastoreLayer 仕様設計書</h1>
+<h2>1. 概要</h2>
+<p>RIM_DatastoreLayerはシステム内のデータを集約して管理するLayerである。</p>
+<p>本LayerはRIM_AdapterLayerから入力されたデータを一元管理し、RIM_CapabilityLayerへ整合したSnapshotを提供する。</p>
 <p>本Layerはシステム全体のデータ管理責務を担い、後続Layerから内部データ管理方式およびデータ保持構造を隠蔽する。</p>
 <hr />
-<h2 id="2">2. 用語</h2>
+<h2>2. 用語</h2>
 <table>
 <thead>
 <tr>
@@ -45,7 +44,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 <tbody>
 <tr>
 <td>DataEntryItem</td>
-<td>DataStore Layer内部で利用する標準データモデル</td>
+<td>RIM_DatastoreLayer内部で利用する標準データモデル</td>
 </tr>
 <tr>
 <td>Data</td>
@@ -53,11 +52,11 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tr>
 <tr>
 <td>State</td>
-<td>Dataを解釈した結果。Dataから再計算可能なものである。Capability Layerにて用いられる。</td>
+<td>Dataを解釈した結果。Dataから再計算可能なものである。RIM_CapabilityLayerにて用いられる。</td>
 </tr>
 <tr>
 <td>DataId</td>
-<td>データ種別識別子。DataStore Layerにおいては保存先特定を主目的として利用する。</td>
+<td>データ種別識別子。RIM_DatastoreLayerにおいては保存先特定を主目的として利用する。</td>
 </tr>
 <tr>
 <td>Context</td>
@@ -94,7 +93,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </tbody>
 </table>
 <hr />
-<h2 id="3">3. 背景</h2>
+<h2>3. 背景</h2>
 <p>システム内では複数の機能が共通データを利用する。</p>
 <p>例</p>
 <pre><code class="language-text">Temperature
@@ -114,18 +113,18 @@ CurrentFault
 <li>変更影響範囲の拡大</li>
 <li>障害解析性の低下</li>
 </ul>
-<p>また、Capability Layerは複数のDataを組み合わせて状態判定を行うため、システム全体として整合したデータ提供機構が必要となる。</p>
+<p>また、RIM_CapabilityLayerは複数のDataを組み合わせて状態判定を行うため、システム全体として整合したデータ提供機構が必要となる。</p>
 <hr />
-<h2 id="4">4. 目的</h2>
-<p>DataStore Layerの目的は以下である。</p>
+<h2>4. 目的</h2>
+<p>RIM_DatastoreLayerの目的は以下である。</p>
 <ul>
 <li>システム内データの一元管理</li>
 <li>データ整合性の維持</li>
 <li>状態再現性および障害解析性の向上</li>
 </ul>
 <hr />
-<h2 id="5">5. 責務</h2>
-<p>DataStore Layerは以下の責務を持つ。</p>
+<h2>5. 責務</h2>
+<p>RIM_DatastoreLayerは以下の責務を持つ。</p>
 <ul>
 <li>データ保持</li>
 <li>データ更新</li>
@@ -134,7 +133,8 @@ CurrentFault
 <li>Snapshot提供</li>
 <li>更新通知</li>
 </ul>
-<p><div class="mermaid">flowchart LR
+<div class="mermaid">
+flowchart LR
 
 A[データ受理]
 B[データ反映]
@@ -145,8 +145,9 @@ F[Snapshot提供]
 
 A --&gt; B --&gt; C
 C --&gt; D
-C --&gt; E --&gt; F</div></p>
-<p>DataStore Layerは以下を責務としない。</p>
+C --&gt; E --&gt; F
+</div>
+<p>RIM_DatastoreLayerは以下を責務としない。</p>
 <ul>
 <li>状態判定</li>
 <li>ビジネスロジック</li>
@@ -156,10 +157,10 @@ C --&gt; E --&gt; F</div></p>
 <li>外部機器制御</li>
 <li>Capability実行</li>
 </ul>
-<p>これらはCapability Layerまたは上位Layerの責務とする。</p>
+<p>これらはRIM_CapabilityLayerまたは上位Layerの責務とする。</p>
 <hr />
-<h2 id="6">6. クラス構成</h2>
-<p>DataStore Layerは以下のコンポーネントで構成される。</p>
+<h2>6. クラス構成</h2>
+<p>RIM_DatastoreLayerは以下のコンポーネントで構成される。</p>
 <ul>
 <li>
 <p>CentralInputPort</p>
@@ -184,11 +185,12 @@ C --&gt; E --&gt; F</div></p>
 <li></li>
 <li>MachineSnapshotReader</li>
 </ul>
-<p><div class="mermaid">flowchart LR
+<div class="mermaid">
+flowchart LR
 
-Adapter[Adapter Layer]
+Adapter[RIM_AdapterLayer]
 
-subgraph DataStoreLayer
+subgraph RIM_DatastoreLayer
 
 CIP[CentralInputPort]
 
@@ -210,7 +212,7 @@ MSR[MachineSnapshotReader]
 
 end
 
-CAP[Capability Layer]
+CAP[RIM_CapabilityLayer]
 
 Adapter --&gt; CIP
 
@@ -236,9 +238,11 @@ CVD -. notifyUpdated(domains) .-&gt; CAP
 
 CAP --&gt; MSR
 
-MSR --&gt; MR</div></p>
+MSR --&gt; MR
+</div>
 <p>クラス構造図</p>
-<p><div class="mermaid">classDiagram
+<div class="mermaid">
+classDiagram
 
 class CentralInputPort {
     +postFaultInput()
@@ -311,8 +315,9 @@ MachineSnapshotReader --&gt; MachineSnapshot
 
 FaultDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()
 OperationDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()
-CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p>
-<h3 id="61-centralinputport">6.1 CentralInputPort(中央入力ポート)</h3>
+CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()
+</div>
+<h3>6.1 CentralInputPort(中央入力ポート)</h3>
 <p>Adapterが中央へ報告する入口としてICentralInputPortを提供する。  </p>
 <ul>
 <li>Adapterから3種のキューごとに設けられたpost()関数を経由してDataEntryItemを受け取る</li>
@@ -322,16 +327,16 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <li>例：温度センサを示すIdの場合、温度センサとして格納することを決めているデータ型しかValueとして受け入れるべきではない。</li>
 <li>問題なければQueue / Bufferへ入れる。</li>
 </ul>
-<h4 id="611">6.1.1 属性</h4>
+<h4>6.1.1 属性</h4>
 <p>特筆すべき点はない。</p>
-<h4 id="612-if">6.1.2 提供IF</h4>
+<h4>6.1.2 提供IF</h4>
 <ul>
 <li>bool postFaultInput()</li>
 <li>bool postOperationReport()</li>
 <li>bool postCurrentValueInput()</li>
 </ul>
 <hr />
-<h3 id="62-faultinputqueue">6.2 FaultInputQueue</h3>
+<h3>6.2 FaultInputQueue</h3>
 <pre><code>using FaultInputQueue = IQueue&lt;DataEntryItem&gt;;
 </code></pre>
 <p>異常系のDataEntryItemを受理するQueueである。</p>
@@ -340,12 +345,12 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <li>動作報告系や最新値系のDataEntryItemを入れない。  </li>
 <li>受理時にFaultDispatcherへ通知を行う。</li>
 </ul>
-<h4 id="621">6.2.1 属性</h4>
+<h4>6.2.1 属性</h4>
 <p>一般的なQueueを踏襲する。</p>
-<h4 id="622-if">6.2.2 提供IF</h4>
+<h4>6.2.2 提供IF</h4>
 <p>一般的なQueueを踏襲する。</p>
 <hr />
-<h3 id="63-operationreportqueue">6.3 OperationReportQueue</h3>
+<h3>6.3 OperationReportQueue</h3>
 <pre><code>using OperationReportQueue = IQueue&lt;DataEntryItem&gt;;
 </code></pre>
 <p>動作報告系のDataEntryItemを受理するQueueである。  </p>
@@ -354,11 +359,11 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <li>異常系や最新値系のDataEntryItemを入れない。  </li>
 <li>受理時にOperationDispatcherへ通知を行う。</li>
 </ul>
-<h4 id="631">6.3.1 属性</h4>
+<h4>6.3.1 属性</h4>
 <p>一般的なQueueを踏襲する。</p>
-<h4 id="632-if">6.3.2 提供IF</h4>
-<h2 id="queue">一般的なQueueを踏襲する。</h2>
-<h3 id="64-currentvaluebuffer">6.4 CurrentValueBuffer</h3>
+<h4>6.3.2 提供IF</h4>
+<h2>一般的なQueueを踏襲する。</h2>
+<h3>6.4 CurrentValueBuffer</h3>
 <p>最新値系のDataEntryItemを受理するBufferである。</p>
 <ul>
 <li>Idごとに最新値を上書き保持する。  </li>
@@ -366,7 +371,7 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <li>異常系や動作報告系のDataEntryItemを入れない。</li>
 <li>受理時にCurrentValueDispatcherへ通知を行わない。</li>
 </ul>
-<h4 id="641">6.4.1 属性</h4>
+<h4>6.4.1 属性</h4>
 <pre><code class="language-疑似コード">struct slot {
     DataEntryItem data;
     bool dirty = false;
@@ -380,7 +385,7 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <ul>
 <li>ミューテックスが必要である。</li>
 </ul>
-<h4 id="642-if">6.4.2 提供IF</h4>
+<h4>6.4.2 提供IF</h4>
 <pre><code>bool post(const DataEntryItem&amp; item);
 </code></pre>
 <ul>
@@ -394,34 +399,34 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <li>dirtyフラグの確認とクリアは同じロック内で行う必要がある。</li>
 </ul>
 <hr />
-<h3 id="65-faultdispatcher">6.5 FaultDispatcher</h3>
+<h3>6.5 FaultDispatcher</h3>
 <p>FaultInputQueueからの通知を受け、FaultInputをFaultRepositryの該当箇所へ反映する。
-更新が発生した場合Capability Layerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。</p>
-<h4 id="651">6.5.1 属性</h4>
+更新が発生した場合RIM_CapabilityLayerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。</p>
+<h4>6.5.1 属性</h4>
 <p>本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。</p>
-<h4 id="652-if">6.5.2 提供IF</h4>
+<h4>6.5.2 提供IF</h4>
 <pre><code>dispatch()
 </code></pre>
 <hr />
-<h3 id="66-operationdispatcher">6.6 OperationDispatcher</h3>
+<h3>6.6 OperationDispatcher</h3>
 <p>OperationReportQueueからの通知を受け、OperationReportをOperationRepositryの該当箇所へ反映する。
-更新が発生した場合Capability Layerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。</p>
-<h4 id="641_1">6.4.1 属性</h4>
+更新が発生した場合RIM_CapabilityLayerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。</p>
+<h4>6.4.1 属性</h4>
 <p>本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。</p>
-<h4 id="642-if_1">6.4.2 提供IF</h4>
+<h4>6.4.2 提供IF</h4>
 <pre><code>dispatch()
 </code></pre>
 <hr />
-<h3 id="67-currentvaluedispatcher">6.7 CurrentValueDispatcher</h3>
+<h3>6.7 CurrentValueDispatcher</h3>
 <p>周期起動し、CurrentValueBufferから更新値を取り出してCurrentValueRegistryへ反映する。
-更新が発生した場合Capability Layerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。</p>
-<h4 id="671">6.7.1 属性</h4>
+更新が発生した場合RIM_CapabilityLayerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。</p>
+<h4>6.7.1 属性</h4>
 <p>本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。</p>
-<h4 id="672-if">6.7.2 提供IF</h4>
+<h4>6.7.2 提供IF</h4>
 <pre><code>dispatch()
 </code></pre>
 <hr />
-<h3 id="68-machineregistry">6.8 MachineRegistry</h3>
+<h3>6.8 MachineRegistry</h3>
 <p>MachineRegistryは下記を集約するファサードである。
 - FaultRegistry
 - OperationRegistry
@@ -429,16 +434,16 @@ CurrentValueDispatcher ..&gt; IRegistryUpdateNotifier : notifyUpdated()</div></p
 <p>MachineSnapshotReaderは
 MachineRegistryを介して
 各Registryへアクセスする。</p>
-<h4 id="641_2">6.4.1 属性</h4>
-<h4 id="642-if_2">6.4.2 提供IF</h4>
+<h4>6.4.1 属性</h4>
+<h4>6.4.2 提供IF</h4>
 <hr />
-<h3 id="69-faultregistry">6.9 FaultRegistry</h3>
+<h3>6.9 FaultRegistry</h3>
 <p>現在発生中の異常系を保持する。</p>
-<h4 id="691">6.9.1 属性</h4>
+<h4>6.9.1 属性</h4>
 <pre><code>mutable std::mutex mutex_;
 </code></pre>
 <p>ドメイン単位でミューテックスを確保する。</p>
-<h4 id="692-if">6.9.2 提供IF</h4>
+<h4>6.9.2 提供IF</h4>
 <pre><code>std::optional&lt;RegistryDomain&gt; apply(const DataEntryItem &amp;item);
 </code></pre>
 <p>DataEntryItem.context内のFaultStateに応じて、発生中のFaultを操作する。
@@ -457,13 +462,13 @@ MachineRegistryを介して
 </code></pre>
 <p>FaultSnapshotを返す。</p>
 <hr />
-<h3 id="69-operationregistry">6.9 OperationRegistry</h3>
+<h3>6.9 OperationRegistry</h3>
 <p>現在の動作報告を保持する</p>
-<h4 id="691_1">6.9.1 属性</h4>
+<h4>6.9.1 属性</h4>
 <pre><code>mutable std::mutex mutex_;
 </code></pre>
 <p>ドメイン単位でミューテックスを確保する。</p>
-<h4 id="692-if_1">6.9.2 提供IF</h4>
+<h4>6.9.2 提供IF</h4>
 <pre><code>std::optional&lt;RegistryDomain&gt; apply(const DataEntryItem &amp;item)
 </code></pre>
 <p>Idに応じて動作報告を反映する。
@@ -472,28 +477,28 @@ MachineRegistryを介して
 </code></pre>
 <p>OperationSnapshotを返す。　</p>
 <hr />
-<h3 id="610-currentvalueregistry">6.10 CurrentValueRegistry</h3>
+<h3>6.10 CurrentValueRegistry</h3>
 <p>最新値系の現在値を保持する。</p>
-<h4 id="6101">6.10.1 属性</h4>
+<h4>6.10.1 属性</h4>
 <pre><code>mutable std::mutex mutex_;
 </code></pre>
 <p>ドメイン単位でミューテックスを確保する。</p>
-<h4 id="6102-if">6.10.2 提供IF</h4>
+<h4>6.10.2 提供IF</h4>
 <pre><code>std::optional&lt;RegistryDomain&gt; apply(const DataEntryItem &amp;item)
 </code></pre>
 <p>Idに応じて保存先へ最新値を反映する。
 変化があった場合は該当RegistryDomainを、変化がなければnulloptを返す。</p>
 <pre><code>CurrentValueSnapshot makeSnapshot()
 </code></pre>
-<h2 id="currentvaluesnapshot">CurrentValueSnapshotを返す。</h2>
-<h3 id="611-machinesnapshotreader">6.11 MachineSnapshotReader</h3>
+<h2>CurrentValueSnapshotを返す。</h2>
+<h3>6.11 MachineSnapshotReader</h3>
 <p>外部からの要求に応じて指定されたドメインのSnapshotを生成する。<br />
 MachineSnapshotReaderはRegistryの内部実装を隠蔽する。<br />
-Capability LayerはMachineSnapshotReader経由でのみ現在状態を取得できる。
+RIM_CapabilityLayerはMachineSnapshotReader経由でのみ現在状態を取得できる。
 Registry全体の提供は行わない。<br />
-Capability Layerに対してIMachineSnapshotReaderを提供する。<br />
-Capability LayerはDataStore Layerの処理スレッドから独立して実行されることを想定する。</p>
-<h4 id="6113">6.11.3 データモデル</h4>
+RIM_CapabilityLayerに対してIMachineSnapshotReaderを提供する。<br />
+RIM_CapabilityLayerはRIM_DatastoreLayerの処理スレッドから独立して実行されることを想定する。</p>
+<h4>6.11.3 データモデル</h4>
 <pre><code>struct SnapshotRequest{
     RegistryDomainSet domains;
 }
@@ -515,16 +520,16 @@ snapshotは以下を保証する。
 - 読み取り専用
 - 生成後不変
 - 単一時点整合性</p>
-<h4 id="6114">6.11.4 属性</h4>
+<h4>6.11.4 属性</h4>
 <p>本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。</p>
-<h4 id="6115-if">6.11.5 提供IF</h4>
+<h4>6.11.5 提供IF</h4>
 <pre><code>MachineSnapshot capture(const SnapshotRequest&amp; request)
 </code></pre>
 <p>リクエストに応じたドメインのSnapshotを取得する。</p>
 <hr />
-<h2 id="7-datastore-layer">7. DataStore Layerデータモデル</h2>
-<h3 id="71-dataentryitem">7.1 DataEntryItem</h3>
-<p>DataStore Layer内部で利用する標準データモデルである。</p>
+<h2>7. RIM_DatastoreLayerデータモデル</h2>
+<h3>7.1 DataEntryItem</h3>
+<p>RIM_DatastoreLayer内部で利用する標準データモデルである。</p>
 <p>DataEntryItemはコンポーネント間で受け渡される共通データ形式として利用される。</p>
 <p>Contextはkeyと値の組の集合で構成される。</p>
 <p>Contextに利用可能なkeyはData種別ごとに定義する。
@@ -539,9 +544,10 @@ snapshotは以下を保証する。
 }
 </code></pre>
 <hr />
-<h2 id="8">8. 処理モデル</h2>
-<h3 id="81-faultinput">8.1 FaultInput処理</h3>
-<p><div class="mermaid">sequenceDiagram
+<h2>8. 処理モデル</h2>
+<h3>8.1 FaultInput処理</h3>
+<div class="mermaid">
+sequenceDiagram
 
 participant Adapter
 participant Port as CentralInputPort
@@ -562,9 +568,11 @@ alt 状態変化あり
     Disp-&gt;&gt;Reg: apply()
 
     Disp--&gt;&gt;Cap: notifyUpdated(domains)
-end</div></p>
-<h4 id="82-operationreport">8.2 OperationReport処理</h4>
-<p><div class="mermaid">sequenceDiagram
+end
+</div>
+<h4>8.2 OperationReport処理</h4>
+<div class="mermaid">
+sequenceDiagram
 
 participant Adapter
 participant Port as CentralInputPort
@@ -586,9 +594,11 @@ alt 状態変化あり
     Disp-&gt;&gt;Reg: apply()
 
     Disp--&gt;&gt;Cap: notifyUpdated(domains)
-end</div></p>
-<h3 id="83-currentvalue">8.3 CurrentValue処理</h3>
-<p><div class="mermaid">sequenceDiagram
+end
+</div>
+<h3>8.3 CurrentValue処理</h3>
+<div class="mermaid">
+sequenceDiagram
 
 participant Adapter
 participant Port as CentralInputPort
@@ -610,9 +620,11 @@ end
 
 alt 状態変化あり
     Disp--&gt;&gt;Cap: notifyUpdated(domains)
-end</div></p>
-<h3 id="84-snapshot">8.4 Snapshot取得処理</h3>
-<p><div class="mermaid">sequenceDiagram
+end
+</div>
+<h3>8.4 Snapshot取得処理</h3>
+<div class="mermaid">
+sequenceDiagram
 
 participant Disp as Dispatcher
 participant Cap as Capability
@@ -628,37 +640,38 @@ Reader-&gt;&gt;Registry: makeSnapshot(domains)
 
 Registry--&gt;&gt;Reader: Snapshot群
 
-Reader--&gt;&gt;Cap: MachineSnapshot</div></p>
-<h3 id="85">8.5 整合性モデル</h3>
-<p>DataStore Layerは以下を保証する。</p>
+Reader--&gt;&gt;Cap: MachineSnapshot
+</div>
+<h3>8.5 整合性モデル</h3>
+<p>RIM_DatastoreLayerは以下を保証する。</p>
 <p>・Registryの排他制御
 ・Snapshotの読み取り専用性
 ・生成後不変性
 ・ドメインごとの整合性
 ・Registry内部状態の隠蔽</p>
-<p>Capability LayerはRegistryを直接参照しない。</p>
+<p>RIM_CapabilityLayerはRegistryを直接参照しない。</p>
 <p>更新通知は変更契機のみを通知し、実際のデータ取得はMachineSnapshotReaderを介して行う。</p>
 <hr />
-<h2 id="9">9. 設計方針</h2>
-<h3 id="91-datastate">9.1 DataとStateの分離</h3>
-<p>DataStore LayerはDataのみを管理する。</p>
-<p>StateはCapability Layerが生成する。</p>
-<pre><code class="language-text">DataStore Layer
+<h2>9. 設計方針</h2>
+<h3>9.1 DataとStateの分離</h3>
+<p>RIM_DatastoreLayerはDataのみを管理する。</p>
+<p>StateはRIM_CapabilityLayerが生成する。</p>
+<pre><code class="language-text">RIM_DatastoreLayer
     Data管理
 
-Capability Layer
+RIM_CapabilityLayer
     State管理
 </code></pre>
 <hr />
-<h3 id="92-single-source-of-truth">9.2 Single Source of Truth</h3>
-<p>システム内データの正本はDataStore Layerのみが管理する。</p>
+<h3>9.2 Single Source of Truth</h3>
+<p>システム内データの正本はRIM_DatastoreLayerのみが管理する。</p>
 <hr />
-<h3 id="93-snapshot">9.3 Snapshot方式</h3>
-<p>Capability Layerは内部コンポーネントを直接参照しない。</p>
-<p>Capability LayerはSnapshotのみを利用する。</p>
+<h3>9.3 Snapshot方式</h3>
+<p>RIM_CapabilityLayerは内部コンポーネントを直接参照しない。</p>
+<p>RIM_CapabilityLayerはSnapshotのみを利用する。</p>
 <hr />
-<h3 id="94">9.4 現在値管理と現在情報管理の分離</h3>
-<p>DataStore Layerでは現在値管理と現在情報管理を分離する。
+<h3>9.4 現在値管理と現在情報管理の分離</h3>
+<p>RIM_DatastoreLayerでは現在値管理と現在情報管理を分離する。
 Snapshotは以下Registryから生成される。</p>
 <pre><code class="language-text">CurrentValueRegistry
     現在値管理
@@ -670,8 +683,8 @@ FaultRegistry
     現在異常情報管理
 </code></pre>
 <hr />
-<h3 id="95">9.5 ドメイン整合方式</h3>
-<p>Capability Layerへ提供するsnapshotは生成時点でのドメインごとのデータを対象としている。</p>
+<h3>9.5 ドメイン整合方式</h3>
+<p>RIM_CapabilityLayerへ提供するsnapshotは生成時点でのドメインごとのデータを対象としている。</p>
 <p>下記Registryに対してCapabilityは取得したいドメインを要求する。</p>
 <pre><code class="language-text">
 - FaultRegistry
@@ -680,29 +693,29 @@ FaultRegistry
 
 </code></pre>
 <hr />
-<h2 id="10">10. 制約事項</h2>
-<h3 id="101">10.1 アーキテクチャ制約</h3>
+<h2>10. 制約事項</h2>
+<h3>10.1 アーキテクチャ制約</h3>
 <ul>
-<li>DataStore LayerはState判定を行わない</li>
-<li>SnapshotはCapability Layerが取得する</li>
-<li>Capability LayerはSnapshot以外を参照しない</li>
-<li>DataStore Layerは唯一のデータ正本である</li>
-<li>Adapter LayerはDataStore Layer内部状態へアクセスしない</li>
-<li>DispatcherはCapability Layerへ更新通知のみを行う</li>
+<li>RIM_DatastoreLayerはState判定を行わない</li>
+<li>SnapshotはRIM_CapabilityLayerが取得する</li>
+<li>RIM_CapabilityLayerはSnapshot以外を参照しない</li>
+<li>RIM_DatastoreLayerは唯一のデータ正本である</li>
+<li>RIM_AdapterLayerはRIM_DatastoreLayer内部状態へアクセスしない</li>
+<li>DispatcherはRIM_CapabilityLayerへ更新通知のみを行う</li>
 <li>更新通知にはRegistryDomainSetを利用する</li>
 <li>FaultInputおよびOperationReportは喪失不可データである。喪失発生時は検知して再同期する
   （詳細設計 §10.1 のフル再同期プロトコルを必須とする。黙って続行しない）</li>
 </ul>
 <hr />
-<h3 id="102">10.2 機能制約</h3>
+<h3>10.2 機能制約</h3>
 <ul>
-<li>DataStore LayerはDataのみを管理する</li>
+<li>RIM_DatastoreLayerはDataのみを管理する</li>
 <li>Stateは保持しない</li>
 <li>Snapshotは読み取り専用とする</li>
 <li>RegistryはStateを管理しない</li>
 </ul>
 <hr />
-<h2 id="11">11. 非機能要件</h2>
+<h2>11. 非機能要件</h2>
 <ul>
 <li>システム全体整合性を維持できること</li>
 <li>Capability評価の再現性を保証できること</li>
@@ -712,10 +725,10 @@ FaultRegistry
 <li>障害解析可能であること</li>
 <li>将来的なデータ種別追加に対応できること</li>
 <li>CurrentValueの高頻度更新に対してSnapshot生成頻度を抑制できること</li>
-<li>DataStore LayerがCapability Layerの処理時間に依存しないこと</li>
+<li>RIM_DatastoreLayerがRIM_CapabilityLayerの処理時間に依存しないこと</li>
 <li>更新通知による差分監視が行えること</li>
 </ul>
-<footer>printer-fw FSI 設計書（Markdown原本: DataStore/DataStoreLayer仕様設計書.md）</footer>
+<footer>printer-fw RIM 設計書（Markdown原本: DataStore/DataStoreLayer仕様設計書.md）</footer>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });

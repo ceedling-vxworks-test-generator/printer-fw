@@ -2,11 +2,11 @@
 
 ## 1. 概要
 
-Accessor Layerは、DataStore Layerの現在値およびCapability Layerの現在状態（Capability）を、
+Accessor Layerは、RIM_DatastoreLayerの現在値およびRIM_CapabilityLayerの現在状態（Capability）を、
 外部から任意タイミングで参照可能にする参照専用Layerである。
 
 本Layerは**Pull（要求に応じた参照提供）**を担い、状態変化の**通知（Push）は行わない**。
-通知はPublisher Layerの責務である。
+通知はRIM_PublisherLayerの責務である。
 
 ---
 
@@ -15,8 +15,8 @@ Accessor Layerは、DataStore Layerの現在値およびCapability Layerの現�
 | 用語 | 説明 |
 |------|------|
 | PrinterStatus | 外部が参照する製品状態のスナップショット的表現 |
-| 現在値 | DataStore Layerが保持する観測事実の最新値 |
-| 現在Capability | Capability Layerが最後に生成したCapability |
+| 現在値 | RIM_DatastoreLayerが保持する観測事実の最新値 |
+| 現在Capability | RIM_CapabilityLayerが最後に生成したCapability |
 
 ---
 
@@ -24,12 +24,12 @@ Accessor Layerは、DataStore Layerの現在値およびCapability Layerの現�
 
 ```mermaid
 flowchart TD
-    DS[DataStore Layer] -. 現在値参照 .-> Acc[Accessor Layer（参照専用）]
-    Cap[Capability Layer] -. 現在Cap参照 .-> Acc
+    DS[RIM_DatastoreLayer] -. 現在値参照 .-> Acc[Accessor Layer（参照専用）]
+    Cap[RIM_CapabilityLayer] -. 現在Cap参照 .-> Acc
     Ext[外部（UI/診断/保守ツール等）] -->|getPrinterStatus()| Acc
 ```
 
-Accessor LayerはPublisher Layer（Push）と対を成し、外部が「今の状態を知りたい」
+Accessor LayerはRIM_PublisherLayer（Push）と対を成し、外部が「今の状態を知りたい」
 任意のタイミングで参照するための入口を提供する。
 
 ---
@@ -44,8 +44,8 @@ Accessor LayerはPublisher Layer（Push）と対を成し、外部が「今の�
 
 ## 5. 責務
 
-- DataStore Layerの現在値の参照提供
-- Capability Layerの現在状態の参照提供
+- RIM_DatastoreLayerの現在値の参照提供
+- RIM_CapabilityLayerの現在状態の参照提供
 - 参照要求に対する読み取り専用データの返却
 
 ```mermaid
@@ -57,7 +57,7 @@ flowchart LR
 
 ## 6. 非責務
 
-- 状態変化の通知（それはPublisher Layer）
+- 状態変化の通知（それはRIM_PublisherLayer）
 - 状態の保持（正本はDataStore / 現在CapはCapabilityが保持）
 - 状態の解釈・判断
 - データの更新
@@ -79,14 +79,14 @@ flowchart LR
         PSR[PrinterStatusReader]
     end
     PSR -->|capture(request)| MSR[MachineSnapshotReader（DataStore）]
-    PSR -->|現在Cap取得| Cap[Capability Layer]
+    PSR -->|現在Cap取得| Cap[RIM_CapabilityLayer]
     Ext[外部] -->|getPrinterStatus| PSR
 ```
 
 ### 7.1 PrinterStatusReader
 
 外部からの参照要求に応じ、DataStoreの現在値（MachineSnapshotReader経由）および
-Capability Layerの現在状態を取得して返す。
+RIM_CapabilityLayerの現在状態を取得して返す。
 
 #### 7.1.1 提供IF
 | IF | 内容 |
@@ -124,7 +124,7 @@ sequenceDiagram
     participant Ext as 外部
     participant PSR as PrinterStatusReader
     participant MSR as MachineSnapshotReader
-    participant Cap as Capability Layer
+    participant Cap as RIM_CapabilityLayer
 
     Ext->>PSR: getPrinterStatus(request)
     PSR->>MSR: capture(request.domains)
@@ -154,7 +154,7 @@ Accessor Layerは状態を保持せず、正本（DataStore）と現在Cap（Cap
 
 ## 11. 制約事項
 
-- Accessor LayerはDataStore Layer内部を直接参照せず、MachineSnapshotReader経由で取得する
+- Accessor LayerはRIM_DatastoreLayer内部を直接参照せず、MachineSnapshotReader経由で取得する
 - Accessor Layerは状態を保持しない
 - Accessor Layerは通知を行わない
 

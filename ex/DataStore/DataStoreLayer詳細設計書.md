@@ -1,6 +1,6 @@
-# DataStore Layer 詳細設計書（L2）
+# RIM_DatastoreLayer 詳細設計書（L2）
 
-本書は `DataStoreLayer仕様設計書.md`（③基本設計・2026-07-07）を親とし、
+本書は `RIM_DatastoreLayer仕様設計書.md`（③基本設計・2026-07-07）を親とし、
 各コンポーネントの内部データ構造・インターフェース・排他制御・スレッドモデル・
 処理アルゴリズムを定義する。用語・構成は基本設計に準拠する。
 
@@ -15,9 +15,9 @@
 
 ```mermaid
 flowchart TB
-    Adapter[Adapter Layer]
+    Adapter[RIM_AdapterLayer]
 
-    subgraph DataStoreLayer
+    subgraph RIM_DatastoreLayer
         CIP[CentralInputPort]
 
         FQ[FaultInputQueue]
@@ -36,7 +36,7 @@ flowchart TB
         MSR[MachineSnapshotReader]
     end
 
-    Cap[Capability Layer]
+    Cap[RIM_CapabilityLayer]
 
     Adapter -->|postFaultInput| CIP
     Adapter -->|postOperationReport| CIP
@@ -74,7 +74,7 @@ flowchart TB
 | FaultDispatcherスレッド | イベント駆動（Queue通知でwake） | FaultInputQueue → FaultRegistry |
 | OperationDispatcherスレッド | イベント駆動（Queue通知でwake） | OperationReportQueue → OperationRegistry |
 | CurrentValueDispatcherスレッド | 周期駆動（タイマ） | CurrentValueBuffer → CurrentValueRegistry |
-| Capability Layerスレッド | notifyUpdated契機 | MachineSnapshotReader.capture |
+| RIM_CapabilityLayerスレッド | notifyUpdated契機 | MachineSnapshotReader.capture |
 
 **設計原則**：投入（post）は呼び出し側スレッドで即時完了し、Registry反映は各Dispatcher
 スレッドへ非同期に移す。これによりAdapter/入力元はDataStore内部の反映時間に依存しない。
@@ -236,7 +236,7 @@ public:
 ### 5.1 共通事項
 - 更新を該当Registryへ `apply()` で反映する。
 - 反映により状態変化が生じたドメインを収集し、`IRegistryUpdateNotifier.notifyUpdated(domains)`
-  でCapability Layerへ通知する（**変更契機のみ通知。データは渡さない**）。
+  でRIM_CapabilityLayerへ通知する（**変更契機のみ通知。データは渡さない**）。
 - 自前ロックは持たない。
 
 ### 5.2 FaultDispatcher / OperationDispatcher（イベント駆動）
@@ -356,7 +356,7 @@ public:
 
 ## 7. MachineSnapshotReader
 
-Capability Layerに対し `IMachineSnapshotReader` を提供する。
+RIM_CapabilityLayerに対し `IMachineSnapshotReader` を提供する。
 
 ```cpp
 struct SnapshotRequest { RegistryDomainSet domains; };
@@ -378,7 +378,7 @@ public:
 - Registry間：弱整合（同時刻性は保証しない）。Capability評価は各ドメインの整合スナップショットで行う。
 
 ### 7.3 制約
-- Capability LayerはDataStore処理スレッドから独立して実行される前提。
+- RIM_CapabilityLayerはDataStore処理スレッドから独立して実行される前提。
 - captureは書き込みと競合しても、makeSnapshotのコピー中のみ短時間ロックするため入力を長時間阻害しない。
 
 ---
@@ -391,7 +391,7 @@ struct IRegistryUpdateNotifier {
 };
 ```
 
-- **Capability Layerが実装**し、DataStore Layer（各Dispatcher）が呼び出す。
+- **RIM_CapabilityLayerが実装**し、RIM_DatastoreLayer（各Dispatcher）が呼び出す。
 - 通知は「どのドメインが変化したか」の契機のみ。実データはcaptureで取りに来る（Pull型）。
 
 **層間契約（H-1対応・確定）**：
@@ -487,7 +487,7 @@ Fault / OperationReport は喪失不可データである。以下の多段防�
 - 上限待機タイムアウトまで空かず投入に失敗した場合、**喪失発生**として扱い(3)へ移行する。
 
 **(3) 回復：フル再同期プロトコル**
-- 喪失発生時、DataStore Layerは該当レーンを**Degraded状態**とし、以下を実行する。
+- 喪失発生時、RIM_DatastoreLayerは該当レーンを**Degraded状態**とし、以下を実行する。
   - Fault：FaultRegistryへ `AllCleared` を適用 → 入力元へ**現況再送要求**
     （Adapter経由の resync 要求IF。入力元は発生中Faultを全件再Raiseする）→ 完了で復帰。
   - Operation：入力元へ現況スナップショットの再送を要求し、OperationRegistryを再構築する。
@@ -503,7 +503,7 @@ Fault / OperationReport は喪失不可データである。以下の多段防�
 | 未定義Id | Registry.apply | 反映せず・ログ |
 | makeSnapshot中の異常 | Registry/Reader | 呼び出し元へ通知・Readerはリカバリしない |
 
-- Dispatcherは反映失敗時にリカバリを行わず、影響をDataStore Layer内に限定する。
+- Dispatcherは反映失敗時にリカバリを行わず、影響をRIM_DatastoreLayer内に限定する。
 
 ---
 

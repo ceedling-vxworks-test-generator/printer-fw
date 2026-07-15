@@ -1,6 +1,6 @@
-# Publisher Layer 詳細設計書（L4）
+# RIM_PublisherLayer 詳細設計書（L4）
 
-本書は `PublisherLayer仕様設計書.md` を親とし、各コンポーネントの内部データ構造・
+本書は `RIM_PublisherLayer仕様設計書.md` を親とし、各コンポーネントの内部データ構造・
 インターフェース・排他制御・スレッドモデル・処理アルゴリズムを定義する。
 
 ---
@@ -9,9 +9,9 @@
 
 ```mermaid
 flowchart TB
-    Cap[Capability Layer]
+    Cap[RIM_CapabilityLayer]
 
-    subgraph PublisherLayer
+    subgraph RIM_PublisherLayer
         PE[Publish Engine]
         SR[State Repository]
         SB[Subscription Broker]
@@ -32,11 +32,11 @@ flowchart TB
 
 | 実行主体 | 駆動 | 対象 |
 |---------|------|------|
-| Capability Layerスレッド | notify呼び出し | Publish Engineの受理（キュー投入まで） |
+| RIM_CapabilityLayerスレッド | notify呼び出し | Publish Engineの受理（キュー投入まで） |
 | Publish Engineタスク（Capabilityごと） | イベント/周期 | トリガ評価・差分判定・配信起動 |
 | Subscription Brokerスレッド | subscribe/unsubscribe要求 | 購読者テーブル更新 |
 
-- `notify` は受理して即戻る（Capability Layerを長時間ブロックしない）。
+- `notify` は受理して即戻る（RIM_CapabilityLayerを長時間ブロックしない）。
 - 配信処理はPublish Engineの各Capabilityタスクで非同期に実行する。
 - Rate Limitはタスク単位で適用する。
 
@@ -85,7 +85,7 @@ enum class PublishTrigger { OnChange, Periodic, Threshold, Event, Initial };
 
 ### 3.2 内部構造とデマルチ（H-4対応）
 
-Capability Layerからのnotifyは**8種を内包する集約Capability**（完全CapabilitySet +
+RIM_CapabilityLayerからのnotifyは**8種を内包する集約Capability**（完全CapabilitySet +
 changedKinds + explicitEvents）である。一方、配信処理は**Kind単位のタスク**で行う。
 両者の橋渡しとして、受理時に**デマルチ（Kind別分解）**を行う。
 
@@ -161,12 +161,12 @@ public:
 | トリガー | 判定 |
 |---------|------|
 | OnChange | lastDelivered と今回値が異なれば配信 |
-| Threshold | Capability Layerが閾値跨ぎと判定済み → 配信（本層は再判定しない） |
+| Threshold | RIM_CapabilityLayerが閾値跨ぎと判定済み → 配信（本層は再判定しない） |
 | Periodic | 前回配信から周期経過で配信（値不変でも可） |
 | Event | 無条件配信（明示イベント） |
 | Initial | 記録が無い（初回）→ 配信 |
 
-- **意味的差分（Capが変わったか）はCapability Layerの領域**。本層は購読者ごとの
+- **意味的差分（Capが変わったか）はRIM_CapabilityLayerの領域**。本層は購読者ごとの
   「前回配信値との差（配信的差分）」のみを見る。
 
 ### 4.4 update
@@ -240,7 +240,7 @@ flowchart TD
 
 - Periodicは**notifyが来なくても**周期で配信する（値不変でも配信する契約）。
   配信値はStateRepositoryの保留最新値、なければ最後にnotifyされた値を用いる。
-- Initialは subscribe 時に、Capability Layerの getCurrentCapability() から現在Capを取得して初回配信する
+- Initialは subscribe 時に、RIM_CapabilityLayerの getCurrentCapability() から現在Capを取得して初回配信する
   （起動時の初期フル評価により現在Capは常に存在する。ライフサイクル設計書 Phase 3 参照）。
 - Heartbeatは本層に存在しない（外部タスクの責務）。
 

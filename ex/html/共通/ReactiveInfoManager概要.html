@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReactiveInfoManager（RIM）概要</title>
+<style>
+body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
+       max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
+h1 { border-bottom: 3px solid #0969da; padding-bottom:.3em; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom:.25em; margin-top:2em; }
+h3 { margin-top:1.6em; }
+table { border-collapse: collapse; margin: 1em 0; width:100%; font-size:.95em; }
+th, td { border: 1px solid #d0d7de; padding: 6px 12px; text-align:left; vertical-align:top; }
+th { background:#f6f8fa; }
+tr:nth-child(even) td { background:#fafbfc; }
+code { background:#f6f8fa; padding:.15em .4em; border-radius:4px;
+       font-family:"Consolas","MS Gothic",monospace; font-size:.9em; }
+pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:6px; padding:14px; overflow-x:auto; }
+pre code { background:none; padding:0; }
+blockquote { border-left:4px solid #0969da; margin:1em 0; padding:.3em 1em; color:#57606a; background:#f6f8fa; }
+.mermaid { background:#fff; border:1px dashed #d0d7de; border-radius:6px;
+           padding:12px; margin:1em 0; text-align:center; }
+.docnav { font-size:.9em; margin-bottom:1.2em; }
+.docnav a { color:#0969da; text-decoration:none; }
+footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0d7de; padding-top:1em; }
+</style>
+</head>
+<body>
+<h1>ReactiveInfoManager（RIM）概要</h1>
+<h2>1. 位置づけ</h2>
+<p>本書は、旧称「FSI」で設計してきた <strong>入力〜保持〜判定〜配信の4レイヤ構成全体</strong>を
+<strong>ReactiveInfoManager（略称 RIM）</strong> と命名し、その全体像・レイヤ命名・実装方針を定義する
+横断ドキュメントである。各レイヤの詳細は個別の仕様設計書／詳細設計書を参照する。</p>
+<p>RIM は「外部からの観測情報（Info）を受理し、内部で整合を保って保持し、意味づけ（Capability）して、
+必要な相手へ反応的（Reactive）に配信・提供する」ことを責務とする情報管理サブシステムである。</p>
+<hr />
+<h2>2. レイヤ構成（4レイヤ＋隣接1レイヤ）</h2>
+<p>RIM は以下の <strong>4レイヤ</strong>で構成する。命名は <code>RIM_</code> を接頭辞とする。</p>
+<table>
+<thead>
+<tr>
+<th>レイヤ</th>
+<th>名称</th>
+<th>旧称</th>
+<th>主責務</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1</strong></td>
+<td><strong>RIM_AdapterLayer</strong></td>
+<td>Adapter Layer</td>
+<td>外部入力の受理・正規化・性質判別・後続層への送信</td>
+</tr>
+<tr>
+<td><strong>L2</strong></td>
+<td><strong>RIM_DatastoreLayer</strong></td>
+<td>DataStore Layer</td>
+<td>データの一元保持・整合維持・Snapshot提供・更新通知</td>
+</tr>
+<tr>
+<td><strong>L3</strong></td>
+<td><strong>RIM_CapabilityLayer</strong></td>
+<td>Capability Layer</td>
+<td>Snapshotを解釈し意味のある状態（Capability）を生成</td>
+</tr>
+<tr>
+<td><strong>L4</strong></td>
+<td><strong>RIM_PublisherLayer</strong></td>
+<td>Publisher Layer</td>
+<td>購読者へ Capability を <strong>Push</strong> 配信</td>
+</tr>
+</tbody>
+</table>
+<p>さらに、RIM の <strong>4構成の外側に隣接する参照専用レイヤ</strong>として次を置く（RIMの4レイヤには含めない）。</p>
+<table>
+<thead>
+<tr>
+<th>レイヤ</th>
+<th>名称</th>
+<th>位置づけ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（隣接）</td>
+<td><strong>Accessor Layer</strong></td>
+<td>参照専用・<strong>Pull</strong>。RIM_PublisherLayer（Push）と対を成し、外部が「今の状態を知りたい」時に L2/L3 から都度取得して返す。RIMの4レイヤ構成には数えない隣接レイヤとして維持する</td>
+</tr>
+</tbody>
+</table>
+<div class="mermaid">
+flowchart LR
+    Ext[外部入力元] --&gt; L1[L1 RIM_AdapterLayer]
+    L1 --&gt; L2[L2 RIM_DatastoreLayer]
+    L2 -. Snapshot .-&gt; L3[L3 RIM_CapabilityLayer]
+    L2 -. notifyUpdated .-&gt; L3
+    L3 --&gt; L4[L4 RIM_PublisherLayer]
+    L4 -- Push --&gt; Sub[購読者]
+
+    L2 -. 現在値参照 .-&gt; ACC[Accessor Layer（隣接・参照専用/Pull）]
+    L3 -. 現在Cap参照 .-&gt; ACC
+    ACC -- Pull応答 --&gt; Ext2[問い合わせ元]
+
+    style L1 fill:#e7f0ff,stroke:#0969da
+    style L2 fill:#e7f0ff,stroke:#0969da
+    style L3 fill:#e7f0ff,stroke:#0969da
+    style L4 fill:#e7f0ff,stroke:#0969da
+    style ACC fill:#f6f8fa,stroke:#8b949e,stroke-dasharray:4 3
+</div>
+<blockquote>
+<p>命名規約：文書見出し・図・散文中のレイヤ参照は <code>RIM_AdapterLayer</code> の形（<code>RIM_</code> 接頭辞・
+空白なし）で表記する。<code>Accessor Layer</code> は RIM の4構成外のため接頭辞を付けず従来表記を維持する。</p>
+</blockquote>
+<hr />
+<h2>3. 実装方針（C-firstハイブリッド）</h2>
+<p>実装担当が <strong>C言語専門</strong>であることを最優先し、RIM は次の <strong>C-firstハイブリッド</strong>で実装する。
+根拠と各構成要素での得失は <a href="実装言語比較_C_vs_Cpp.md">実装言語比較_C_vs_Cpp.md</a> §0 を参照。</p>
+<ol>
+<li><strong>IF部分はすべて <code>extern "C"</code></strong>。層間IF・公開APIをC ABIで提供し、
+   <strong>C言語の解釈でそのまま使用・実装できる</strong>ようにする。</li>
+<li><strong>内部実装は基本C</strong>（タグ付きunion／<code>bool + out引数</code>／<code>has_xxx</code>フラグ／
+   関数ポインタテーブル＋ctx／連番enum＋固定長配列／短時間mutex）。</li>
+<li><strong>C++の仕組みを用いるのは次の2箇所のみ</strong>：
+   - <strong>(a) 可変長Listの仕組み</strong> … 固定容量・静的確保の可変長コンテナ（<code>rim::FixedVector&lt;T,N&gt;</code>）。
+   - <strong>(b) RIM_AdapterLayer の受理点の型の自由さ</strong> … <code>RawValue</code> の型可変性をテンプレート／
+     型安全unionで確保し、後続層へ渡す時点で正規化済み <code>DataValue</code>（C表現）へ落とす。</li>
+<li>例外・RTTI・STLコンテナ・動的確保・atomic <code>shared_ptr</code>・テンプレートメタプロは持ち込まない。</li>
+<li>ビルドはC++でリンク（(a)(b)がC++のため）。Cからの利用時は <code>-lstdc++</code> を付す。</li>
+</ol>
+<p>実体スケルトンは <code>rim/</code>（<code>rim/include/rim/*.h</code>＝extern "C"公開ヘッダ、<code>rim/src/*.cpp</code>＝C++実装）。</p>
+<hr />
+<h2>4. 関連ドキュメント</h2>
+<ul>
+<li>L1: <a href="../Adapter/AdapterLayer仕様設計書.md">Adapter/RIM_AdapterLayer仕様設計書</a>（ファイル名は従来、内容はRIM命名）</li>
+<li>L2: <a href="../DataStore/DataStoreLayer仕様設計書.md">DataStore/RIM_DatastoreLayer仕様設計書</a></li>
+<li>L3: <a href="../Capability/CapabilityLayer仕様設計書.md">Capability/RIM_CapabilityLayer仕様設計書</a></li>
+<li>L4: <a href="../Publisher/PublisherLayer仕様設計書.md">Publisher/RIM_PublisherLayer仕様設計書</a></li>
+<li>隣接: <a href="../Accessor/AccessorLayer仕様設計書.md">Accessor/Accessor Layer仕様設計書</a></li>
+<li>実装言語: <a href="実装言語比較_C_vs_Cpp.md">実装言語比較_C_vs_Cpp.md</a></li>
+<li>ライフサイクル: <a href="システムライフサイクル設計書.md">システムライフサイクル設計書.md</a></li>
+</ul>
+<blockquote>
+<p>ファイル名・フォルダ名（<code>Adapter/</code>, <code>AdapterLayer仕様設計書.md</code> 等）は git 履歴・
+HTML相互リンクの安定性のため従来のまま維持し、<strong>文書内容のレイヤ名を RIM命名へ更新</strong>した。</p>
+</blockquote>
+<footer>printer-fw RIM 設計書（Markdown原本: 共通/ReactiveInfoManager概要.md）</footer>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>

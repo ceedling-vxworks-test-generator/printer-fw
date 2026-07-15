@@ -1,8 +1,8 @@
-# Publisher Layer 仕様設計書
+# RIM_PublisherLayer 仕様設計書
 
 ## 1. 概要
 
-Publisher Layerは、Capability Layerが生成したCapability（製品状態）を、
+RIM_PublisherLayerは、RIM_CapabilityLayerが生成したCapability（製品状態）を、
 登録済みの外部購読者（Subscriber）へ配信する責務を持つ配信専用Layerである。
 
 本Layerは配信のタイミング制御・購読管理・フィルタリング・レート制限のみを担い、
@@ -20,11 +20,11 @@ Publisher Layerは、Capability Layerが生成したCapability（製品状態）
 
 | 用語 | 説明 |
 |------|------|
-| Capability | Capability Layerが生成する製品状態。配信対象データ。 |
-| Subscriber | Publisher Layerに登録された外部購読者（UI/Logger/診断/リモート監視等） |
+| Capability | RIM_CapabilityLayerが生成する製品状態。配信対象データ。 |
+| Subscriber | RIM_PublisherLayerに登録された外部購読者（UI/Logger/診断/リモート監視等） |
 | Subscription | 購読者と関心Capability（関心対象）の対応関係 |
-| 配信的差分 | ある購読者へ「前回配信した値」と今回の差。Publisher Layerが管理する。 |
-| 意味的差分 | Capabilityそのものが前回と変化したか。**Capability Layerが管理する（本Layerの責務外）**。 |
+| 配信的差分 | ある購読者へ「前回配信した値」と今回の差。RIM_PublisherLayerが管理する。 |
+| 意味的差分 | Capabilityそのものが前回と変化したか。**RIM_CapabilityLayerが管理する（本Layerの責務外）**。 |
 | Publishトリガー | 配信を起動する契機（OnChange / Periodic / Threshold / Event / Initial） |
 
 ---
@@ -33,12 +33,12 @@ Publisher Layerは、Capability Layerが生成したCapability（製品状態）
 
 ```mermaid
 flowchart TD
-    Cap[Capability Layer] -->|IPublisher.notify(capability)| Pub[Publisher Layer]
+    Cap[RIM_CapabilityLayer] -->|IPublisher.notify(capability)| Pub[RIM_PublisherLayer]
     Pub -->|Publish| Sub[外部購読者ゾーン]
     Cap -. 参照提供 .-> Acc[Accessor Layer（参照専用）]
 ```
 
-Publisher LayerはCapability Layerの下流に位置し、外部購読者ゾーンへ配信する。
+RIM_PublisherLayerはRIM_CapabilityLayerの下流に位置し、外部購読者ゾーンへ配信する。
 Accessor Layer（参照専用・Pull）とは対を成し、Publisherは**Push**を担当する。
 
 ---
@@ -48,13 +48,13 @@ Accessor Layer（参照専用・Pull）とは対を成し、Publisherは**Push**
 - Capabilityの変化を、関心を持つ購読者へ確実に届ける
 - 配信タイミング（周期・変化・イベント）を一元制御する
 - 高頻度更新に対しレート制限で配信量を抑制する
-- 購読者の増減をCapability Layerから隠蔽する
+- 購読者の増減をRIM_CapabilityLayerから隠蔽する
 
 ---
 
 ## 5. 責務
 
-Publisher Layerは以下の責務を持つ。
+RIM_PublisherLayerは以下の責務を持つ。
 
 - 外部購読者の登録 / 解除
 - CapabilityのPush配信
@@ -77,11 +77,11 @@ flowchart LR
 
 ## 6. 非責務
 
-Publisher Layerは以下を責務としない。
+RIM_PublisherLayerは以下を責務としない。
 
-- 状態の解釈・意味付け（Capability Layer）
-- 閾値跨ぎ（Threshold）の**判定**（Capability Layerが判定し、結果を受け取るのみ）
-- 意味的差分の判定（Capability Layer）
+- 状態の解釈・意味付け（RIM_CapabilityLayer）
+- 閾値跨ぎ（Threshold）の**判定**（RIM_CapabilityLayerが判定し、結果を受け取るのみ）
+- 意味的差分の判定（RIM_CapabilityLayer）
 - 入力源との直接連携
 - 購読者の業務処理の代行
 - 状態の永続保持（配信済み値の保持は行うが、システム状態の正本は持たない）
@@ -93,12 +93,12 @@ Publisher Layerは以下を責務としない。
 
 ```mermaid
 flowchart LR
-    subgraph PublisherLayer
+    subgraph RIM_PublisherLayer
         PE[② Publish Engine]
         SR[① State Repository]
         SB[③ Subscription Broker]
     end
-    Cap[Capability Layer] -->|notify(capability)| PE
+    Cap[RIM_CapabilityLayer] -->|notify(capability)| PE
     PE --> SR
     SR --> SB
     SB -->|Publish| Sub[購読者]
@@ -117,7 +117,7 @@ Capabilityごとにタスクを生成し、配信全体を管理する中核コ�
 #### 7.1.1 提供IF
 | IF | 内容 |
 |----|------|
-| notify(Capability capability) | Capability Layerから生成済Capabilityを受け取り、配信処理を起動する |
+| notify(Capability capability) | RIM_CapabilityLayerから生成済Capabilityを受け取り、配信処理を起動する |
 
 ### 7.2 ① State Repository（最終配信値・配信的差分管理）
 
@@ -125,7 +125,7 @@ Capabilityごとにタスクを生成し、配信全体を管理する中核コ�
 
 - 購読者×Capability単位で最終配信値を保持する
 - 今回値と最終配信値を比較し、配信要否（配信的差分の有無）を返す
-- **意味的差分（Capが変わったか）は保持・判定しない**（それはCapability Layer）
+- **意味的差分（Capが変わったか）は保持・判定しない**（それはRIM_CapabilityLayer）
 
 > 補足：drawio注記「前回値は保持しない（L3が変更項目を知る）」は
 > **意味的差分**に関する記述である。本Layerが保持するのは
@@ -155,8 +155,8 @@ Capabilityごとにタスクを生成し、配信全体を管理する中核コ�
 |---------|------|-----------|
 | OnChange | 前回配信値と差分あり | State Repository（配信的差分） |
 | Periodic | 一定周期（例：100ms） | Publish Engine（内部周期） |
-| Threshold | 連続値が閾値を跨ぐ | **判定はCapability Layer**、通知を受けて配信 |
-| Event | 明示イベント（Error発生・Job完了等） | Capability Layerが明示イベントとして通知 |
+| Threshold | 連続値が閾値を跨ぐ | **判定はRIM_CapabilityLayer**、通知を受けて配信 |
+| Event | 明示イベント（Error発生・Job完了等） | RIM_CapabilityLayerが明示イベントとして通知 |
 | Initial | 購読開始時の初回配信 | Subscription Broker（subscribe時） |
 
 **Rate Limitとの関係（契約）**：
@@ -196,7 +196,7 @@ struct DeliveryRecord {
 
 ```mermaid
 sequenceDiagram
-    participant Cap as Capability Layer
+    participant Cap as RIM_CapabilityLayer
     participant PE as Publish Engine
     participant SR as State Repository
     participant SB as Subscription Broker
@@ -220,35 +220,35 @@ sequenceDiagram
 ## 11. 設計方針
 
 ### 11.1 Push方式
-Publisher Layerは購読者へPushで配信する。購読者からのPull参照はAccessor Layerが担う。
+RIM_PublisherLayerは購読者へPushで配信する。購読者からのPull参照はAccessor Layerが担う。
 
 ### 11.2 Capabilityごとのタスク
 Publish EngineはCapabilityごとにタスクを持ち、変更を非同期に扱う。
 タスク数は構成（cfg）から決まる。
 
 ### 11.3 差分管理の分離（GAP-3/4）
-- **意味的差分**（Capが変わったか）＝ Capability Layer（CapabilityDiffChecker）
-- **配信的差分**（購読者へ前回何を配信したか）＝ Publisher Layer（State Repository）
+- **意味的差分**（Capが変わったか）＝ RIM_CapabilityLayer（CapabilityDiffChecker）
+- **配信的差分**（購読者へ前回何を配信したか）＝ RIM_PublisherLayer（State Repository）
 
 ### 11.4 判定と配信の分離
-閾値跨ぎ（Threshold）や意味付けは判断であり、Capability Layerで行う。
-関心Cap一致は配信にのみ関わるため、Publisher Layer（Subscription Broker）で行う。
+閾値跨ぎ（Threshold）や意味付けは判断であり、RIM_CapabilityLayerで行う。
+関心Cap一致は配信にのみ関わるため、RIM_PublisherLayer（Subscription Broker）で行う。
 
 ---
 
 ## 12. 制約事項
 
-- Publisher LayerはCapability Layerからのnotifyのみを入力とする
-- Publisher LayerはDataStore Layerを直接参照しない
-- Publisher Layerは状態判定・閾値判定を行わない
-- Publisher Layerは購読者の業務処理へ立ち入らない
+- RIM_PublisherLayerはRIM_CapabilityLayerからのnotifyのみを入力とする
+- RIM_PublisherLayerはRIM_DatastoreLayerを直接参照しない
+- RIM_PublisherLayerは状態判定・閾値判定を行わない
+- RIM_PublisherLayerは購読者の業務処理へ立ち入らない
 
 ---
 
 ## 13. 非機能要件
 
 - 高頻度なnotifyに対しレート制限で配信量を抑制できること
-- 購読者の増減がCapability Layerへ影響しないこと
+- 購読者の増減がRIM_CapabilityLayerへ影響しないこと
 - 配信順序が購読者登録順で安定すること
 - コンポーネント単位でテスト可能であること
 

@@ -1,6 +1,6 @@
-# Capability Layer 詳細設計書（L3）
+# RIM_CapabilityLayer 詳細設計書（L3）
 
-本書は `CapabilityLayer仕様設計書.md` を親とし、各クラスの内部アルゴリズム・
+本書は `RIM_CapabilityLayer仕様設計書.md` を親とし、各クラスの内部アルゴリズム・
 判定式構成・データ型・排他・シーケンスを定義する。
 
 ---
@@ -9,9 +9,9 @@
 
 ```mermaid
 flowchart TB
-    DS[DataStore Layer]
+    DS[RIM_DatastoreLayer]
 
-    subgraph CapabilityLayer
+    subgraph RIM_CapabilityLayer
         CM[CapabilityManager]
         CB[CapabilityBuilder]
         CD[CapabilityDiffChecker]
@@ -19,7 +19,7 @@ flowchart TB
         PREV[前回Publish済Capability]
     end
 
-    Pub[Publisher Layer]
+    Pub[RIM_PublisherLayer]
 
     DS -. notifyUpdated(domains) .-> CM
     CM -->|capture(request)| DS
@@ -32,7 +32,7 @@ flowchart TB
 
 ### 1.1 スレッドモデルと通知受理機構（H-1対応）
 
-- Capability Layerは専用スレッドで動作し、DataStore処理スレッドから独立する。
+- RIM_CapabilityLayerは専用スレッドで動作し、DataStore処理スレッドから独立する。
 - `onRegistryUpdated(domains)` は**3つのDispatcherスレッドから並行に呼ばれる**前提とし、
   以下の **pendingドメイン集合方式** で受理する。
 
@@ -220,7 +220,7 @@ CapabilityPriority check(const CapabilitySet& current) const;
 | Job進捗更新 等 | Normal |
 | Env等の軽微変化 | Low |
 
-- 判定結果はPublisher LayerのRate Limit/配信優先に用いられる。
+- 判定結果はRIM_PublisherLayerのRate Limit/配信優先に用いられる。
 
 ---
 

@@ -1,6 +1,6 @@
 # 1. 概要
 
-Adapter Layerは外部コンポーネントから入力されるデータをシステム内部で利用可能な形式へ正規化し、DataStore Layerへ受け渡す責務を持つ。
+RIM_AdapterLayerは外部コンポーネントから入力されるデータをシステム内部で利用可能な形式へ正規化し、RIM_DatastoreLayerへ受け渡す責務を持つ。
 
 本Layerは外部仕様とシステム内部仕様の境界として機能し、後続Layerから外部仕様の差異を隠蔽する。
 
@@ -14,15 +14,15 @@ Adapter Layerは外部コンポーネントから入力されるデータをシ�
 - 単位やスケールの違い
 - データ表現の違い
 
-これらの差異を後続Layerで扱う場合、DataStore LayerやCapability Layerが外部仕様へ依存することになる。
+これらの差異を後続Layerで扱う場合、RIM_DatastoreLayerやRIM_CapabilityLayerが外部仕様へ依存することになる。
 
-そのため、本システムでは外部仕様との差異をAdapter Layerで吸収し、後続Layerでは統一された内部形式のみを扱う構成を採用する。
+そのため、本システムでは外部仕様との差異をRIM_AdapterLayerで吸収し、後続Layerでは統一された内部形式のみを扱う構成を採用する。
 
 ---
 
 # 3. 目的
 
-Adapter Layerの目的は以下である。
+RIM_AdapterLayerの目的は以下である。
 
 - 外部仕様をシステム内部仕様へ変換する
 - 後続Layerを外部仕様から独立させる
@@ -33,13 +33,13 @@ Adapter Layerの目的は以下である。
 
 # 4. 責務
 
-Adapter Layerは以下の責務を持つ。
+RIM_AdapterLayerは以下の責務を持つ。
 
 - 外部入力の受理
 - 正規化処理の選択
 - データ正規化
 - 入力性質の判別（Fault / OperationReport / CurrentValue）
-- DataStore Layerへのデータ送信（性質に応じた3種postの選択）
+- RIM_DatastoreLayerへのデータ送信（性質に応じた3種postの選択）
 
 ```mermaid
 flowchart LR
@@ -52,16 +52,16 @@ flowchart LR
     A1 --> A2 --> A3 --> A5 --> A4
 ```
 
-> **入力性質の判別（GAP-1）**：DataStore Layerの入口はCentralInputPortの3種post
+> **入力性質の判別（GAP-1）**：RIM_DatastoreLayerの入口はCentralInputPortの3種post
 > （postFaultInput / postOperationReport / postCurrentValueInput）である。
-> Adapter Layerは識別子（Id）が意味する性質に応じて呼び出すpostを選択する。
-> DataStore側はpost種別とIdの分類の一致を検証する（DataStore Layer §6.1）。
+> RIM_AdapterLayerは識別子（Id）が意味する性質に応じて呼び出すpostを選択する。
+> DataStore側はpost種別とIdの分類の一致を検証する（RIM_DatastoreLayer §6.1）。
 
 ---
 
 # 5. 非責務
 
-Adapter Layerは以下を責務としない。
+RIM_AdapterLayerは以下を責務としない。
 
 - データの意味解釈
 - 状態判定
@@ -71,19 +71,19 @@ Adapter Layerは以下を責務としない。
 - データ保持
 - 状態管理
 
-これらはCapability LayerまたはDataStore Layerの責務とする。
+これらはRIM_CapabilityLayerまたはRIM_DatastoreLayerの責務とする。
 
 ---
 
 # 6. コンポーネント構成
 
-Adapter Layerは以下のコンポーネントにより構成される。
+RIM_AdapterLayerは以下のコンポーネントにより構成される。
 
 - RawDataInput
 - RuleResolver
 - Rule群
 
-DataStore Layerは以下のインターフェースを提供する。
+RIM_DatastoreLayerは以下のインターフェースを提供する。
 
 - CentralInputPort（postFaultInput / postOperationReport / postCurrentValueInput）
 
@@ -92,13 +92,13 @@ flowchart LR
 
     Input["入力元コンポーネント"]
 
-    subgraph AdapterLayer
+    subgraph RIM_AdapterLayer
         RawDataInput
         RuleResolver
         Rule
     end
 
-    subgraph DataStoreLayer
+    subgraph RIM_DatastoreLayer
         CIP["CentralInputPort<br/>postFaultInput<br/>postOperationReport<br/>postCurrentValueInput"]
     end
 
@@ -108,7 +108,7 @@ flowchart LR
     RawDataInput -->|性質に応じた3種post| CIP
 ```
 
-Adapter LayerはDataStore Layerが提供するCentralInputPortの3種postを介してデータを送信する。
+RIM_AdapterLayerはRIM_DatastoreLayerが提供するCentralInputPortの3種postを介してデータを送信する。
 呼び出すpostは入力性質（Fault / OperationReport / CurrentValue）に応じて選択する。
 
 RuleResolverは識別子に応じて適用するRuleを決定する責務を持つ。
@@ -145,7 +145,7 @@ RuleResolverは識別子に応じて適用するRuleを決定する責務を持�
 - Rule選択
 - DataStoreにおけるデータ識別
 
-DataStore Layerでは識別子をキーとしてデータを管理する。
+RIM_DatastoreLayerでは識別子をキーとしてデータを管理する。
 
 ## 7.3 Context
 
@@ -190,9 +190,9 @@ sequenceDiagram
 
 ## 9.1 責務分離方針
 
-外部仕様との差異はAdapter Layerで吸収する。
+外部仕様との差異はRIM_AdapterLayerで吸収する。
 
-DataStore Layer以降では外部仕様を意識せず、統一されたデータ表現のみを扱う。
+RIM_DatastoreLayer以降では外部仕様を意識せず、統一されたデータ表現のみを扱う。
 
 ## 9.2 データ正規化方針
 
@@ -228,13 +228,13 @@ Push方式
 ### 10.1.3 理由
 
 - 入力データ発生時に即時処理できる
-- Adapter Layerが入力元の状態を管理する必要がない
-- Adapter Layerがポーリング処理を持たずに済む
+- RIM_AdapterLayerが入力元の状態を管理する必要がない
+- RIM_AdapterLayerがポーリング処理を持たずに済む
 
 ### 10.1.4 制約
 
 - 入力元からのPush入力を前提とする
-- Adapter Layerから入力元へデータ取得要求は行わない
+- RIM_AdapterLayerから入力元へデータ取得要求は行わない
 
 ## 10.2 正規化方式
 
@@ -267,7 +267,7 @@ Rule方式
 
 ### 10.3.3 理由
 
-- Adapter LayerとDataStore Layerを疎結合化できる
+- RIM_AdapterLayerとRIM_DatastoreLayerを疎結合化できる
 - 入力処理と保存処理を分離できる
 - 将来的な拡張に対応しやすい
 
@@ -277,14 +277,14 @@ Rule方式
 
 ## 11.1 アーキテクチャ制約
 
-- Adapter LayerはDataStore内部状態へアクセスしない
-- Adapter LayerはCapability Layerへ依存しない
-- RuleはDataStore Layerへ依存しない
+- RIM_AdapterLayerはDataStore内部状態へアクセスしない
+- RIM_AdapterLayerはRIM_CapabilityLayerへ依存しない
+- RuleはRIM_DatastoreLayerへ依存しない
 
 ## 11.2 機能制約
 
-- Adapter Layerは意味解釈を行わない
-- Adapter Layerは状態を保持しない
+- RIM_AdapterLayerは意味解釈を行わない
+- RIM_AdapterLayerは状態を保持しない
 - Ruleは状態を保持しない
 - Ruleはビジネスロジックを持たない
 
@@ -295,7 +295,7 @@ Rule方式
 - 処理は軽量であること
 - Rule単位で単体テスト可能であること
 - データ種別追加時の変更影響を局所化できること
-- 障害時に影響範囲がAdapter Layer内で限定されること
+- 障害時に影響範囲がRIM_AdapterLayer内で限定されること
 
 ---
 
@@ -321,4 +321,4 @@ Rule方式
 
 現時点では観測時刻(timestamp)は本Layerの責務対象外とする。
 
-ただし、観測時刻管理が必要となった場合は、Adapter Layerでの付与方式を検討する。
+ただし、観測時刻管理が必要となった場合は、RIM_AdapterLayerでの付与方式を検討する。

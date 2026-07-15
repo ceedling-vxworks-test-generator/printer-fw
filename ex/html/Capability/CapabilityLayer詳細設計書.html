@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CapabilityLayer詳細設計書</title>
+<title>RIM_CapabilityLayer 詳細設計書（L3）</title>
 <style>
 body { font-family: "Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif; line-height:1.75;
        max-width: 960px; margin: 0 auto; padding: 24px 32px 80px; color:#1f2328; background:#fff; }
@@ -27,16 +27,16 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
 </style>
 </head>
 <body>
-<nav class="docnav"><a href="../index.html">&#8962; 設計書一覧へ</a></nav>
-<h1 id="capability-layer-l3">Capability Layer 詳細設計書（L3）</h1>
-<p>本書は <code>CapabilityLayer仕様設計書.md</code> を親とし、各クラスの内部アルゴリズム・
+<h1>RIM_CapabilityLayer 詳細設計書（L3）</h1>
+<p>本書は <code>RIM_CapabilityLayer仕様設計書.md</code> を親とし、各クラスの内部アルゴリズム・
 判定式構成・データ型・排他・シーケンスを定義する。</p>
 <hr />
-<h2 id="1">1. 構成とスレッドモデル</h2>
-<p><div class="mermaid">flowchart TB
-    DS[DataStore Layer]
+<h2>1. 構成とスレッドモデル</h2>
+<div class="mermaid">
+flowchart TB
+    DS[RIM_DatastoreLayer]
 
-    subgraph CapabilityLayer
+    subgraph RIM_CapabilityLayer
         CM[CapabilityManager]
         CB[CapabilityBuilder]
         CD[CapabilityDiffChecker]
@@ -44,7 +44,7 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
         PREV[前回Publish済Capability]
     end
 
-    Pub[Publisher Layer]
+    Pub[RIM_PublisherLayer]
 
     DS -. notifyUpdated(domains) .-&gt; CM
     CM --&gt;|capture(request)| DS
@@ -52,10 +52,11 @@ footer { margin-top:3em; font-size:.8em; color:#8b949e; border-top:1px solid #d0
     CM --&gt; CD
     CM --&gt; CP
     CD --- PREV
-    CM --&gt;|notify(capability)| Pub</div></p>
-<h3 id="11-h-1">1.1 スレッドモデルと通知受理機構（H-1対応）</h3>
+    CM --&gt;|notify(capability)| Pub
+</div>
+<h3>1.1 スレッドモデルと通知受理機構（H-1対応）</h3>
 <ul>
-<li>Capability Layerは専用スレッドで動作し、DataStore処理スレッドから独立する。</li>
+<li>RIM_CapabilityLayerは専用スレッドで動作し、DataStore処理スレッドから独立する。</li>
 <li><code>onRegistryUpdated(domains)</code> は<strong>3つのDispatcherスレッドから並行に呼ばれる</strong>前提とし、
   以下の <strong>pendingドメイン集合方式</strong> で受理する。</li>
 </ul>
@@ -88,7 +89,7 @@ public:
 - 処理中に届いた通知は <code>pending_</code> に蓄積され、次周回で必ず処理される。
 - <code>wait_for</code> のタイムアウト（<code>fullReevalPeriod_</code>・低頻度、cfg）により、
   万一の通知欠落があっても<strong>周期フル再評価</strong>で回復する（レベルトリガの救済）。</p>
-<h3 id="12">1.2 排他</h3>
+<h3>1.2 排他</h3>
 <ul>
 <li>Registryは直接ロックしない。参照はMachineSnapshotReaderのcapture（Registry単位短時間ロック）に委ねる。</li>
 <li>前回Publish済Capabilityは <strong>不変オブジェクト + atomicなshared_ptr差し替え</strong> で保持する（H-7対応）。
@@ -105,7 +106,7 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const {
 }
 </code></pre>
 <hr />
-<h2 id="2">2. データモデル</h2>
+<h2>2. データモデル</h2>
 <pre><code class="language-cpp">enum class CapabilityKind { Error, Job, Env, Maint, Health, Safety, Consumable, Print };
 enum class CapabilityPriority { Low, Normal, High, Critical };
 
@@ -131,12 +132,12 @@ struct StatusDiffResult {
 };
 </code></pre>
 <hr />
-<h2 id="3-capabilitymanager">3. CapabilityManager</h2>
-<h3 id="31-if">3.1 提供IF</h3>
+<h2>3. CapabilityManager</h2>
+<h3>3.1 提供IF</h3>
 <pre><code class="language-cpp">void onRegistryUpdated(const RegistryDomainSet&amp; domains);          // IRegistryUpdateNotifier実装
 std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Accessor向け現在状態参照（H-7）
 </code></pre>
-<h3 id="32-process">3.2 内部処理（process）</h3>
+<h3>3.2 内部処理（process）</h3>
 <pre><code class="language-text">process(domains):
   1. Snapshot取得範囲を決定（§3.3）
   2. MachineSnapshotReader.capture(request) → MachineSnapshot
@@ -151,7 +152,7 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
   9. IPublisher.notify(capability)
  10. prev を merged でatomicに差し替え（§1.2）
 </code></pre>
-<h3 id="33-snapshot">3.3 Snapshot取得範囲決定</h3>
+<h3>3.3 Snapshot取得範囲決定</h3>
 <ul>
 <li>更新された <code>RegistryDomainSet</code> から、影響を受けるCapability群を逆引きし、
   <strong>それらのCapabilityの依存ドメインの和集合（依存クロージャ）</strong> を <code>SnapshotRequest.domains</code> に含める。
@@ -159,7 +160,7 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
   「影響Capの依存全部」を取得することが必須である）</li>
 <li>依存表（Capability → RegistryDomain）は静的に定義する（基本設計 §4.2）。</li>
 </ul>
-<h3 id="34-capabilityseth-3">3.4 CapabilitySetマージ規則（H-3対応・正式契約）</h3>
+<h3>3.4 CapabilitySetマージ規則（H-3対応・正式契約）</h3>
 <table>
 <thead>
 <tr>
@@ -194,16 +195,16 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
 </tr>
 </tbody>
 </table>
-<h3 id="34">3.4 非責務</h3>
+<h3>3.4 非責務</h3>
 <ul>
 <li>Registry更新・直接参照、Snapshotの実コピー、判定式の詳細ロジック、実配信は行わない。</li>
 </ul>
 <hr />
-<h2 id="4-capabilitybuilder">4. CapabilityBuilder</h2>
-<h3 id="41-if">4.1 提供IF</h3>
+<h2>4. CapabilityBuilder</h2>
+<h3>4.1 提供IF</h3>
 <pre><code class="language-cpp">CapabilitySet build(const MachineSnapshot&amp; snapshot) const;
 </code></pre>
-<h3 id="42">4.2 判定式構成</h3>
+<h3>4.2 判定式構成</h3>
 <ul>
 <li>Capability種別ごとに判定クラス（Evaluator）を持つ。</li>
 </ul>
@@ -220,22 +221,22 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
   複数Capを合成した総合判断が要る場合はFacade側で行う（本層でCap相互参照しない）。</li>
 </ul>
 <hr />
-<h2 id="5-capabilitydiffchecker">5. CapabilityDiffChecker</h2>
-<h3 id="51-if">5.1 提供IF</h3>
+<h2>5. CapabilityDiffChecker</h2>
+<h3>5.1 提供IF</h3>
 <pre><code class="language-cpp">StatusDiffResult hasDifference(const CapabilitySet&amp; prev, const CapabilitySet&amp; current) const;
 </code></pre>
-<h3 id="52">5.2 アルゴリズム</h3>
+<h3>5.2 アルゴリズム</h3>
 <ul>
 <li>Kindごとに prev/current を比較し、差分のあるKindを <code>changed</code> に集約する。</li>
 <li>いずれか差分があれば <code>hasDifference = true</code>。</li>
 <li>これは <strong>意味的差分</strong>（Capが変化したか）であり、配信的差分（Publisher）とは別。</li>
 </ul>
 <hr />
-<h2 id="6-capabilityprioritychecker">6. CapabilityPriorityChecker</h2>
-<h3 id="61-if">6.1 提供IF</h3>
+<h2>6. CapabilityPriorityChecker</h2>
+<h3>6.1 提供IF</h3>
 <pre><code class="language-cpp">CapabilityPriority check(const CapabilitySet&amp; current) const;
 </code></pre>
-<h3 id="62">6.2 アルゴリズム（例）</h3>
+<h3>6.2 アルゴリズム（例）</h3>
 <table>
 <thead>
 <tr>
@@ -263,11 +264,12 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
 </tbody>
 </table>
 <ul>
-<li>判定結果はPublisher LayerのRate Limit/配信優先に用いられる。</li>
+<li>判定結果はRIM_PublisherLayerのRate Limit/配信優先に用いられる。</li>
 </ul>
 <hr />
-<h2 id="7">7. シーケンス</h2>
-<p><div class="mermaid">sequenceDiagram
+<h2>7. シーケンス</h2>
+<div class="mermaid">
+sequenceDiagram
     participant DS as DataStore
     participant CM as CapabilityManager
     participant Reader as MachineSnapshotReader
@@ -289,9 +291,10 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
         CP--&gt;&gt;CM: priority
         CM-&gt;&gt;Pub: notify(capability)
         CM-&gt;&gt;CM: prev = current
-    end</div></p>
+    end
+</div>
 <hr />
-<h2 id="8">8. 異常処理</h2>
+<h2>8. 異常処理</h2>
 <table>
 <thead>
 <tr>
@@ -315,7 +318,7 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
 </tbody>
 </table>
 <hr />
-<h2 id="9">9. 非機能・原則の対応</h2>
+<h2>9. 非機能・原則の対応</h2>
 <table>
 <thead>
 <tr>
@@ -343,7 +346,7 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
 </tbody>
 </table>
 <hr />
-<h2 id="10">10. 次段（未確定）</h2>
+<h2>10. 次段（未確定）</h2>
 <ul>
 <li>各Evaluatorの判定式（閾値・条件）の具体定義</li>
 <li>CapabilityValueの種別ごとスキーマ</li>
@@ -353,7 +356,7 @@ std::shared_ptr&lt;const CapabilitySet&gt; getCurrentCapability() const; // Acce
 </ul>
 <p>（確定済み：通知受理機構=pendingドメイン集合方式(§1.1)、CapabilitySetマージ規則(§3.4)、
 getCurrentCapability=atomic shared_ptr方式(§1.2/§3.1)）</p>
-<footer>printer-fw FSI 設計書（Markdown原本: Capability/CapabilityLayer詳細設計書.md）</footer>
+<footer>printer-fw RIM 設計書（Markdown原本: Capability/CapabilityLayer詳細設計書.md）</footer>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });

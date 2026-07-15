@@ -1,10 +1,10 @@
-# DataStore Layer 仕様設計書
+# RIM_DatastoreLayer 仕様設計書
 
 ## 1. 概要
 
-DataStore Layerはシステム内のデータを集約して管理するLayerである。
+RIM_DatastoreLayerはシステム内のデータを集約して管理するLayerである。
 
-本LayerはAdapter Layerから入力されたデータを一元管理し、Capability Layerへ整合したSnapshotを提供する。
+本LayerはRIM_AdapterLayerから入力されたデータを一元管理し、RIM_CapabilityLayerへ整合したSnapshotを提供する。
 
 本Layerはシステム全体のデータ管理責務を担い、後続Layerから内部データ管理方式およびデータ保持構造を隠蔽する。
 
@@ -13,10 +13,10 @@ DataStore Layerはシステム内のデータを集約して管理するLayerで
 ## 2. 用語
 | 用語 | 説明 |
 |--------|--------|
-| DataEntryItem | DataStore Layer内部で利用する標準データモデル |
+| DataEntryItem | RIM_DatastoreLayer内部で利用する標準データモデル |
 | Data | Mediator外部から入力される情報。 |
-| State | Dataを解釈した結果。Dataから再計算可能なものである。Capability Layerにて用いられる。 |
-| DataId | データ種別識別子。DataStore Layerにおいては保存先特定を主目的として利用する。 |
+| State | Dataを解釈した結果。Dataから再計算可能なものである。RIM_CapabilityLayerにて用いられる。 |
+| DataId | データ種別識別子。RIM_DatastoreLayerにおいては保存先特定を主目的として利用する。 |
 | Context | データに付与される補足情報 |
 | Registry | システム内のデータを集約して管理するコンポーネント |
 | RegistryDomain | Registry内の保存領域を示すドメイン。例えばRegistry内の温度湿度関係データのドメインといったように指定可能。 |
@@ -53,13 +53,13 @@ CurrentFault
 - 変更影響範囲の拡大
 - 障害解析性の低下
 
-また、Capability Layerは複数のDataを組み合わせて状態判定を行うため、システム全体として整合したデータ提供機構が必要となる。
+また、RIM_CapabilityLayerは複数のDataを組み合わせて状態判定を行うため、システム全体として整合したデータ提供機構が必要となる。
 
 ---
 
 ## 4. 目的
 
-DataStore Layerの目的は以下である。
+RIM_DatastoreLayerの目的は以下である。
 
 - システム内データの一元管理
 - データ整合性の維持
@@ -69,7 +69,7 @@ DataStore Layerの目的は以下である。
 
 ## 5. 責務
 
-DataStore Layerは以下の責務を持つ。
+RIM_DatastoreLayerは以下の責務を持つ。
 
 
 - データ保持
@@ -95,7 +95,7 @@ C --> E --> F
 ```
 
 
-DataStore Layerは以下を責務としない。
+RIM_DatastoreLayerは以下を責務としない。
 
 - 状態判定
 - ビジネスロジック
@@ -105,14 +105,14 @@ DataStore Layerは以下を責務としない。
 - 外部機器制御
 - Capability実行
 
-これらはCapability Layerまたは上位Layerの責務とする。
+これらはRIM_CapabilityLayerまたは上位Layerの責務とする。
 
 ---
 
 ## 6. クラス構成
 
 
-DataStore Layerは以下のコンポーネントで構成される。
+RIM_DatastoreLayerは以下のコンポーネントで構成される。
 
 - CentralInputPort
 
@@ -137,9 +137,9 @@ DataStore Layerは以下のコンポーネントで構成される。
 ```mermaid
 flowchart LR
 
-Adapter[Adapter Layer]
+Adapter[RIM_AdapterLayer]
 
-subgraph DataStoreLayer
+subgraph RIM_DatastoreLayer
 
 CIP[CentralInputPort]
 
@@ -161,7 +161,7 @@ MSR[MachineSnapshotReader]
 
 end
 
-CAP[Capability Layer]
+CAP[RIM_CapabilityLayer]
 
 Adapter --> CIP
 
@@ -365,7 +365,7 @@ std:vector(DataEntryItem) takeUpdatedValues();
 ### 6.5 FaultDispatcher
 
 FaultInputQueueからの通知を受け、FaultInputをFaultRepositryの該当箇所へ反映する。
-更新が発生した場合Capability Layerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。
+更新が発生した場合RIM_CapabilityLayerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。
 
 #### 6.5.1 属性  
 本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。
@@ -380,7 +380,7 @@ dispatch()
 ### 6.6 OperationDispatcher
 
 OperationReportQueueからの通知を受け、OperationReportをOperationRepositryの該当箇所へ反映する。
-更新が発生した場合Capability Layerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。
+更新が発生した場合RIM_CapabilityLayerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。
 
 #### 6.4.1 属性  
 本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。
@@ -395,7 +395,7 @@ dispatch()
 ### 6.7 CurrentValueDispatcher
 
 周期起動し、CurrentValueBufferから更新値を取り出してCurrentValueRegistryへ反映する。
-更新が発生した場合Capability Layerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。
+更新が発生した場合RIM_CapabilityLayerが実装するIRegistryUpdateNotifierを利用して変更ドメインを通知する。
 
 #### 6.7.1 属性  
 本クラスにおける属性記述は詳細処理に立ち入るためここでは記載しない。
@@ -516,10 +516,10 @@ CurrentValueSnapshotを返す。
 
 外部からの要求に応じて指定されたドメインのSnapshotを生成する。  
 MachineSnapshotReaderはRegistryの内部実装を隠蔽する。  
-Capability LayerはMachineSnapshotReader経由でのみ現在状態を取得できる。
+RIM_CapabilityLayerはMachineSnapshotReader経由でのみ現在状態を取得できる。
 Registry全体の提供は行わない。  
-Capability Layerに対してIMachineSnapshotReaderを提供する。  
-Capability LayerはDataStore Layerの処理スレッドから独立して実行されることを想定する。
+RIM_CapabilityLayerに対してIMachineSnapshotReaderを提供する。  
+RIM_CapabilityLayerはRIM_DatastoreLayerの処理スレッドから独立して実行されることを想定する。
 
 #### 6.11.3 データモデル
 ```
@@ -561,11 +561,11 @@ MachineSnapshot capture(const SnapshotRequest& request)
 
 ---
 
-## 7. DataStore Layerデータモデル
+## 7. RIM_DatastoreLayerデータモデル
 
 ### 7.1 DataEntryItem
 
-DataStore Layer内部で利用する標準データモデルである。
+RIM_DatastoreLayer内部で利用する標準データモデルである。
 
 DataEntryItemはコンポーネント間で受け渡される共通データ形式として利用される。
 
@@ -694,7 +694,7 @@ Reader-->>Cap: MachineSnapshot
 ### 8.5 整合性モデル
 
 
-DataStore Layerは以下を保証する。
+RIM_DatastoreLayerは以下を保証する。
 
 ・Registryの排他制御
 ・Snapshotの読み取り専用性
@@ -702,7 +702,7 @@ DataStore Layerは以下を保証する。
 ・ドメインごとの整合性
 ・Registry内部状態の隠蔽
 
-Capability LayerはRegistryを直接参照しない。
+RIM_CapabilityLayerはRegistryを直接参照しない。
 
 更新通知は変更契機のみを通知し、実際のデータ取得はMachineSnapshotReaderを介して行う。
 
@@ -712,15 +712,15 @@ Capability LayerはRegistryを直接参照しない。
 
 ### 9.1 DataとStateの分離
 
-DataStore LayerはDataのみを管理する。
+RIM_DatastoreLayerはDataのみを管理する。
 
-StateはCapability Layerが生成する。
+StateはRIM_CapabilityLayerが生成する。
 
 ```text
-DataStore Layer
+RIM_DatastoreLayer
     Data管理
 
-Capability Layer
+RIM_CapabilityLayer
     State管理
 ```
 
@@ -728,22 +728,22 @@ Capability Layer
 
 ### 9.2 Single Source of Truth
 
-システム内データの正本はDataStore Layerのみが管理する。
+システム内データの正本はRIM_DatastoreLayerのみが管理する。
 
 ---
 
 ### 9.3 Snapshot方式
 
-Capability Layerは内部コンポーネントを直接参照しない。
+RIM_CapabilityLayerは内部コンポーネントを直接参照しない。
 
-Capability LayerはSnapshotのみを利用する。
+RIM_CapabilityLayerはSnapshotのみを利用する。
 
 ---
 
 
 ### 9.4 現在値管理と現在情報管理の分離
 
-DataStore Layerでは現在値管理と現在情報管理を分離する。
+RIM_DatastoreLayerでは現在値管理と現在情報管理を分離する。
 Snapshotは以下Registryから生成される。
 
 ```text
@@ -760,7 +760,7 @@ FaultRegistry
 
 ### 9.5 ドメイン整合方式
 
-Capability Layerへ提供するsnapshotは生成時点でのドメインごとのデータを対象としている。
+RIM_CapabilityLayerへ提供するsnapshotは生成時点でのドメインごとのデータを対象としている。
 
 下記Registryに対してCapabilityは取得したいドメインを要求する。
 
@@ -778,12 +778,12 @@ Capability Layerへ提供するsnapshotは生成時点でのドメインごと�
 
 ### 10.1 アーキテクチャ制約
 
-- DataStore LayerはState判定を行わない
-- SnapshotはCapability Layerが取得する
-- Capability LayerはSnapshot以外を参照しない
-- DataStore Layerは唯一のデータ正本である
-- Adapter LayerはDataStore Layer内部状態へアクセスしない
-- DispatcherはCapability Layerへ更新通知のみを行う
+- RIM_DatastoreLayerはState判定を行わない
+- SnapshotはRIM_CapabilityLayerが取得する
+- RIM_CapabilityLayerはSnapshot以外を参照しない
+- RIM_DatastoreLayerは唯一のデータ正本である
+- RIM_AdapterLayerはRIM_DatastoreLayer内部状態へアクセスしない
+- DispatcherはRIM_CapabilityLayerへ更新通知のみを行う
 - 更新通知にはRegistryDomainSetを利用する
 - FaultInputおよびOperationReportは喪失不可データである。喪失発生時は検知して再同期する
   （詳細設計 §10.1 のフル再同期プロトコルを必須とする。黙って続行しない）
@@ -792,7 +792,7 @@ Capability Layerへ提供するsnapshotは生成時点でのドメインごと�
 
 ### 10.2 機能制約
 
-- DataStore LayerはDataのみを管理する
+- RIM_DatastoreLayerはDataのみを管理する
 - Stateは保持しない
 - Snapshotは読み取り専用とする
 - RegistryはStateを管理しない
@@ -809,6 +809,6 @@ Capability Layerへ提供するsnapshotは生成時点でのドメインごと�
 - 障害解析可能であること
 - 将来的なデータ種別追加に対応できること
 - CurrentValueの高頻度更新に対してSnapshot生成頻度を抑制できること
-- DataStore LayerがCapability Layerの処理時間に依存しないこと
+- RIM_DatastoreLayerがRIM_CapabilityLayerの処理時間に依存しないこと
 - 更新通知による差分監視が行えること
 
