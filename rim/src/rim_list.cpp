@@ -1,42 +1,16 @@
 /*
  * rim_list.cpp - 可変長Listの実体（C++・要件4(a)）
  *
- * ここが「List可変長はC++の仕組みを用いる」箇所。
- *   - rim::FixedVector<T, N> = 固定容量・静的確保の可変長コンテナ（heap不使用）。
- *     std::vector 相当のpush/size/clearを、テンプレートでボイラープレートなく提供する。
- *   - std::vector は使わない（定常時再確保・動的確保を避けるFW方針）。
+ * 可変長コンテナ本体 rim::FixedVector は rim/rim_fixed_vector.h に分離済み
+ * （1クラス1ファイル方針）。本ファイルは不透明ハンドル rim_dei_list と
+ * その静的プール、公開C ABI（rim_list.h）の実装を担う。
  *   - 公開面（rim_list.h）は extern "C" 不透明ハンドル。C側にはC++が一切漏れない。
  */
 #include "rim/rim_list.h"
+#include "rim/rim_fixed_vector.h"
 
 #include <new>       /* placement new */
 #include <cstddef>
-
-namespace rim {
-
-/* 固定容量の可変長コンテナ（要件4(a)のC++機構）。 */
-template <typename T, std::size_t N>
-class FixedVector {
-public:
-    FixedVector() : size_(0) {}
-
-    bool push_back(const T& v) {
-        if (size_ >= N) return false;
-        data_[size_] = v;
-        ++size_;
-        return true;
-    }
-    std::size_t size() const { return size_; }
-    std::size_t capacity() const { return N; }
-    const T& at(std::size_t i) const { return data_[i]; }
-    void clear() { size_ = 0; }
-
-private:
-    T           data_[N];
-    std::size_t size_;
-};
-
-} /* namespace rim */
 
 /* --- List1本の容量とプール本数（連番enum＋固定長の思想で静的確保） --- */
 #ifndef RIM_DEI_LIST_CAPACITY
