@@ -87,6 +87,10 @@ rim_result_t intake(rim_data_id_t id, T raw, const rim_data_context_t* ctx) {
         item.context.fault_state     = RIM_FS_NONE;
         item.context.has_scale       = RIM_FALSE;
         item.context.scale_x1000     = 1000;
+        item.context.has_op          = RIM_FALSE;
+        item.context.op              = RIM_OP_NONE;
+        item.context.has_key         = RIM_FALSE;
+        item.context.key             = 0u;
     }
 
     if (!convert(id, raw, ctx, &item.value)) return RIM_ERR_CONVERT;
@@ -112,6 +116,47 @@ rim_result_t rim_adapter_push_f(rim_data_id_t id, double raw, const rim_data_con
 }
 rim_result_t rim_adapter_push_u32(rim_data_id_t id, uint32_t raw, const rim_data_context_t* ctx) {
     return intake<uint32_t>(id, raw, ctx);
+}
+
+/*
+ * コレクション操作の受理点。型自由パス(intake)とは別に、op＋key＋任意valueを
+ * そのままキューレーンへ流す（正規化変換は行わない＝valueは既に正規化済み前提）。
+ */
+rim_result_t rim_adapter_submit(rim_data_id_t id, rim_collection_op_t op,
+                                uint32_t key, const rim_data_value_t* value,
+                                const rim_data_context_t* ctx) {
+    if ((int)id < 0 || (int)id >= (int)RIM_ID_COUNT) return RIM_ERR_INVALID_ARG;
+
+    rim_input_kind_t kind;
+    if (!classify(id, &kind)) return RIM_ERR_CLASSIFY;
+    /* コレクション操作はキューレーン（FAULT/OPERATION）限定。CURRENTは非対応。 */
+    if (kind != RIM_KIND_FAULT && kind != RIM_KIND_OPERATION_REPORT)
+        return RIM_ERR_KIND_MISMATCH;
+
+    rim_data_entry_item_t item;
+    item.id = id;
+
+    if (ctx) item.context = *ctx;
+    else {
+        item.context.has_fault_state = RIM_FALSE;
+        item.context.fault_state     = RIM_FS_NONE;
+        item.context.has_scale       = RIM_FALSE;
+        item.context.scale_x1000     = 1000;
+    }
+    /* op/key は本引数で明示指定。 */
+    item.context.has_op  = RIM_TRUE;
+    item.context.op      = op;
+    item.context.has_key = RIM_TRUE;
+    item.context.key     = key;
+
+    /* value: REMOVE/CLEAR_ALL は不要 → NONE。ADD/UPDATE は与えられた値。 */
+    if (op == RIM_OP_REMOVE || op == RIM_OP_CLEAR_ALL || value == 0) {
+        item.value.type = RIM_VT_NONE;
+    } else {
+        item.value = *value;
+    }
+
+    return dispatch_post(kind, &item);
 }
 
 } /* extern "C" */

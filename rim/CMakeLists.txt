@@ -11,7 +11,8 @@ add_library(rim STATIC
     src/rim_datastore.cpp
     src/rim_capability.cpp
     src/rim_publisher.cpp
-    src/rim_core.cpp)
+    src/rim_core.cpp
+    src/rim_port.cpp)
 target_include_directories(rim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(rim PRIVATE -fno-exceptions -fno-rtti -Wall -Wextra)
 

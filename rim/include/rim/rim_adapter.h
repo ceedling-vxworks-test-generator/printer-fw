@@ -34,6 +34,18 @@ rim_result_t rim_adapter_push_f  (rim_data_id_t id, double raw,
 rim_result_t rim_adapter_push_u32(rim_data_id_t id, uint32_t raw,
                                   const rim_data_context_t* ctx);
 
+/*
+ * コレクション操作の受理点: DataStoreが管理する配列へ add/remove/update を投入する。
+ *   - 対象は喪失不可・順序保証のキューレーン（FAULT / OPERATION）のみ。
+ *     CURRENT_VALUE（最新値slot）は非コレクションのため RIM_ERR_KIND_MISMATCH。
+ *   - key はコレクション要素のキー（FAULTでは fault code）。
+ *   - value は ADD/UPDATE で使用。REMOVE / CLEAR_ALL では NULL 可。
+ *   - ctx はNULL可（未使用時。op/keyは本引数で上書きされる）。
+ */
+rim_result_t rim_adapter_submit(rim_data_id_t id, rim_collection_op_t op,
+                                uint32_t key, const rim_data_value_t* value,
+                                const rim_data_context_t* ctx);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

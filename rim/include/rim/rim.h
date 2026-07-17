@@ -10,6 +10,7 @@
 #define RIM_H
 
 #include "rim/rim_types.h"
+#include "rim/rim_port.h"
 #include "rim/rim_list.h"
 #include "rim/rim_adapter.h"
 #include "rim/rim_datastore.h"

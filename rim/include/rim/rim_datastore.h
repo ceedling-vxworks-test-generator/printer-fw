@@ -16,6 +16,22 @@
 extern "C" {
 #endif
 
+/*
+ * ---- 容量パラメータ（性質別キュー / 管理配列。必要に応じ -D で上書き可） ----
+ *   RIM_FAULT_QUEUE_DEPTH : FAULTレーンのFIFO段数（dispatch未実行間に貯めておける投入数）
+ *   RIM_OP_QUEUE_DEPTH    : OPERATIONレーンのFIFO段数
+ *   RIM_FAULT_CAP         : Faultコレクション（同時activeなfault）の最大保持数
+ */
+#ifndef RIM_FAULT_QUEUE_DEPTH
+#define RIM_FAULT_QUEUE_DEPTH 16
+#endif
+#ifndef RIM_OP_QUEUE_DEPTH
+#define RIM_OP_QUEUE_DEPTH    16
+#endif
+#ifndef RIM_FAULT_CAP
+#define RIM_FAULT_CAP         32
+#endif
+
 /* ---- 更新通知IF（L3 RIM_CapabilityLayer が実装。関数ポインタテーブル＋ctx） ---- */
 typedef struct rim_update_notifier {
     void  (*notify_updated)(void* ctx, rim_domain_set_t domains);
@@ -25,7 +41,7 @@ typedef struct rim_update_notifier {
 /* ---- Snapshot（読み取り専用・生成後不変・単一時点整合性） ---- */
 typedef struct rim_fault_snapshot {
     uint32_t active_count;
-    uint32_t active_codes[RIM_ID_COUNT];
+    uint32_t active_codes[RIM_FAULT_CAP];
 } rim_fault_snapshot_t;
 
 typedef struct rim_current_value_snapshot {

@@ -10,7 +10,8 @@ CFLAGS   ?= -std=c11 -Wall -Wextra -O2 -Iinclude
 
 BUILD    := build
 SRCS     := src/rim_list.cpp src/rim_adapter.cpp src/rim_datastore.cpp \
-            src/rim_capability.cpp src/rim_publisher.cpp src/rim_core.cpp
+            src/rim_capability.cpp src/rim_publisher.cpp src/rim_core.cpp \
+            src/rim_port.cpp
 OBJS     := $(patsubst src/%.cpp,$(BUILD)/%.o,$(SRCS))
 LIB      := $(BUILD)/librim.a
 

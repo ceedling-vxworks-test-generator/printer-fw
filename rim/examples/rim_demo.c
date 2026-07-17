@@ -33,8 +33,58 @@ int main(void) {
     rim_data_context_t fctx;
     fctx.has_fault_state = RIM_TRUE; fctx.fault_state = RIM_FS_RAISED;
     fctx.has_scale = RIM_FALSE; fctx.scale_x1000 = 1000;
+    fctx.has_op = RIM_FALSE; fctx.op = RIM_OP_NONE;      /* 従来pushパス互換 */
+    fctx.has_key = RIM_FALSE; fctx.key = 0u;
     rim_adapter_push_u32(RIM_ID_FAULT_CODE, 0x1001u, &fctx); /* 異常→印刷不可 */
     rim_datastore_dispatch();
+
+    /* --- 管理配列（Faultコレクション）への add/remove/update ＋ 性質別キュー --- */
+    printf("== collection ops on fault registry (FIFO queue + FixedMap) ==\n");
+    rim_machine_snapshot_t snap;
+
+    /* まず全消去して初期状態にする（0x1001含め） */
+    rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_CLEAR_ALL, 0u, NULL, NULL);
+    rim_datastore_dispatch();
+
+    /* (1) 溢れ: dispatch前に DEPTH+1 件ADD → 先頭DEPTH件OK, 超過分は RIM_ERR_POST（無音上書きしない） */
+    {
+        int ok = 0, full = 0;
+        unsigned i;
+        for (i = 0; i < (unsigned)RIM_FAULT_QUEUE_DEPTH + 1u; ++i) {
+            rim_result_t r = rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_ADD,
+                                                0x2000u + i, NULL, NULL);
+            if (r == RIM_OK) ++ok; else if (r == RIM_ERR_POST) ++full;
+        }
+        printf("   overflow: enqueued_ok=%d RIM_ERR_POST=%d (queue depth=%d)\n",
+               ok, full, RIM_FAULT_QUEUE_DEPTH);
+        rim_datastore_dispatch();
+        if (rim_accessor_read_snapshot(RIM_DOMAIN_FAULT, &snap) == RIM_OK && snap.has_fault)
+            printf("   after dispatch: active_count=%u (expect %d)\n",
+                   snap.fault.active_count, RIM_FAULT_QUEUE_DEPTH);
+    }
+
+    /* (2) 順序: ADD A, ADD B, REMOVE A を dispatch前に投入 → 反映後は B のみ残る */
+    rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_CLEAR_ALL, 0u, NULL, NULL);
+    rim_datastore_dispatch();
+    rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_ADD,    0xAAAAu, NULL, NULL);
+    rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_ADD,    0xBBBBu, NULL, NULL);
+    rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_REMOVE, 0xAAAAu, NULL, NULL);
+    rim_datastore_dispatch();
+    if (rim_accessor_read_snapshot(RIM_DOMAIN_FAULT, &snap) == RIM_OK && snap.has_fault) {
+        printf("   ordered add/add/remove: active_count=%u", snap.fault.active_count);
+        if (snap.fault.active_count == 1u)
+            printf(" code=0x%04X (expect 0xBBBB)", snap.fault.active_codes[0]);
+        printf("\n");
+    }
+
+    /* (3) 更新: 既存キーの UPDATE は成功、不在キーの REMOVE は変化なし */
+    {
+        rim_result_t ru = rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_UPDATE, 0xBBBBu, NULL, NULL);
+        rim_result_t rr = rim_adapter_submit(RIM_ID_FAULT_CODE, RIM_OP_REMOVE, 0x9999u, NULL, NULL);
+        rim_datastore_dispatch();
+        printf("   update existing=%d, remove-absent=%d (both enqueued OK=%d)\n",
+               (int)ru, (int)rr, (int)RIM_OK);
+    }
 
     /* --- 可変長Listの仕組み（要件4-a・C++ FixedVectorをC ABIで） --- */
     printf("== variable-length list (C ABI over C++ FixedVector) ==\n");

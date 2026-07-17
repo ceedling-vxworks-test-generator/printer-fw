@@ -52,6 +52,25 @@ typedef enum rim_input_kind {
     RIM_KIND_CURRENT_VALUE     /* 最新値系: 上書き可 */
 } rim_input_kind_t;
 
+/*
+ * CollectionOp: DataStoreが管理するキー付きコレクション（管理配列）への操作動詞。
+ * 「配列に1件追加/削除/既存更新」を汎用化したもの。FaultRegistryが最初の実体。
+ * 既存 rim_fault_state_t は本enumへ写像される（後方互換のため別名として維持）:
+ *   RIM_FS_RAISED        -> RIM_OP_ADD
+ *   RIM_FS_CLEARED       -> RIM_OP_REMOVE
+ *   RIM_FS_ALL_CLEARED   -> RIM_OP_CLEAR_ALL
+ *   RIM_FS_UPDATED_HEAL  -> RIM_OP_UPDATE (payload = healed)
+ *   RIM_FS_UPDATED_ACTIVE-> RIM_OP_UPDATE (payload = active)
+ *   RIM_FS_NONE          -> RIM_OP_ADD   (既定)
+ */
+typedef enum rim_collection_op {
+    RIM_OP_NONE = 0,
+    RIM_OP_ADD,
+    RIM_OP_REMOVE,
+    RIM_OP_UPDATE,
+    RIM_OP_CLEAR_ALL
+} rim_collection_op_t;
+
 /* DataValue: 正規化後の標準値。C表現のタグ付きunion（§2.1 のC側） */
 typedef enum rim_value_type {
     RIM_VT_NONE = 0,
@@ -87,6 +106,12 @@ typedef struct rim_data_context {
     rim_fault_state_t fault_state;
     rim_bool          has_scale;
     int32_t           scale_x1000;   /* スケール係数×1000（例: 補助情報） */
+
+    /* コレクション操作（管理配列への add/remove/update）。末尾追記・has_xxxフラグ方式。 */
+    rim_bool            has_op;      /* op が有効か。無効時は fault_state から写像 */
+    rim_collection_op_t op;          /* 汎用操作動詞 */
+    rim_bool            has_key;     /* key が有効か。無効時は value.u.fault_code を使用 */
+    uint32_t            key;         /* コレクション要素のキー */
 } rim_data_context_t;
 
 /* DataEntryItem: 層間で受け渡す標準データモデル（DataStore §7.1） */
