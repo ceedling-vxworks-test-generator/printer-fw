@@ -1,1 +1,0 @@
-#include "capability/ExtendedCapabilityManager.hpp"

@@ -11,9 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #
 # インクルードルート:
-#   framework/inc          … 機種共通(パイプライン機構・抽象IF・共通型・Capability構造体)
-#   devices/printer_a/inc  … PrinterA 固有(具象 Adapter / Rule / Provider)
-#   devices/registry/inc   … 機種選択の配線(AdapterFactory / MachineProfileFactory / MachineProfile)
+#   framework/inc          … 機種共通(パイプライン機構・共通型・抽象IF・固定容量コンテナ)
+#   devices/printer_a/inc  … PrinterA 固有(IDataProfile / Evaluator 実装)
 #
 # 各ルート配下でレイヤー接頭辞(adapter/ datastore/ capability/ ...)を維持しているため、
 # 既存の #include "<layer>/<file>.hpp" は複数ルート探索でそのまま解決される。
@@ -22,15 +21,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(RIM_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/framework/inc
     ${PROJECT_SOURCE_DIR}/devices/printer_a/inc
-    ${PROJECT_SOURCE_DIR}/devices/registry/inc
 )
 
 add_library(rimanager STATIC)
 
 target_include_directories(rimanager
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
-    PRIVATE
         ${RIM_INCLUDE_DIRS}
 )
 
@@ -38,7 +34,6 @@ file(GLOB_RECURSE RIM_SOURCES
     CONFIGURE_DEPENDS
     framework/src/*.cpp
     devices/printer_a/src/*.cpp
-    devices/registry/src/*.cpp
 )
 
 target_sources(rimanager
@@ -71,7 +66,6 @@ add_executable(rimanager_test
 target_include_directories(rimanager_test
     PRIVATE
         ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/include
         ${RIM_INCLUDE_DIRS}
 )
 
