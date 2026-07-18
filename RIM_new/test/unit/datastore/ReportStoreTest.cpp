@@ -1,0 +1,1 @@
+// ReportStore test skeleton
