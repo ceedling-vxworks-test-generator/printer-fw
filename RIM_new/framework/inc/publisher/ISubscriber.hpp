@@ -1,10 +1,10 @@
 #pragma once
 
 //
-// ISubscriber - 購読者の抽象IF。rim の rim_subscriber_fn(関数ポインタ＋ctx)を置換。
+// ISubscriber - 外部購読者の抽象IF。関数ポインタ＋ctxを抽象クラスへ置換。
 //
 
-#include "capability/CapabilitySet.hpp"
+#include "capability/MachineCapability.hpp"
 
 namespace rim
 {
@@ -15,7 +15,7 @@ public:
 
     virtual ~ISubscriber() = default;
 
-    virtual void OnPublish(const CapabilitySet& cap) = 0;
+    virtual void OnPublish(const MachineCapability& capability) = 0;
 };
 
 } // namespace rim

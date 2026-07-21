@@ -11,12 +11,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #
 # インクルードルート:
-#   framework/inc          … 機種共通(パイプライン機構・共通型・抽象IF・固定容量コンテナ)
-#   devices/printer_a/inc  … PrinterA 固有(IDataProfile / Evaluator 実装)
-#
-# 各ルート配下でレイヤー接頭辞(adapter/ datastore/ capability/ ...)を維持しているため、
-# 既存の #include "<layer>/<file>.hpp" は複数ルート探索でそのまま解決される。
-# devices/_skeleton は新機種の雛形なのでビルド対象に含めない。
+#   framework/inc          … 機種共通(全レイヤ機構・共通型・抽象IF・固定容量コンテナ)
+#   devices/printer_a/inc  … PrinterA 固有(DataProfile / Rule / CapabilityBuilder)
+# 各ルート配下でレイヤー接頭辞を維持しているため既存 #include はそのまま解決される。
+# devices/_skeleton は雛形なのでビルド対象に含めない。
 #
 set(RIM_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/framework/inc

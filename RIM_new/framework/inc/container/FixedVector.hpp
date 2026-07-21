@@ -1,8 +1,7 @@
 #pragma once
 
 //
-// FixedVector<T,N> - 固定容量・静的確保の可変長コンテナ。
-// rim/rim_fixed_vector.h からの移植(要件4-a)。std::vector 相当だが再確保・動的確保なし。
+// FixedVector<T,N> - 固定容量・静的確保の可変長コンテナ(要件4-a)。
 //
 
 #include <cstddef>
@@ -15,10 +14,7 @@ class FixedVector
 {
 public:
 
-    FixedVector()
-        : size_(0)
-    {
-    }
+    FixedVector() : size_(0) {}
 
     bool PushBack(const T& v)
     {
@@ -31,6 +27,7 @@ public:
     std::size_t Size()     const { return size_; }
     std::size_t Capacity() const { return N; }
     const T&    At(std::size_t i) const { return data_[i]; }
+    T&          At(std::size_t i) { return data_[i]; }
     void        Clear() { size_ = 0; }
 
 private:

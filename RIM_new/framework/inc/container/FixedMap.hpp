@@ -1,11 +1,8 @@
 #pragma once
 
 //
-// FixedMap<K,V,N> - 固定容量キー付きコレクション(管理配列の汎用プリミティブ)。
-// rim/rim_fixed_map.h からの移植。並列配列(keys/vals)＋線形走査。
-// FaultRegistry(fault code をキーに add/remove/update)の実体。
-//   - キーはユニーク。Add は重複で false、Update/Remove はキー不在で false。
-//   - Remove は swap-remove(順序非保持)。走査は KeyAt/ValueAt で index 順に。
+// FixedMap<K,V,N> - 固定容量キー付きコレクション(管理配列)。FaultRegistry の実体。
+// キーはユニーク。Add:重複/満杯でfalse、Update/Remove:不在でfalse。Remove は swap-remove。
 //
 
 #include <cstddef>
@@ -18,10 +15,7 @@ class FixedMap
 {
 public:
 
-    FixedMap()
-        : count_(0)
-    {
-    }
+    FixedMap() : count_(0) {}
 
     V* Find(const K& key)
     {
@@ -29,7 +23,6 @@ public:
             if (keys_[i] == key) return &vals_[i];
         return nullptr;
     }
-
     const V* Find(const K& key) const
     {
         for (std::size_t i = 0; i < count_; ++i)
@@ -39,7 +32,6 @@ public:
 
     bool Contains(const K& key) const { return Find(key) != nullptr; }
 
-    // 追加。既存キー or 満杯なら false。
     bool Add(const K& key, const V& val)
     {
         if (Contains(key)) return false;
@@ -50,7 +42,6 @@ public:
         return true;
     }
 
-    // 既存キーの値を上書き。キー不在なら false。
     bool Update(const K& key, const V& val)
     {
         V* p = Find(key);
@@ -59,7 +50,6 @@ public:
         return true;
     }
 
-    // 追加 or 更新。満杯(新規追加不可)のときのみ false。
     bool Upsert(const K& key, const V& val)
     {
         V* p = Find(key);
@@ -67,7 +57,6 @@ public:
         return Add(key, val);
     }
 
-    // 削除(swap-remove、順序非保持)。キー不在なら false。
     bool Remove(const K& key)
     {
         for (std::size_t i = 0; i < count_; ++i) {

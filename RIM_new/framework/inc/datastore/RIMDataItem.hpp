@@ -1,7 +1,7 @@
 #pragma once
 
 //
-// RIMDataItem - 層間で受け渡す標準データモデル。rim_data_entry_item_t 相当。
+// RIMDataItem - 層間で受け渡す標準データモデル(仕様: DataEntryItem {id, value, context})。
 //
 
 #include "datastore/RIMDataId.hpp"

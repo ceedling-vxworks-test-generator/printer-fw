@@ -1,92 +1,102 @@
 #include <gtest/gtest.h>
 
 #include "core/RIMSystem.hpp"
-
 #include "adapter/PrinterADataProfile.hpp"
-#include "capability/PrinterAEvaluatorSet.hpp"
+#include "capability/PrinterACapabilityBuilder.hpp"
 
 using namespace rim;
 
 namespace
 {
-// 配信された Capability を記録するテスト購読者。
 class RecordingSubscriber final : public ISubscriber
 {
 public:
-    void OnPublish(const CapabilitySet& cap) override
-    {
-        last = cap;
-        ++count;
-    }
-    CapabilitySet last{};
-    int           count{0};
+    void OnPublish(const MachineCapability& mc) override { last = mc; ++count; }
+    MachineCapability last{};
+    int               count{0};
 };
 
-// PrinterA を結線した RIMSystem を組み立てるフィクスチャ。
-struct SystemFixture
+struct Fixture
 {
-    PrinterADataProfile profile;
-    PrinterAEvaluatorSet evaluators;
-    RIMSystem system{profile, evaluators};
-    RecordingSubscriber sub;
+    PrinterADataProfile       profile;   // classifier 兼 resolver
+    PrinterACapabilityBuilder builder;
+    RIMSystem                 system{profile, profile, builder};
+    RecordingSubscriber       sub;
 
-    SystemFixture()
+    Fixture()
     {
         system.Init();
-        system.PublisherRef().Subscribe(&sub);
+        system.Publisher().Subscribe(&sub);
     }
 };
 } // namespace
 
-TEST(SystemFlowTest, NormalTemperatureIsPrintableNoAlert)
+TEST(SystemFlowTest, TemperatureFlowsToEnvCap)
 {
-    SystemFixture f;
-    f.system.AdapterRef().PushF(RIMDataId::kTemperature, 25.5);
+    Fixture f;
+    f.system.Adapter().PushF(RIMDataId::kTemperature, 25.0);
     f.system.Dispatch();
 
     ASSERT_GT(f.sub.count, 0);
-    ASSERT_TRUE(f.sub.last.printable.has_value());
-    EXPECT_TRUE(*f.sub.last.printable);
-    ASSERT_TRUE(f.sub.last.tempAlert.has_value());
-    EXPECT_FALSE(*f.sub.last.tempAlert);
+    ASSERT_TRUE(f.sub.last.capabilities.env.has_value());
+    EXPECT_TRUE(f.sub.last.capabilities.env->inRange);
 }
 
-TEST(SystemFlowTest, HighTemperatureRaisesAlert)
+TEST(SystemFlowTest, FaultMakesNotPrintableCriticalEvent)
 {
-    SystemFixture f;
-    f.system.AdapterRef().PushI32(RIMDataId::kTemperature, 70);  // 70℃ > 60℃
+    Fixture f;
+    DataContext ctx; ctx.faultState = FaultState::kRaised;
+    f.system.Adapter().PushU32(RIMDataId::kFaultCode, 0x10u, &ctx);
     f.system.Dispatch();
 
-    ASSERT_TRUE(f.sub.last.tempAlert.has_value());
-    EXPECT_TRUE(*f.sub.last.tempAlert);
+    ASSERT_TRUE(f.sub.last.capabilities.error.has_value());
+    EXPECT_TRUE(f.sub.last.capabilities.error->hasError);
+    ASSERT_TRUE(f.sub.last.capabilities.print.has_value());
+    EXPECT_FALSE(f.sub.last.capabilities.print->printable);
+    EXPECT_EQ(f.sub.last.priority, CapabilityPriority::kCritical);
+    EXPECT_EQ(f.sub.last.trigger,  PublishTrigger::kEvent);  // Error変化=Event
 }
 
-TEST(SystemFlowTest, ActiveFaultMakesNotPrintable)
+TEST(SystemFlowTest, JobProgressFlowsToJobCap)
 {
-    SystemFixture f;
-
-    DataContext fctx;
-    fctx.faultState = FaultState::kRaised;
-    f.system.AdapterRef().PushU32(RIMDataId::kFaultCode, 0x1001u, &fctx);
+    Fixture f;
+    f.system.Adapter().PushI32(RIMDataId::kJobProgress, 50);
     f.system.Dispatch();
 
-    ASSERT_TRUE(f.sub.last.printable.has_value());
-    EXPECT_FALSE(*f.sub.last.printable);
+    ASSERT_TRUE(f.sub.last.capabilities.job.has_value());
+    EXPECT_TRUE(f.sub.last.capabilities.job->active);
+    EXPECT_EQ(f.sub.last.capabilities.job->progress, 50);
 }
 
-TEST(SystemFlowTest, AccessorPullReturnsCurrentCapability)
+TEST(SystemFlowTest, NoChangeNoRepublish)
 {
-    SystemFixture f;
-    f.system.AdapterRef().PushI32(RIMDataId::kTemperature, 70);
+    Fixture f;
+    f.system.Adapter().PushF(RIMDataId::kTemperature, 25.0);
+    f.system.Dispatch();
+    const int c1 = f.sub.count;
+
+    // 同値の再postはRegistry変化なし→通知なし→配信なし。
+    f.system.Adapter().PushF(RIMDataId::kTemperature, 25.0);
+    f.system.Dispatch();
+    EXPECT_EQ(f.sub.count, c1);
+}
+
+TEST(SystemFlowTest, AccessorGetPrinterStatus)
+{
+    Fixture f;
+    DataContext ctx; ctx.faultState = FaultState::kRaised;
+    f.system.Adapter().PushU32(RIMDataId::kFaultCode, 0x10u, &ctx);
     f.system.Dispatch();
 
-    CapabilitySet cap;
-    ASSERT_TRUE(f.system.AccessorRef().ReadCapability(cap));
-    ASSERT_TRUE(cap.tempAlert.has_value());
-    EXPECT_TRUE(*cap.tempAlert);
+    PrinterStatusRequest req;
+    req.domains = kDomainFault | kDomainCurrentAll;
+    req.includeCapability = true;
 
-    // Snapshot Pull も取得できる。
-    MachineSnapshot snap;
-    EXPECT_EQ(f.system.AccessorRef().ReadSnapshot(kDomainCurrent, snap), RIMResult::kOk);
-    ASSERT_TRUE(snap.current.has_value());
+    const PrinterStatus st = f.system.Accessor().GetPrinterStatus(req);
+    ASSERT_TRUE(st.data.has_value());
+    ASSERT_TRUE(st.data->fault.has_value());
+    EXPECT_EQ(st.data->fault->activeCount, 1u);
+    ASSERT_TRUE(st.capability.has_value());
+    ASSERT_TRUE(st.capability->error.has_value());
+    EXPECT_TRUE(st.capability->error->hasError);
 }

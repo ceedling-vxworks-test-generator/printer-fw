@@ -1,10 +1,10 @@
 #pragma once
 
 //
-// FaultState - 異常系Contextで用いる状態値。rim_fault_state_t 相当。
-// CollectionOp へ写像される(後方互換):
-//   kRaised->kAdd / kCleared->kRemove / kAllCleared->kClearAll
-//   kUpdatedHeal->kUpdate(healed) / kUpdatedActive->kUpdate(active)
+// FaultState - 異常系Contextで用いる状態値(仕様 §7.1)。
+// FaultRegistry.apply() が値ごとに挙動分岐する:
+//   kRaised=登録 / kCleared=クリア / kAllCleared=全クリア /
+//   kUpdatedHeal=回復状態へ更新 / kUpdatedActive=発生状態へ更新
 //
 
 namespace rim

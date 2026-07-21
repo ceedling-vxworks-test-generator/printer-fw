@@ -1,53 +1,59 @@
 #pragma once
 
 //
-// CapabilityManager - L3 RIM_CapabilityLayer(C++ OO 移植)。
-// rim_capability.cpp の移植。IUpdateNotifier を実装し、L2 の更新通知を受けて
-// Snapshot を取得 → 機種の Evaluator 集合で Capability を生成 → L4 Publisher へ配信。
-// 機種可変の判定は ICapabilityEvaluatorSet(devices) を注入して差し込む。
+// CapabilityManager - RIM_CapabilityLayer(L3)の中心(仕様 §8.4)。
+// IRegistryUpdateNotifier を実装し、更新通知→Snapshot取得→Builder生成→DiffChecker→
+// PriorityChecker→Publisher通知を制御する。ErrorCap/JobCap変化時は Event として通知。
+// 機種可変の判定は ICapabilityBuilder(devices)を注入。
 //
 
 #include "capability/CapabilitySet.hpp"
-#include "capability/ICapabilityEvaluatorSet.hpp"
+#include "capability/MachineCapability.hpp"
+#include "capability/ICapabilityBuilder.hpp"
+#include "capability/CapabilityDiffChecker.hpp"
+#include "capability/CapabilityPriorityChecker.hpp"
 
-#include "datastore/IUpdateNotifier.hpp"
-#include "datastore/DataStore.hpp"
+#include "datastore/IRegistryUpdateNotifier.hpp"
+#include "datastore/IMachineSnapshotReader.hpp"
 
-#include "publisher/Publisher.hpp"
+#include "publisher/IPublisher.hpp"
 
 namespace rim
 {
 
 class CapabilityManager
-    : public IUpdateNotifier
+    : public IRegistryUpdateNotifier
 {
 public:
 
     CapabilityManager(
-        DataStore& store,
-        const ICapabilityEvaluatorSet& evaluators,
-        Publisher& publisher)
-        : store_(store)
-        , evaluators_(evaluators)
-        , publisher_(publisher)
+        IMachineSnapshotReader& reader,
+        const ICapabilityBuilder& builder,
+        IPublisher& publisher)
+        : reader_(reader), builder_(builder), publisher_(publisher)
     {
     }
 
     void Init();
     void Shutdown();
 
-    // L2 からの更新通知(IUpdateNotifier)。
-    void OnUpdated(DomainSet domains) override;
+    // L2 からの更新通知(IRegistryUpdateNotifier)。
+    void NotifyUpdated(RegistryDomainSet domains) override;
 
-    // 直近に生成した Capability をコピー取得(Accessor の Pull で利用)。
+    // 直近生成した Capability を取得(Accessor の Pull)。
     bool Current(CapabilitySet& out) const;
 
 private:
 
-    DataStore&                     store_;
-    const ICapabilityEvaluatorSet& evaluators_;
-    Publisher&                     publisher_;
+    IMachineSnapshotReader&    reader_;
+    const ICapabilityBuilder&  builder_;
+    IPublisher&                publisher_;
 
+    CapabilityDiffChecker      diffChecker_;
+    CapabilityPriorityChecker  priorityChecker_;
+
+    CapabilitySet prev_{};
+    bool          hasPrev_{false};
     CapabilitySet current_{};
     bool          hasCurrent_{false};
 };

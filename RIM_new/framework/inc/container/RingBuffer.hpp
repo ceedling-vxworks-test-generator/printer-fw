@@ -1,9 +1,8 @@
 #pragma once
 
 //
-// RingBuffer<T,N> - 固定容量FIFO(喪失不可・順序保証のレーン用)。
-// rim/rim_ring_buffer.h からの移植。head/tail/count 方式で容量Nをフル使用。
-// push/pop は O(1)。満杯時 push は false(呼び出し側が RIM_ERR_POST へ写像)。
+// RingBuffer<T,N> - 固定容量FIFO(喪失不可・順序保証)。head/tail/count 方式。
+// 満杯時 Push は false。単体はロックを持たない(呼び出し側/Queueで排他)。
 //
 
 #include <cstddef>
@@ -16,14 +15,8 @@ class RingBuffer
 {
 public:
 
-    RingBuffer()
-        : head_(0)
-        , tail_(0)
-        , count_(0)
-    {
-    }
+    RingBuffer() : head_(0), tail_(0), count_(0) {}
 
-    // 末尾へ投入。満杯なら false。
     bool Push(const T& v)
     {
         if (count_ >= N) return false;
@@ -33,7 +26,6 @@ public:
         return true;
     }
 
-    // 先頭を取り出し out へ。空なら false。FIFO順。
     bool Pop(T& out)
     {
         if (count_ == 0) return false;
@@ -52,9 +44,9 @@ public:
 private:
 
     T           data_[N];
-    std::size_t head_;   // 次に Pop する位置
-    std::size_t tail_;   // 次に Push する位置
-    std::size_t count_;  // 現在の要素数(0..N)
+    std::size_t head_;
+    std::size_t tail_;
+    std::size_t count_;
 };
 
 } // namespace rim
