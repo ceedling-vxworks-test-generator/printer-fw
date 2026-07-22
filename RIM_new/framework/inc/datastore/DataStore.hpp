@@ -53,6 +53,9 @@ public:
     }
 
     // --- CentralInputPort(Adapter向け) ---
+    // Adapter は本IF(ICentralInputPort)にのみ依存する。
+    ICentralInputPort& Port() { return port_; }
+
     RIMResult PostFaultInput(const RIMDataItem& item)     { return port_.PostFaultInput(item); }
     RIMResult PostOperationReport(const RIMDataItem& item) { return port_.PostOperationReport(item); }
     RIMResult PostCurrentValueInput(const RIMDataItem& item) { return port_.PostCurrentValueInput(item); }

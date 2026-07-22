@@ -9,6 +9,7 @@
 
 #include "datastore/RIMDataItem.hpp"
 #include "datastore/RIMResult.hpp"
+#include "datastore/ICentralInputPort.hpp"
 #include "datastore/InputQueues.hpp"
 #include "datastore/CurrentValueBuffer.hpp"
 #include "datastore/IInputClassifier.hpp"
@@ -16,7 +17,8 @@
 namespace rim
 {
 
-class CentralInputPort
+class CentralInputPort final
+    : public ICentralInputPort
 {
 public:
 
@@ -32,9 +34,9 @@ public:
     {
     }
 
-    RIMResult PostFaultInput(const RIMDataItem& item);
-    RIMResult PostOperationReport(const RIMDataItem& item);
-    RIMResult PostCurrentValueInput(const RIMDataItem& item);
+    RIMResult PostFaultInput(const RIMDataItem& item) override;
+    RIMResult PostOperationReport(const RIMDataItem& item) override;
+    RIMResult PostCurrentValueInput(const RIMDataItem& item) override;
 
 private:
 

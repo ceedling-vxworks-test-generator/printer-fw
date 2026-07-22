@@ -2,10 +2,13 @@
 
 //
 // IRule - RawValue を正規化 Value へ変換する規則(仕様 §6/§9.2)。状態を持たない。
-// 受理点の型自由さは RawDataInput が double へ寄せて吸収するため、Rule は double を受ける。
+// 受理点の型自由さ(スカラ/構造体/配列)は RawValue が吸収する。
+// Rule は外部形式を内部統一表現 RIMValue へ正規化する(後続層は RIMValue のみ扱う)。
 //
 
 #include <optional>
+
+#include "adapter/RawValue.hpp"
 
 #include "datastore/RIMValue.hpp"
 #include "datastore/DataContext.hpp"
@@ -19,7 +22,7 @@ public:
 
     virtual ~IRule() = default;
 
-    virtual std::optional<RIMValue> Convert(double raw, const DataContext& ctx) const = 0;
+    virtual std::optional<RIMValue> Convert(const RawValue& raw, const DataContext& ctx) const = 0;
 };
 
 } // namespace rim
