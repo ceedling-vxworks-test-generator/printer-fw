@@ -129,15 +129,25 @@ state_registry g_state;
 // 以下は公開API（extern "C"、詳細は include/printer_fw/pf_state.h 参照）。
 // state_registry の同名メソッドへ委譲するだけの薄いラッパー。
 // ============================================================
+/** @copydoc pf_state_init */
 pf_result_t pf_state_init(const pf_state_desc_t* desc, size_t count) { return g_state.init(desc, count); }
+
+/** @copydoc pf_state_eval */
 pf_result_t pf_state_eval(pf_state_id_t id, int32_t* out)            { return g_state.eval(id, out); }
+
+/** @copydoc pf_state_get */
 pf_result_t pf_state_get (pf_state_id_t id, int32_t* out)            { return g_state.get(id, out); }
 
 // ------------------------------------------------------------
 // 内部API（pf_priv.hpp 宣言）：monitor_engine（pf_monitor.cpp）専用の橋渡し関数。
 // 状態を全走査して確定値を書き戻すために必要な最小限のアクセスだけを公開する。
 // ------------------------------------------------------------
+
+/** @copydoc pf_state__count */
 size_t        pf_state__count()                          { return g_state.count(); }
+/** @copydoc pf_state__id_at */
 pf_state_id_t pf_state__id_at(size_t slot)                { return g_state.id_at(slot); }
+/** @copydoc pf_state__initial_at */
 int32_t       pf_state__initial_at(size_t slot)           { return g_state.initial_at(slot); }
+/** @copydoc pf_state__store */
 void          pf_state__store(pf_state_id_t id, int32_t value) { g_state.store(id, value); }

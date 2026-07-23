@@ -47,7 +47,9 @@ private:
     subscription subs_[PF_OBSERVER_MAX]{};   ///< 固定長の購読者テーブル
 };
 
+/** @brief port の critical_enter を呼ぶ（未登録なら何もしない）。 */
 void observer_dispatcher::lock() const   { const pf_port_t* p = pf_core_port(); if (p && p->critical_enter) p->critical_enter(); }
+/** @brief lock() に対応する解放処理。 */
 void observer_dispatcher::unlock() const { const pf_port_t* p = pf_core_port(); if (p && p->critical_exit)  p->critical_exit();  }
 
 /** @brief 全スロットを「未使用」にリセットする。 */
@@ -151,13 +153,16 @@ observer_dispatcher g_observer;
 // observer_dispatcher の同名メソッドへ委譲するだけの薄いラッパー。
 // ============================================================
 
+/** @copydoc pf_observer_init */
 pf_result_t pf_observer_init() { return g_observer.init(); }
 
+/** @copydoc pf_observer_subscribe */
 pf_result_t pf_observer_subscribe(pf_state_id_t id, pf_observer_cb cb, void* ctx, pf_subscription_t* out_handle)
 {
     return g_observer.subscribe(id, cb, ctx, out_handle);
 }
 
+/** @copydoc pf_observer_unsubscribe */
 pf_result_t pf_observer_unsubscribe(pf_subscription_t handle) { return g_observer.unsubscribe(handle); }
 
 /** @brief NULLチェックのうえ observer_dispatcher::dispatch へ委譲する。 */

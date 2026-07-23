@@ -194,5 +194,8 @@ pf_result_t pf_monitor_init(const pf_monitor_cfg_t* cfg)
     return g_monitor.init(*cfg);
 }
 
+/** @copydoc pf_monitor_tick */
 pf_result_t pf_monitor_tick()                          { return g_monitor.tick(); }
+
+/** @copydoc pf_monitor_force_emit */
 pf_result_t pf_monitor_force_emit(pf_state_id_t id)     { return g_monitor.force_emit(id); }

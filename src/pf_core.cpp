@@ -123,7 +123,14 @@ core_context g_core;
 // 以下は公開API（extern "C"、詳細は include/printer_fw/pf_core.h 参照）。
 // core_context の同名メソッドへ委譲するだけの薄いラッパー。
 // ============================================================
+/** @copydoc pf_core_init */
 pf_result_t pf_core_init(const pf_model_t* model, const pf_port_t* port) { return g_core.init(model, port); }
+
+/** @copydoc pf_core_poll_and_tick */
 pf_result_t pf_core_poll_and_tick()                                     { return g_core.poll_and_tick(); }
+
+/** @copydoc pf_core_port */
 const pf_port_t* pf_core_port()                                         { return g_core.port(); }
+
+/** @copydoc pf_core_deinit */
 void pf_core_deinit()                                                   { g_core.deinit(); }

@@ -267,6 +267,7 @@ data_dictionary g_dictionary;
 /** @copydoc pf_data_init */
 pf_result_t pf_data_init(const pf_data_desc_t* desc, size_t count) { return g_dictionary.init(desc, count); }
 
+/** @brief 型別 setter 群。data_dictionary の同名メソッドへ委譲する（ISR安全：内部で critical 保護）。 */
 pf_result_t pf_data_set_bool(pf_data_id_t id, bool v)     { return g_dictionary.set_bool(id, v); }
 pf_result_t pf_data_set_u8  (pf_data_id_t id, uint8_t v)  { return g_dictionary.set_u8(id, v); }
 pf_result_t pf_data_set_u16 (pf_data_id_t id, uint16_t v) { return g_dictionary.set_u16(id, v); }
@@ -276,6 +277,7 @@ pf_result_t pf_data_set_f32 (pf_data_id_t id, float v)    { return g_dictionary.
 pf_result_t pf_data_set_f64 (pf_data_id_t id, double v)   { return g_dictionary.set_f64(id, v); }
 pf_result_t pf_data_set_enum(pf_data_id_t id, int32_t v)  { return g_dictionary.set_enum(id, v); }
 
+/** @brief 型別 getter 群。data_dictionary の同名メソッドへ委譲する。 */
 pf_result_t pf_data_get_bool(pf_data_id_t id, bool* out)     { return g_dictionary.get_bool(id, out); }
 pf_result_t pf_data_get_u8  (pf_data_id_t id, uint8_t* out)  { return g_dictionary.get_u8(id, out); }
 pf_result_t pf_data_get_u16 (pf_data_id_t id, uint16_t* out) { return g_dictionary.get_u16(id, out); }
@@ -285,6 +287,13 @@ pf_result_t pf_data_get_f32 (pf_data_id_t id, float* out)    { return g_dictiona
 pf_result_t pf_data_get_f64 (pf_data_id_t id, double* out)   { return g_dictionary.get_f64(id, out); }
 pf_result_t pf_data_get_enum(pf_data_id_t id, int32_t* out)  { return g_dictionary.get_enum(id, out); }
 
+// --- 汎用API（構造体・配列・可変長 BLOB） ---
+
+/** @copydoc pf_data_set */
 pf_result_t pf_data_set(pf_data_id_t id, const void* src, uint16_t size) { return g_dictionary.set(id, src, size); }
+
+/** @copydoc pf_data_get */
 pf_result_t pf_data_get(pf_data_id_t id, void* dst, uint16_t size)       { return g_dictionary.get(id, dst, size); }
+
+/** @copydoc pf_data_get_value */
 pf_result_t pf_data_get_value(pf_data_id_t id, pf_value_t* out)          { return g_dictionary.get_value(id, out); }
