@@ -1,153 +1,61 @@
-# printer-fw
+# printer-fw — ReactiveInfoManager (C++ OO / 旧ex仕様③準拠)
 
-> 種類: Library（組込みC++共通フレームワーク） / 作成日: 2026-07-01
+`old/ex/` の各レイヤ仕様③(2026-07-07 正)を **C++ OO ＋ framework/devices 構造**で実装したもの。
+本ディレクトリ構成が printer-fw の正式なコード。旧`pf_*`フレームワーク一式は `old/` を参照。
+機器のセンサ値を受理・正規化し、性質別にステージングして Snapshot を作り、8種Capabilityを
+生成して購読者へ配信する。
 
-印刷機の組込みソフトウェア向け **共通フレームワーク**。
-複数機種へ流用できる、長期運用可能なスケルトン。機種依存部と共通部を明確に分離する。
-
-- **実装言語**: 組込み向けイディオマティック **C++（C++17）**。各レイヤをクラス化し、
-  RAII・カプセル化を活用する。ただし例外・RTTI・動的確保・STLコンテナは使用しない
-  （`-fno-exceptions -fno-rtti`、全静的確保を維持）。
-- **公開API**: すべて `extern "C"` で **C ABI 互換**を維持。既存のCコードからもリンク・呼び出し可能
-  （ヘッダは純Cとしても解釈できる形で書かれている）。
-
-## アーキテクチャ（5レイヤ + Observer）
+## レイヤ構成(仕様③)
 
 ```
-Driver(機種依存)
-  → Raw Data Layer      … データ辞書（型非依存・ID＋タグ付き値・全静的確保・O(1)）
-  → Abstract State Layer … 評価器レジストリ（生データ→意味のある状態へ変換）
-  → State Monitor Layer  … 変化検知（変化時のみイベント）＋主系状態は FSM
-  → Observer (中央)      … Subscribe / Unsubscribe / Notify（購読対象は Abstract State）
-  → Application Modules  … UI / Log / 印刷制御 / 通信 / 保守
+RIM_AdapterLayer(L1) → RIM_DatastoreLayer(L2) → RIM_CapabilityLayer(L3) → RIM_PublisherLayer(L4)
+                              │
+                              └→ Accessor Layer(隣接・Pull参照)
 ```
 
-3層に責務分離：
-- **core**（共通ライブラリ・機種非依存）: `include/printer_fw/` + `src/`。各レイヤは
-  クラス（`data_dictionary`／`state_registry`／`monitor_engine`／`observer_dispatcher`／
-  `core_context`）として実装され、モジュールごとに単一インスタンス（シングルトン・静的記憶域）を持つ
-- **port**（プラットフォーム依存：mutex・時間・assert/log）: `port/`
-- **models**（機種依存：データID・記述子表・状態評価器・FSM遷移表・ドライバグルー）: `models/`
+### L1 RIM_AdapterLayer
+`RawDataInput`(型自由 PushI32/PushF/PushU32) → `IRuleResolver.SelectRule` → `IRule.Convert`(正規化)
+→ `IInputClassifier.Classify`(性質判別) → CentralInputPort の3種post。
 
-## ドキュメント（設計が最優先の成果物）
+### L2 RIM_DatastoreLayer
+`CentralInputPort`(3種post・検証) → 3レーン(`FaultInputQueue`/`OperationReportQueue`/`CurrentValueBuffer`)
+→ 3Dispatcher(`FaultDispatcher`/`OperationDispatcher`/`CurrentValueDispatcher`)
+→ 3Registry(`FaultRegistry`/`OperationRegistry`/`CurrentValueRegistry`) ← `MachineRegistry`(集約)
+→ `MachineSnapshotReader.Capture`。`Registry.Apply`→変更ドメイン、`notifyUpdated(RegistryDomainSet)`。
+ドメイン単位 mutex。RegistryDomain は Fault/Operation/Environment/Consumable/Safety/Maintenance/Health。
 
-- [docs/basic-design.md](docs/basic-design.md) — ① 基本設計書（アーキテクチャ・各方針・代替案比較）
-- [docs/detailed-design.md](docs/detailed-design.md) — ③ 詳細設計書（IF仕様。これだけで別機種展開可能を目標）
-- [docs/self-review.md](docs/self-review.md) — 設計の自己レビューと反映ログ
-- [docs/diagrams/printer-fw.drawio](docs/diagrams/printer-fw.drawio) — ② draw.io 図（編集可能・複数ページ：レイヤ/データ/イベント/シーケンス/状態遷移/依存）
-- [docs/diagrams/printer-fw-functions.drawio](docs/diagrams/printer-fw-functions.drawio) — 関数コールグラフ ＋ 関数×静的テーブル アクセス図（編集可能・2ページ）
+### L3 RIM_CapabilityLayer
+`CapabilityManager`(IRegistryUpdateNotifier実装) が更新通知→Snapshot取得→`ICapabilityBuilder.Build`
+→`CapabilityDiffChecker`(意味的差分)→`CapabilityPriorityChecker`(優先度)→`IPublisher.Notify`。
+8種Capability(Error/Job/Env/Maint/Health/Safety/Consumable/Print)。ErrorCap/JobCap変化は Event 通知。
 
-## ディレクトリ構成
+### L4 RIM_PublisherLayer
+`PublishEngine`(IPublisher実装) が トリガ評価・Rate Limit → `SubscriptionBroker`(関心Cap一致)
+→ `StateRepository`(購読者ごと配信的差分) → Push配信。5トリガ(OnChange/Periodic/Threshold/Event/Initial)。
+Event / 優先度Critical・High は Rate Limit 除外。
 
-```
-printer-fw/
-├── include/printer_fw/   公開ヘッダ（ライブラリAPI。純C互換・extern "C"）
-├── src/                  コア実装（.cpp・クラス化。共通・機種非依存）
-├── port/                 プラットフォーム依存サンプル（bare-metal / FreeRTOS / linux、.cpp）
-├── models/               機種依存サンプル（model_sample、.cpp）
-├── examples/             最小デモ（app_demo.cpp）
-├── tests/                ユニットテスト（test_printer_fw.cpp。Catch2/GoogleTest等へ移植も容易）
-├── docs/                 設計書・図
-├── cmake/                パッケージ設定（Config / pkg-config テンプレート）
-├── scripts/run_demo.sh   クローン後にビルド＆実行しログを表示
-├── Makefile              cmake 無し環境向けの簡易ビルド（g++）
-└── CMakeLists.txt        ビルド構成（C++17・install / export / pkg-config 対応）
-```
+### Accessor Layer
+`PrinterStatusReader.GetPrinterStatus` → `PrinterStatus{data, capability}`。参照専用・Pull・状態非保持。
 
----
+## framework / devices
 
-## Linux で使う（ビルド・インストール・組込み）
+- **framework/**(機種共通): 全レイヤ機構・共通型・抽象IF(IRule/IRuleResolver/IInputClassifier/
+  IRegistryUpdateNotifier/IMachineSnapshotReader/ICapabilityBuilder/IPublisher/ISubscriber)・
+  固定容量コンテナ・`RIMSystem`(結線)。
+- **devices/printer_a/**(機種可変): `PrinterADataProfile`(SelectRule/Classify)、Rule群、
+  `PrinterACapabilityBuilder`(8種判定)。
+- **devices/_skeleton/**: 新機種テンプレ(ビルド対象外・README参照)。
 
-対象は Linux 上で動作するシステムで、**共有/静的ライブラリ `libprinter_fw` として組み込む**ことを想定。
+## 設計判断(仕様TBDの確定)
+- 更新通知後の取得範囲: PrintCap 等の横断依存のため全ドメインを capture。
+- 優先度ポリシー: Error/非Safety=Critical、Maint/消耗品少=High、Job/Env変化=Normal、他=Low。
+- 閾値: 温度>60℃、湿度20-80%、消耗品<10%、メンテカウンタ>10000。
+- 喪失検知: Queue満杯を kErrPost で検知。フル再同期プロトコルは今後(hook)。
+- Rate Limit: 最小間隔既定0(無効)。トレーリングエッジ配信は周期タスク導入時に実装(hook)。
+- C API(extern"C")は持たない(旧`old/rim/` の役割)。
 
-### 1) クローンしてビルド・動作確認（ログを見る）
-
+## ビルド・テスト
 ```sh
-git clone https://github.com/ceedling-vxworks-test-generator/printer-fw.git
-cd printer-fw
-sh scripts/run_demo.sh          # cmake があれば cmake、無ければ Makefile でビルド→テスト→デモ実行
+cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure
 ```
-
-`scripts/run_demo.sh` を使わず手動でも可：
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-./build/pf_tests                # ユニットテスト
-./build/app_demo                # デモ（ログ表示）
-```
-
-cmake が無い環境では Makefile：
-
-```sh
-make            # build/libprinter_fw.a / .so / app_demo / pf_tests
-make run        # デモ実行
-make test       # テスト実行
-```
-
-### 2) ライブラリとしてインストール
-
-```sh
-cmake -S . -B build -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-sudo cmake --install build       # 既定 /usr/local に lib・ヘッダ・cmake・pkg-config を配置
-# 例: DESTDIR/PREFIX 指定 → cmake --install build --prefix /opt/printerfw
-```
-
-インストールされるもの:
-- `lib/libprinter_fw.{a,so}`（`BUILD_SHARED_LIBS=ON` で共有ライブラリ）
-- `include/printer_fw/*.h`（公開ヘッダ）
-- `lib/cmake/printer_fw/`（`find_package` 用）／ `lib/pkgconfig/printer_fw.pc`
-
-### 3) 別プロジェクトから組み込む
-
-**CMake（推奨）**
-```cmake
-find_package(printer_fw REQUIRED)
-target_link_libraries(my_app PRIVATE printer_fw::printer_fw)
-```
-
-**pkg-config**
-```sh
-gcc my_app.c $(pkg-config --cflags --libs printer_fw) -lstdc++ -o my_app
-```
-
-**素の gcc / g++**
-```sh
-# Cから利用（C ABI）: 実装がC++のため libstdc++ のリンクが必要
-gcc my_app.c -I/usr/local/include -L/usr/local/lib -lprinter_fw -lstdc++ -o my_app
-
-# C++から利用: 通常どおりリンクするだけでよい（libstdc++は自動リンクされる）
-g++ my_app.cpp -I/usr/local/include -L/usr/local/lib -lprinter_fw -o my_app
-```
-
-> **Cからのリンクに関する注意**: 公開APIは `extern "C"` で C ABI 互換だが、実装本体はC++で
-> コンパイルされているため、Cプログラムからリンクする場合は `-lstdc++`（またはリンカに `g++` を使う）
-> が必要になる。C++から利用する場合はこの点を意識する必要はない。
->
-> 組み込む側は、自機種の `port`（`pf_port_t`）と `model`（`pf_model_t`）を実装して `pf_core_init()` に渡す。
-> サンプルは `port/pf_port_linux.cpp`（Linux）・`models/model_sample/` を参照。
-
----
-
-## ログの見かた（Ubuntu / TeraTerm）
-
-ログはすべて **`pf_port_t.log` コールバック経由**で出力される（出力先を差し替え可能）。
-
-- **Linux port（`pf_port_linux`）**: `stdout` に即時 flush 出力 → **Ubuntu の端末や、SSH/シリアル接続した TeraTerm でそのまま閲覧**できる。
-- **実機（別MCU）**: `port` の `log` を UART 送信に実装すれば、**TeraTerm のシリアルコンソール**にログが流れる。
-
-出力例（`app_demo`）:
-```
-[I] core: init ok model=model_sample data=3 state=3 fsm=1
-[I] monitor: state=1 changed 1->0 (t=3)      # PRINTABLE: 印刷不可→印刷可
-[I] monitor: state=2 changed -1->0 (t=4)     # TEMP_ALERT: 未知→正常
-[W] monitor: reject invalid transition state=0 2->1   # ERROR→PRINTING を拒否
-```
-
-ログの制御（`pf_log.h`）:
-- `PF_LOG_LEVEL`（既定 `PF_LOG_INFO`）で出力レベルを調整（`ERROR/WARN/INFO/DEBUG`）。
-- `PF_LOG_ENABLE=0` でログを完全に無効化（stdio を持たない極小構成向け）。
-- 例: `cmake -S . -B build -DCMAKE_CXX_FLAGS="-DPF_LOG_LEVEL=PF_LOG_DEBUG"`
-
-> 現状はスケルトン（API骨組み＋動作する最小コア）。各機種への展開は [docs/detailed-design.md](docs/detailed-design.md) の「拡張手順」に従う。
+テスト: Registry(Fault/Operation/CurrentValue) / Capability(Builder/Diff/Priority) / 全系フロー(SystemFlow)。
