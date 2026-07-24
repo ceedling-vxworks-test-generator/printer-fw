@@ -2,6 +2,7 @@
 
 #include "core/RIMSystem.hpp"
 #include "adapter/PrinterADataProfile.hpp"
+#include "adapter/RawValue.hpp"
 #include "capability/PrinterACapabilityBuilder.hpp"
 
 using namespace rim;
@@ -34,7 +35,7 @@ struct Fixture
 TEST(SystemFlowTest, TemperatureFlowsToEnvCap)
 {
     Fixture f;
-    f.system.Adapter().PushF(RIMDataId::kTemperature, 25.0);
+    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0));
     f.system.Dispatch();
 
     ASSERT_GT(f.sub.count, 0);
@@ -46,7 +47,7 @@ TEST(SystemFlowTest, FaultMakesNotPrintableCriticalEvent)
 {
     Fixture f;
     DataContext ctx; ctx.faultState = FaultState::kRaised;
-    f.system.Adapter().PushU32(RIMDataId::kFaultCode, 0x10u, &ctx);
+    f.system.Adapter().Push(RIMDataId::kFaultCode, RawValue::Scalar(0x10u), &ctx);
     f.system.Dispatch();
 
     ASSERT_TRUE(f.sub.last.capabilities.error.has_value());
@@ -60,7 +61,7 @@ TEST(SystemFlowTest, FaultMakesNotPrintableCriticalEvent)
 TEST(SystemFlowTest, JobProgressFlowsToJobCap)
 {
     Fixture f;
-    f.system.Adapter().PushI32(RIMDataId::kJobProgress, 50);
+    f.system.Adapter().Push(RIMDataId::kJobProgress, RawValue::Scalar(50));
     f.system.Dispatch();
 
     ASSERT_TRUE(f.sub.last.capabilities.job.has_value());
@@ -71,12 +72,12 @@ TEST(SystemFlowTest, JobProgressFlowsToJobCap)
 TEST(SystemFlowTest, NoChangeNoRepublish)
 {
     Fixture f;
-    f.system.Adapter().PushF(RIMDataId::kTemperature, 25.0);
+    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0));
     f.system.Dispatch();
     const int c1 = f.sub.count;
 
     // 同値の再postはRegistry変化なし→通知なし→配信なし。
-    f.system.Adapter().PushF(RIMDataId::kTemperature, 25.0);
+    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0));
     f.system.Dispatch();
     EXPECT_EQ(f.sub.count, c1);
 }
@@ -85,7 +86,7 @@ TEST(SystemFlowTest, AccessorGetPrinterStatus)
 {
     Fixture f;
     DataContext ctx; ctx.faultState = FaultState::kRaised;
-    f.system.Adapter().PushU32(RIMDataId::kFaultCode, 0x10u, &ctx);
+    f.system.Adapter().Push(RIMDataId::kFaultCode, RawValue::Scalar(0x10u), &ctx);
     f.system.Dispatch();
 
     PrinterStatusRequest req;

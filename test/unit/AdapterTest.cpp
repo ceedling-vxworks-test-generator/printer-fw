@@ -131,7 +131,7 @@ struct Fixture
 TEST(AdapterTest, ScalarPushRoutesToCurrentValue)
 {
     Fixture f;
-    EXPECT_EQ(f.adapter.PushF(RIMDataId::kTemperature, 25.0), RIMResult::kOk);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kTemperature, RawValue::Scalar(25.0)), RIMResult::kOk);
 
     ASSERT_EQ(f.port.current.size(), 1u);
     EXPECT_TRUE(f.port.fault.empty());
@@ -144,7 +144,7 @@ TEST(AdapterTest, ArrayPushIsNormalized)
 {
     Fixture f;
     const std::uint8_t cells[3] = {40, 50, 60};
-    EXPECT_EQ(f.adapter.PushArray(RIMDataId::kHumidity, cells, 3), RIMResult::kOk);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kHumidity, RawValue::Array(cells, 3)), RIMResult::kOk);
 
     ASSERT_EQ(f.port.current.size(), 1u);
     EXPECT_EQ(f.port.current[0].value.type, ValueType::kPercent);
@@ -155,7 +155,7 @@ TEST(AdapterTest, StructPushIsNormalized)
 {
     Fixture f;
     const SamplePacket pkt{77};
-    EXPECT_EQ(f.adapter.PushStruct(RIMDataId::kPressure, pkt), RIMResult::kOk);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kPressure, RawValue::Struct(pkt)), RIMResult::kOk);
 
     ASSERT_EQ(f.port.current.size(), 1u);
     EXPECT_EQ(f.port.current[0].value.type, ValueType::kPercent);
@@ -166,7 +166,7 @@ TEST(AdapterTest, FaultRoutesToFaultPostWithContext)
 {
     Fixture f;
     DataContext ctx; ctx.faultState = FaultState::kRaised;
-    EXPECT_EQ(f.adapter.PushU32(RIMDataId::kFaultCode, 0x10u, &ctx), RIMResult::kOk);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kFaultCode, RawValue::Scalar(0x10u), &ctx), RIMResult::kOk);
 
     ASSERT_EQ(f.port.fault.size(), 1u);
     EXPECT_EQ(f.port.fault[0].value.type, ValueType::kFaultCode);
@@ -178,7 +178,7 @@ TEST(AdapterTest, FaultRoutesToFaultPostWithContext)
 TEST(AdapterTest, JobProgressRoutesToOperationPost)
 {
     Fixture f;
-    EXPECT_EQ(f.adapter.PushI32(RIMDataId::kJobProgress, 50), RIMResult::kOk);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kJobProgress, RawValue::Scalar(50)), RIMResult::kOk);
 
     ASSERT_EQ(f.port.operation.size(), 1u);
     EXPECT_EQ(f.port.operation[0].value.type, ValueType::kJobProgress);
@@ -189,7 +189,7 @@ TEST(AdapterTest, UnknownIdReturnsConvertError)
 {
     Fixture f;
     // kUnitAlive は TestProfile が Rule 未定義 → kErrConvert。
-    EXPECT_EQ(f.adapter.PushF(RIMDataId::kUnitAlive, 1.0), RIMResult::kErrConvert);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kUnitAlive, RawValue::Scalar(1.0)), RIMResult::kErrConvert);
     EXPECT_TRUE(f.port.current.empty());
 }
 
@@ -198,6 +198,6 @@ TEST(AdapterTest, WrongRawKindReturnsConvertError)
     Fixture f;
     // scalar 用 id(kTemperature)へ構造体を渡す → Rule が拒否 → kErrConvert。
     const SamplePacket pkt{10};
-    EXPECT_EQ(f.adapter.PushStruct(RIMDataId::kTemperature, pkt), RIMResult::kErrConvert);
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kTemperature, RawValue::Struct(pkt)), RIMResult::kErrConvert);
     EXPECT_TRUE(f.port.current.empty());
 }

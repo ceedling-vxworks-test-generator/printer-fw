@@ -2,17 +2,15 @@
 
 //
 // RawDataInput - RIM_AdapterLayer(L1)の受理点(仕様 §6/§8)。
-// 型自由な受理点を提供する:
-//   - スカラ  : PushI32 / PushF / PushU32(内部で double へ集約)
-//   - 構造体  : PushStruct<T>(id, const T&)
-//   - 配列    : PushArray<T>(id, const T*, n)
-// 流れ: RawValue 生成 → RuleResolver.SelectRule → Rule.Convert(正規化) →
+// 外部へ提供する受理点は Push(id, RawValue, ctx) の1つのみ。型自由さは RawValue 側の
+// タグ(kind)が吸収し、呼出側は RawValue::Scalar/Struct/Array で組み立てて渡す:
+//   - スカラ  : Push(id, RawValue::Scalar(v))
+//   - 構造体  : Push(id, RawValue::Struct(s))
+//   - 配列    : Push(id, RawValue::Array(a, n))
+// 流れ: RuleResolver.SelectRule → Rule.Convert(正規化) →
 //       Classify(性質判別) → ICentralInputPort の3種post。
 // Adapter は ICentralInputPort にのみ依存する(具象 DataStore 非依存 → 単体テスト可)。
 //
-
-#include <cstddef>
-#include <cstdint>
 
 #include "adapter/RawValue.hpp"
 #include "adapter/IRuleResolver.hpp"
@@ -37,37 +35,9 @@ public:
     {
     }
 
-    // --- スカラ受理点 ---
-    RIMResult PushI32(RIMDataId id, std::int32_t raw, const DataContext* ctx = nullptr)
-    {
-        return Intake(id, RawValue::Scalar(static_cast<double>(raw)), ctx);
-    }
-    RIMResult PushF(RIMDataId id, double raw, const DataContext* ctx = nullptr)
-    {
-        return Intake(id, RawValue::Scalar(raw), ctx);
-    }
-    RIMResult PushU32(RIMDataId id, std::uint32_t raw, const DataContext* ctx = nullptr)
-    {
-        return Intake(id, RawValue::Scalar(static_cast<double>(raw)), ctx);
-    }
-
-    // --- 構造体受理点 ---
-    template <typename T>
-    RIMResult PushStruct(RIMDataId id, const T& raw, const DataContext* ctx = nullptr)
-    {
-        return Intake(id, RawValue::Struct(raw), ctx);
-    }
-
-    // --- 配列受理点 ---
-    template <typename T>
-    RIMResult PushArray(RIMDataId id, const T* raw, std::size_t n, const DataContext* ctx = nullptr)
-    {
-        return Intake(id, RawValue::Array(raw, n), ctx);
-    }
-
-private:
-
-    RIMResult Intake(RIMDataId id, const RawValue& raw, const DataContext* ctx)
+    // --- 唯一の受理点 ---
+    // raw は RawValue::Scalar/Struct/Array で組み立てる(型自由さは RawValue が吸収する)。
+    RIMResult Push(RIMDataId id, const RawValue& raw, const DataContext* ctx = nullptr)
     {
         const IRule* rule = resolver_.SelectRule(id);
         if (rule == nullptr) return RIMResult::kErrConvert;
@@ -90,6 +60,8 @@ private:
             default:                          return RIMResult::kErrClassify;
         }
     }
+
+private:
 
     ICentralInputPort&      port_;
     const IRuleResolver&    resolver_;
