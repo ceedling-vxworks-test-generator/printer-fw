@@ -1,22 +1,44 @@
 #include "datastore/CurrentValueRegistry.hpp"
 
+#include <cstddef>
+
 namespace rim
 {
+namespace
+{
+
+struct DomainEntry
+{
+    RIMDataId      id;     // 自己文書化・テスト用(検索には使わない。添字は id そのもの)
+    RegistryDomain domain; // CurrentValueRegistry が扱わない id(Fault/Operation)は kDomainNone
+};
+
+// id → 副ドメイン の対応表。RIMDataId の宣言順に並べ、id をそのまま添字にする
+// (O(1)、稠密ID規約。PrinterADataProfile の kTable と同じ流儀)。
+const DomainEntry kDomainTable[] = {
+    { RIMDataId::kTemperature,      kDomainEnvironment },
+    { RIMDataId::kHumidity,         kDomainEnvironment },
+    { RIMDataId::kPressure,         kDomainEnvironment },
+    { RIMDataId::kInkLevel,         kDomainConsumable  },
+    { RIMDataId::kWiperLevel,       kDomainConsumable  },
+    { RIMDataId::kCoverOpen,        kDomainSafety      },
+    { RIMDataId::kEStop,            kDomainSafety      },
+    { RIMDataId::kJobProgress,      kDomainNone        }, // OperationRegistry が扱う
+    { RIMDataId::kFaultCode,        kDomainNone        }, // FaultRegistry が扱う
+    { RIMDataId::kMaintenanceCount, kDomainMaintenance },
+    { RIMDataId::kUnitAlive,        kDomainHealth      },
+};
+
+static_assert(sizeof(kDomainTable) / sizeof(kDomainTable[0]) == static_cast<std::size_t>(kRIMDataIdCount),
+              "kDomainTable must have exactly one row per RIMDataId (add/remove a row when RIMDataId changes)");
+
+} // namespace
 
 RegistryDomain CurrentValueRegistry::DomainForId(RIMDataId id)
 {
-    switch (id) {
-        case RIMDataId::kTemperature:
-        case RIMDataId::kHumidity:
-        case RIMDataId::kPressure:          return kDomainEnvironment;
-        case RIMDataId::kInkLevel:
-        case RIMDataId::kWiperLevel:        return kDomainConsumable;
-        case RIMDataId::kCoverOpen:
-        case RIMDataId::kEStop:             return kDomainSafety;
-        case RIMDataId::kMaintenanceCount:  return kDomainMaintenance;
-        case RIMDataId::kUnitAlive:         return kDomainHealth;
-        default:                            return kDomainNone;
-    }
+    const int idx = ToIndex(id);
+    if (idx < 0 || idx >= kRIMDataIdCount) return kDomainNone;
+    return kDomainTable[idx].domain;
 }
 
 bool CurrentValueRegistry::ValueEquals(const RIMValue& a, const RIMValue& b)

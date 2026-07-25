@@ -76,3 +76,20 @@ TEST(CurrentValueRegistryTest, ApplyAndDomainSnapshot)
     ASSERT_TRUE(conSnap.consumable->inkLevel.has_value());
     EXPECT_EQ(*conSnap.consumable->inkLevel, 5);
 }
+
+// DomainForId はテーブル駆動(kDomainTable)。行の取り違え・抜けを検知する回帰テスト。
+TEST(CurrentValueRegistryTest, DomainForIdMapsAllIds)
+{
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kTemperature),      kDomainEnvironment);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kHumidity),         kDomainEnvironment);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kPressure),         kDomainEnvironment);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kInkLevel),         kDomainConsumable);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kWiperLevel),       kDomainConsumable);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kCoverOpen),        kDomainSafety);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kEStop),            kDomainSafety);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kMaintenanceCount), kDomainMaintenance);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kUnitAlive),        kDomainHealth);
+    // Fault/Operation は別Registryが扱うため CurrentValueRegistry では kDomainNone。
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kFaultCode),   kDomainNone);
+    EXPECT_EQ(CurrentValueRegistry::DomainForId(RIMDataId::kJobProgress), kDomainNone);
+}
