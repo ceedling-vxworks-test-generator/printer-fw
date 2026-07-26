@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: rimanager
+Description: ReactiveInfoManager (RIM) - 印刷機 組込み共通フレームワーク (C++ library)
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lrimanager
+Cflags: -I${includedir}

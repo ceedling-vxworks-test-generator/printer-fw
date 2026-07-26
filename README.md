@@ -60,3 +60,25 @@ Event / 優先度Critical・High は Rate Limit 除外。
 cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure
 ```
 テスト: Registry(Fault/Operation/CurrentValue) / Capability(Builder/Diff/Priority) / 全系フロー(SystemFlow)。
+
+## mainFW への組み込み(ライブラリ化)
+
+`rimanager` は `install`/`find_package` に対応した通常のCMakeライブラリとして配布できる。
+
+```sh
+cmake -S . -B build -DRIMANAGER_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/path/to/prefix
+cmake --build build
+cmake --install build
+```
+
+mainFW側は次のように参照する(`find_package` 経由、または `add_subdirectory`)。
+
+```cmake
+find_package(rimanager REQUIRED)
+target_link_libraries(mainFW PRIVATE rimanager::rimanager)
+```
+
+`RIMANAGER_BUILD_TESTS` は既定でトップレベルビルド時のみON(`add_subdirectory()`で組み込まれた
+場合は自動的にOFF)。framework(機種共通)と devices/printer_a(機種固有。`RIMDataId`を含む)の
+公開ヘッダは同じ `include/` 以下へマージしてインストールされるため、mainFW側の
+`#include "adapter/PrinterADataProfile.hpp"` 等はビルド前後で変わらない。
