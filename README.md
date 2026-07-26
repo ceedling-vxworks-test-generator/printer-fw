@@ -42,8 +42,9 @@ Event / 優先度Critical・High は Rate Limit 除外。
 - **framework/**(機種共通): 全レイヤ機構・共通型・抽象IF(IRule/IRuleResolver/IInputClassifier/
   IRegistryUpdateNotifier/IMachineSnapshotReader/ICapabilityBuilder/IPublisher/ISubscriber)・
   固定容量コンテナ・`RIMSystem`(結線)。
-- **devices/printer_a/**(機種可変): `PrinterADataProfile`(SelectRule/Classify)、Rule群、
-  `PrinterACapabilityBuilder`(8種判定)。
+- **devices/printer_a/**(機種可変): `RIMDataId`(id一覧)、`PrinterADataProfile`(SelectRule/Classify)、
+  Rule群、`PrinterACapabilityBuilder`(8種判定)。`RIMDataId` は devices 側の定義で、framework は
+  ヘッダ名にのみ依存する(機種展開してもframework無改修。詳細は`docs/adapter/02_詳細設計.md`§1.1)。
 - **devices/_skeleton/**: 新機種テンプレ(ビルド対象外・README参照)。
 
 ## 設計判断(仕様TBDの確定)

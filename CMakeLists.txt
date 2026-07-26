@@ -12,8 +12,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #
 # インクルードルート:
 #   framework/inc          … 機種共通(全レイヤ機構・共通型・抽象IF・固定容量コンテナ)
-#   devices/printer_a/inc  … PrinterA 固有(DataProfile / Rule / CapabilityBuilder)
+#   devices/printer_a/inc  … PrinterA 固有(DataProfile / Rule / CapabilityBuilder /
+#                             datastore/RIMDataId.hpp = id一覧)
 # 各ルート配下でレイヤー接頭辞を維持しているため既存 #include はそのまま解決される。
+# 特に datastore/RIMDataId.hpp は framework 側には存在せず devices 側のみが提供する
+# (framework は型名にのみ依存し、id の中身を知らない。機種展開時はこのヘッダを
+# devices/<機種>/inc/datastore/ に用意すれば framework は無改修のまま差し替わる)。
 # devices/_skeleton は雛形なのでビルド対象に含めない。
 #
 set(RIM_INCLUDE_DIRS
