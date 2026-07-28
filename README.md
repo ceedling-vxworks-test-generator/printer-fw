@@ -82,3 +82,29 @@ target_link_libraries(mainFW PRIVATE rimanager::rimanager)
 場合は自動的にOFF)。framework(機種共通)と devices/printer_a(機種固有。`RIMDataId`を含む)の
 公開ヘッダは同じ `include/` 以下へマージしてインストールされるため、mainFW側の
 `#include "adapter/PrinterADataProfile.hpp"` 等はビルド前後で変わらない。
+
+## C言語から呼ぶ場合(`capi/`)
+
+mainFWがC言語の場合、C++実装(上記の`framework`/`devices`)を直接呼ぶことはできない
+(クラス・参照・テンプレート・`std::optional`・名前空間はいずれもC非互換)。`capi/`が
+その上に被せる薄い`extern "C"`シムで、C言語からはこの1ヘッダだけを使う。
+
+```c
+#include "rim_capi.h"
+
+rim_init();
+rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(25.0), NULL);
+rim_dispatch();
+
+rim_subscription_t sub = rim_subscribe(on_capability_changed, NULL, 0 /* 全Capabilityに関心 */);
+rim_printer_status_t st = rim_get_status(RIM_DOMAIN_CURRENT_ALL, true);
+```
+
+- `rim_id_t`(id一覧)は機種固有のため`devices/printer_a/inc/capi/rim_ids.h`が提供する。
+  C++側の`RIMDataId`と整数値が一致していることは`capi/src/rim_capi.cpp`の`static_assert`群が
+  ビルド時に検証する(手書きの2重管理のズレを機械チェック)。
+- `RawValue`(構造体・配列を受け付ける型自由な生値)は本物のC `union`として`rim_raw_value_t`に
+  対応する。`std::optional`を持つ型(`DataContext`/`CapabilitySet`/`MachineSnapshot`等)は
+  `has_xxx`という`bool`フィールド付きのプレーン構造体に平坦化してある。
+- `capi/test/rim_capi_smoke.c`はCコンパイラ(gcc)でビルドし、C++実装とリンクして実行することで
+  実際にC言語から呼べることを検証するスモークテスト(`RIMANAGER_BUILD_TESTS=ON`で`ctest`に登録)。

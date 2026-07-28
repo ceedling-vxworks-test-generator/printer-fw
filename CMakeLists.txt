@@ -4,7 +4,7 @@ endif()
 
 cmake_minimum_required(VERSION 3.20)
 
-project(RIManager_Impl VERSION 0.1.0 LANGUAGES CXX)
+project(RIManager_Impl VERSION 0.1.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,18 +26,21 @@ option(RIMANAGER_BUILD_TESTS "Build rimanager's own unit/integration tests" ${RI
 # インクルードルート:
 #   framework/inc          … 機種共通(全レイヤ機構・共通型・抽象IF・固定容量コンテナ)
 #   devices/printer_a/inc  … PrinterA 固有(DataProfile / Rule / CapabilityBuilder /
-#                             datastore/RIMDataId.hpp = id一覧)
+#                             datastore/RIMDataId.hpp = id一覧 / capi/rim_ids.h = idのCミラー)
+#   capi/inc                … C言語のmainFWから呼ぶための唯一の公開ヘッダ(rim_capi.h)。
+#                             内部実装はC++のまま、extern "C" な薄いシムを被せる。
 # 各ルート配下でレイヤー接頭辞を維持しているため既存 #include はそのまま解決される。
-# 特に datastore/RIMDataId.hpp は framework 側には存在せず devices 側のみが提供する
-# (framework は型名にのみ依存し、id の中身を知らない。機種展開時はこのヘッダを
-# devices/<機種>/inc/datastore/ に用意すれば framework は無改修のまま差し替わる)。
+# 特に datastore/RIMDataId.hpp / capi/rim_ids.h は framework 側には存在せず devices 側のみが
+# 提供する(framework は型名にのみ依存し、id の中身を知らない。機種展開時はこれらのヘッダを
+# devices/<機種>/inc/ に用意すれば framework は無改修のまま差し替わる)。
 # devices/_skeleton は雛形なのでビルド対象に含めない。
-# install 後は両ルートを1つの include/ 以下へ統合するため、mainFW 側の #include は
+# install 後は全ルートを1つの include/ 以下へ統合するため、mainFW 側の #include は
 # ビルド前後で書き換え不要(下記 install(DIRECTORY ...) 参照)。
 #
 set(RIM_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/framework/inc
     ${PROJECT_SOURCE_DIR}/devices/printer_a/inc
+    ${PROJECT_SOURCE_DIR}/capi/inc
 )
 
 add_library(rimanager STATIC)
@@ -47,6 +50,7 @@ target_include_directories(rimanager
     PUBLIC
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/framework/inc>
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/devices/printer_a/inc>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/capi/inc>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
@@ -54,6 +58,7 @@ file(GLOB_RECURSE RIM_SOURCES
     CONFIGURE_DEPENDS
     framework/src/*.cpp
     devices/printer_a/src/*.cpp
+    capi/src/*.cpp
 )
 
 target_sources(rimanager
@@ -80,7 +85,11 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/framework/inc/
 )
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/devices/printer_a/inc/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.hpp"
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/capi/inc/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
 )
 
 install(EXPORT rimanagerTargets
@@ -156,4 +165,12 @@ if(RIMANAGER_BUILD_TESTS)
 
     include(GoogleTest)
     gtest_discover_tests(rimanager_test)
+
+    # rim_capi.h が実際にC言語から呼べることを検証するスモークテスト(gtest不使用、Cコンパイラでビルド)。
+    add_executable(rim_capi_smoke capi/test/rim_capi_smoke.c)
+    target_include_directories(rim_capi_smoke PRIVATE ${PROJECT_SOURCE_DIR}/capi/inc ${PROJECT_SOURCE_DIR}/devices/printer_a/inc)
+    target_link_libraries(rim_capi_smoke PRIVATE rimanager)
+    # 唯一のソースはCだが、rimanager(C++実装)とリンクするため C++ ランタイムでリンクする。
+    set_target_properties(rim_capi_smoke PROPERTIES LINKER_LANGUAGE CXX)
+    add_test(NAME rim_capi_smoke COMMAND rim_capi_smoke)
 endif()
