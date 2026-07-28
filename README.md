@@ -124,3 +124,17 @@ rim_printer_status_t st = rim_get_status(RIM_DOMAIN_CURRENT_ALL, true);
 
 `miDebuggerPath`はLinux(`/usr/bin/gdb`)を既定にしている。macOSでは`MIMode`を`lldb`に変更するか、
 `gdb`のインストール先に合わせて`miDebuggerPath`を書き換えること。
+
+### うまく止まらないとき
+
+- **`warning: gdb failed to set controlling terminal: Operation not permitted` が出て、
+  プログラムが起動しない**
+  gdbがシェル経由でプログラムを起動する際に制御端末を設定できないために起きる
+  (WSL・Dockerコンテナ・devcontainer等の制限された環境で発生する)。`launch.json`の
+  `setupCommands`に`set startup-with-shell off`を入れてあるので通常は回避されるが、
+  それでも出る場合は`"externalConsole": true`も試すこと。
+- **ブレークポイントの丸が灰色の中抜きになる**
+  デバッグ情報とソースの対応が取れていない状態。`build-debug/`を一度削除してから
+  「cmake: configure (Debug)」をやり直す(`CMAKE_BUILD_TYPE`がDebug以外だと`-g`が付かない)。
+- **プログラムの標準出力(`rim_capi_smoke: OK`)が見当たらない**
+  「デバッグコンソール」ではなく、統合ターミナルの`cppdbg: rim_capi_smoke`タブに出力される。
