@@ -1,0 +1,34 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cmake: configure (Debug)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S", "${workspaceFolder}",
+                "-B", "${workspaceFolder}/build-debug",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DRIMANAGER_BUILD_TESTS=OFF"
+            ],
+            "problemMatcher": [],
+            "detail": "Debug用ビルドディレクトリ(build-debug/)を構成する。RIMANAGER_BUILD_TESTS=OFFにしてgtestのFetchContent(ネットワーク要)をスキップする — rim_capi_smokeはgtestに依存しないため影響を受けない。gtestベースのrimanager_testも一緒にデバッグしたい場合はONに変更する。"
+        },
+        {
+            "label": "cmake: build rim_capi_smoke (Debug)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "${workspaceFolder}/build-debug",
+                "--target", "rim_capi_smoke"
+            ],
+            "dependsOn": "cmake: configure (Debug)",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "rim_capi_smoke(Cのスモークテスト)をデバッグ情報付きでビルドする。"
+        }
+    ]
+}

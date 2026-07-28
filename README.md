@@ -107,4 +107,20 @@ rim_printer_status_t st = rim_get_status(RIM_DOMAIN_CURRENT_ALL, true);
   対応する。`std::optional`を持つ型(`DataContext`/`CapabilitySet`/`MachineSnapshot`等)は
   `has_xxx`という`bool`フィールド付きのプレーン構造体に平坦化してある。
 - `capi/test/rim_capi_smoke.c`はCコンパイラ(gcc)でビルドし、C++実装とリンクして実行することで
-  実際にC言語から呼べることを検証するスモークテスト(`RIMANAGER_BUILD_TESTS=ON`で`ctest`に登録)。
+  実際にC言語から呼べることを検証するスモークテスト。gtestに依存しないため
+  `RIMANAGER_BUILD_TESTS`の値に関わらずトップレベルビルド時は既定でビルド・`ctest`登録される。
+
+## VSCodeでのデバッグ
+
+`.vscode/tasks.json`・`.vscode/launch.json`に`rim_capi_smoke`用のビルド・デバッグ設定がある。
+`build-debug/`という別ディレクトリを使い、`-DRIMANAGER_BUILD_TESTS=OFF`でgtestのFetchContent
+(ネットワーク要)を避けているため、ネットワーク制限下でもビルド・ブレークポイントでの
+停止が可能(gdb使用、`.c`/`.cpp`どちらのファイルにもブレークポイントを張れる)。
+
+1. VSCodeでこのリポジトリを開く(拡張機能`C/C++`があること)
+2. 実行とデバッグ(Ctrl+Shift+D)から「Debug rim_capi_smoke」を選択して開始
+   (`preLaunchTask`が自動でconfigure・ビルドする)
+3. `capi/src/rim_capi.cpp`や`capi/test/rim_capi_smoke.c`にブレークポイントを置いて確認する
+
+`miDebuggerPath`はLinux(`/usr/bin/gdb`)を既定にしている。macOSでは`MIMode`を`lldb`に変更するか、
+`gdb`のインストール先に合わせて`miDebuggerPath`を書き換えること。

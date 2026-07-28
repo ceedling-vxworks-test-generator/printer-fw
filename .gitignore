@@ -10,6 +10,7 @@ credentials*.json
 node_modules/
 dist/
 build/
+build-debug/
 __pycache__/
 *.pyc
 .venv/
@@ -36,7 +37,10 @@ compile_commands.json
 # OS / エディタ
 .DS_Store
 Thumbs.db
-.vscode/
+# .vscode/ はチーム共有のデバッグ設定(launch.json/tasks.json)だけ追跡し、それ以外(個人設定等)は無視する
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 
 # ログ・一時ファイル
