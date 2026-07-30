@@ -9,24 +9,22 @@
 #include "adapter/IRuleResolver.hpp"
 
 #include "datastore/ICentralInputPort.hpp"
-#include "datastore/IInputClassifier.hpp"
 #include "datastore/RIMDataItem.hpp"
 
 using namespace rim;
 
 namespace
 {
-// --- モック CentralInputPort: post された item を性質別に記録する ---
+// --- モック CentralInputPort: Post された item を記録する ---
+// Adapter は性質判別を行わない(L2の責務)ため、レーン別ではなく単一列で記録する。
+// 「どのレーンへ振り分けられるか」の検証は CentralInputPortTest.cpp にある。
 class MockPort final : public ICentralInputPort
 {
 public:
-    RIMResult PostFaultInput(const RIMDataItem& item) override      { fault.push_back(item); return RIMResult::kOk; }
-    RIMResult PostOperationReport(const RIMDataItem& item) override { operation.push_back(item); return RIMResult::kOk; }
-    RIMResult PostCurrentValueInput(const RIMDataItem& item) override { current.push_back(item); return RIMResult::kOk; }
+    RIMResult Post(const RIMDataItem& item) override { posted.push_back(item); return result; }
 
-    std::vector<RIMDataItem> fault;
-    std::vector<RIMDataItem> operation;
-    std::vector<RIMDataItem> current;
+    std::vector<RIMDataItem> posted;
+    RIMResult                result{RIMResult::kOk};  // Postの戻り値を差し替えて透過を検証する
 };
 
 // --- テスト用 Rule 群(scalar / array / struct) ---
@@ -86,8 +84,9 @@ public:
     }
 };
 
-// --- テスト用 RuleResolver + Classifier(id→Rule, id→性質) ---
-class TestProfile final : public IRuleResolver, public IInputClassifier
+// --- テスト用 RuleResolver(id→Rule) ---
+// Adapter が依存するのは IRuleResolver のみ(IInputClassifier は L2 側の依存に移った)。
+class TestProfile final : public IRuleResolver
 {
 public:
     const IRule* SelectRule(RIMDataId id) const override
@@ -99,17 +98,6 @@ public:
             case RIMDataId::kFaultCode:   return &fault_;      // scalar
             case RIMDataId::kJobProgress: return &progress_;   // scalar
             default:                      return nullptr;
-        }
-    }
-    std::optional<InputKind> Classify(RIMDataId id) const override
-    {
-        switch (id) {
-            case RIMDataId::kFaultCode:   return InputKind::kFault;
-            case RIMDataId::kJobProgress: return InputKind::kOperationReport;
-            case RIMDataId::kTemperature:
-            case RIMDataId::kHumidity:
-            case RIMDataId::kPressure:    return InputKind::kCurrentValue;
-            default:                      return std::nullopt;
         }
     }
 private:
@@ -124,20 +112,19 @@ struct Fixture
 {
     MockPort     port;
     TestProfile  profile;
-    RawDataInput adapter{port, profile, profile};
+    RawDataInput adapter{port, profile};
 };
 } // namespace
 
-TEST(AdapterTest, ScalarPushRoutesToCurrentValue)
+TEST(AdapterTest, ScalarPushIsNormalizedAndPosted)
 {
     Fixture f;
     EXPECT_EQ(f.adapter.Push(RIMDataId::kTemperature, RawValue::Scalar(25.0)), RIMResult::kOk);
 
-    ASSERT_EQ(f.port.current.size(), 1u);
-    EXPECT_TRUE(f.port.fault.empty());
-    EXPECT_TRUE(f.port.operation.empty());
-    EXPECT_EQ(f.port.current[0].value.type, ValueType::kCelsiusX100);
-    EXPECT_EQ(f.port.current[0].value.u.celsiusX100, 2500);
+    ASSERT_EQ(f.port.posted.size(), 1u);
+    EXPECT_EQ(f.port.posted[0].id, RIMDataId::kTemperature);
+    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kCelsiusX100);
+    EXPECT_EQ(f.port.posted[0].value.u.celsiusX100, 2500);
 }
 
 TEST(AdapterTest, ArrayPushIsNormalized)
@@ -146,9 +133,9 @@ TEST(AdapterTest, ArrayPushIsNormalized)
     const std::uint8_t cells[3] = {40, 50, 60};
     EXPECT_EQ(f.adapter.Push(RIMDataId::kHumidity, RawValue::Array(cells, 3)), RIMResult::kOk);
 
-    ASSERT_EQ(f.port.current.size(), 1u);
-    EXPECT_EQ(f.port.current[0].value.type, ValueType::kPercent);
-    EXPECT_EQ(f.port.current[0].value.u.percent, 50);  // 平均
+    ASSERT_EQ(f.port.posted.size(), 1u);
+    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kPercent);
+    EXPECT_EQ(f.port.posted[0].value.u.percent, 50);  // 平均
 }
 
 TEST(AdapterTest, StructPushIsNormalized)
@@ -157,32 +144,33 @@ TEST(AdapterTest, StructPushIsNormalized)
     const SamplePacket pkt{77};
     EXPECT_EQ(f.adapter.Push(RIMDataId::kPressure, RawValue::Struct(pkt)), RIMResult::kOk);
 
-    ASSERT_EQ(f.port.current.size(), 1u);
-    EXPECT_EQ(f.port.current[0].value.type, ValueType::kPercent);
-    EXPECT_EQ(f.port.current[0].value.u.percent, 77);
+    ASSERT_EQ(f.port.posted.size(), 1u);
+    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kPercent);
+    EXPECT_EQ(f.port.posted[0].value.u.percent, 77);
 }
 
-TEST(AdapterTest, FaultRoutesToFaultPostWithContext)
+TEST(AdapterTest, ContextIsPassedThroughUnchanged)
 {
     Fixture f;
     DataContext ctx; ctx.faultState = FaultState::kRaised;
     EXPECT_EQ(f.adapter.Push(RIMDataId::kFaultCode, RawValue::Scalar(0x10u), &ctx), RIMResult::kOk);
 
-    ASSERT_EQ(f.port.fault.size(), 1u);
-    EXPECT_EQ(f.port.fault[0].value.type, ValueType::kFaultCode);
-    EXPECT_EQ(f.port.fault[0].value.u.faultCode, 0x10u);
-    ASSERT_TRUE(f.port.fault[0].context.faultState.has_value());
-    EXPECT_EQ(*f.port.fault[0].context.faultState, FaultState::kRaised);
+    ASSERT_EQ(f.port.posted.size(), 1u);
+    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kFaultCode);
+    EXPECT_EQ(f.port.posted[0].value.u.faultCode, 0x10u);
+    // Adapter は context を加工せず素通しする。
+    ASSERT_TRUE(f.port.posted[0].context.faultState.has_value());
+    EXPECT_EQ(*f.port.posted[0].context.faultState, FaultState::kRaised);
 }
 
-TEST(AdapterTest, JobProgressRoutesToOperationPost)
+TEST(AdapterTest, JobProgressIsNormalized)
 {
     Fixture f;
     EXPECT_EQ(f.adapter.Push(RIMDataId::kJobProgress, RawValue::Scalar(50)), RIMResult::kOk);
 
-    ASSERT_EQ(f.port.operation.size(), 1u);
-    EXPECT_EQ(f.port.operation[0].value.type, ValueType::kJobProgress);
-    EXPECT_EQ(f.port.operation[0].value.u.jobProgress, 50);
+    ASSERT_EQ(f.port.posted.size(), 1u);
+    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kJobProgress);
+    EXPECT_EQ(f.port.posted[0].value.u.jobProgress, 50);
 }
 
 TEST(AdapterTest, UnknownIdReturnsConvertError)
@@ -190,7 +178,7 @@ TEST(AdapterTest, UnknownIdReturnsConvertError)
     Fixture f;
     // kUnitAlive は TestProfile が Rule 未定義 → kErrConvert。
     EXPECT_EQ(f.adapter.Push(RIMDataId::kUnitAlive, RawValue::Scalar(1.0)), RIMResult::kErrConvert);
-    EXPECT_TRUE(f.port.current.empty());
+    EXPECT_TRUE(f.port.posted.empty());
 }
 
 TEST(AdapterTest, WrongRawKindReturnsConvertError)
@@ -199,5 +187,14 @@ TEST(AdapterTest, WrongRawKindReturnsConvertError)
     // scalar 用 id(kTemperature)へ構造体を渡す → Rule が拒否 → kErrConvert。
     const SamplePacket pkt{10};
     EXPECT_EQ(f.adapter.Push(RIMDataId::kTemperature, RawValue::Struct(pkt)), RIMResult::kErrConvert);
-    EXPECT_TRUE(f.port.current.empty());
+    EXPECT_TRUE(f.port.posted.empty());
+}
+
+// Post の戻り値(L2が返すエラー)はそのまま呼出元へ透過すること。
+TEST(AdapterTest, PortErrorIsPropagated)
+{
+    Fixture f;
+    f.port.result = RIMResult::kErrPost;   // キュー満杯=喪失を模擬
+    EXPECT_EQ(f.adapter.Push(RIMDataId::kTemperature, RawValue::Scalar(25.0)), RIMResult::kErrPost);
+    EXPECT_EQ(f.port.posted.size(), 1u);   // post自体は試行される
 }

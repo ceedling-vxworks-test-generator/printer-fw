@@ -1,8 +1,8 @@
 #pragma once
 
 //
-// CentralInputPort - Adapterが報告する中央入口(仕様 §6.1)。3種postを提供する。
-//   - post種別とId分類の一致を検証する
+// CentralInputPort - Adapterが報告する中央入口(仕様 §6.1)。受理点は Post() の1本。
+//   - Classify(id) で入力性質を判別し、対応するレーンへ振り分ける(L2の責務)
 //   - Value型とId定義の一致を検証する
 //   - 問題なければ Queue / Buffer へ入れる(満杯=喪失は kErrPost)
 //
@@ -34,11 +34,14 @@ public:
     {
     }
 
-    RIMResult PostFaultInput(const RIMDataItem& item) override;
-    RIMResult PostOperationReport(const RIMDataItem& item) override;
-    RIMResult PostCurrentValueInput(const RIMDataItem& item) override;
+    RIMResult Post(const RIMDataItem& item) override;
 
 private:
+
+    // 性質別の受理処理(Post から振り分けて呼ぶ)。値型の検証もここで行う。
+    RIMResult PostFaultInput(const RIMDataItem& item);
+    RIMResult PostOperationReport(const RIMDataItem& item);
+    RIMResult PostCurrentValueInput(const RIMDataItem& item);
 
     FaultInputQueue&        faultQueue_;
     OperationReportQueue&   operationQueue_;

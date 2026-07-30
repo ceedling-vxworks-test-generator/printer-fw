@@ -53,12 +53,11 @@ public:
     }
 
     // --- CentralInputPort(Adapter向け) ---
-    // Adapter は本IF(ICentralInputPort)にのみ依存する。
+    // Adapter は本IF(ICentralInputPort)にのみ依存する。受理点は Post() の1本で、
+    // 性質判別とレーン振り分けは CentralInputPort(L2)が行う。
     ICentralInputPort& Port() { return port_; }
 
-    RIMResult PostFaultInput(const RIMDataItem& item)     { return port_.PostFaultInput(item); }
-    RIMResult PostOperationReport(const RIMDataItem& item) { return port_.PostOperationReport(item); }
-    RIMResult PostCurrentValueInput(const RIMDataItem& item) { return port_.PostCurrentValueInput(item); }
+    RIMResult Post(const RIMDataItem& item) { return port_.Post(item); }
 
     // --- Dispatcher駆動(周期/イベント。スケルトンでは明示呼び出し) ---
     void Dispatch()

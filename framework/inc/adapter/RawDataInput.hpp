@@ -7,8 +7,10 @@
 //   - スカラ  : Push(id, RawValue::Scalar(v))
 //   - 構造体  : Push(id, RawValue::Struct(s))
 //   - 配列    : Push(id, RawValue::Array(a, n))
-// 流れ: RuleResolver.SelectRule → Rule.Convert(正規化) →
-//       Classify(性質判別) → ICentralInputPort の3種post。
+// 流れ: RuleResolver.SelectRule → Rule.Convert(正規化) → ICentralInputPort.Post。
+// Adapter の責務は「正規化して渡す」ことのみで、入力性質(Fault/OperationReport/
+// CurrentValue)の判別とレーン振り分けは行わない(L2=DataStore の責務。よって
+// IInputClassifier には依存しない)。
 // Adapter は ICentralInputPort にのみ依存する(具象 DataStore 非依存 → 単体テスト可)。
 //
 
@@ -19,8 +21,6 @@
 #include "datastore/DataContext.hpp"
 #include "datastore/RIMDataItem.hpp"
 #include "datastore/RIMResult.hpp"
-#include "datastore/InputKind.hpp"
-#include "datastore/IInputClassifier.hpp"
 #include "datastore/ICentralInputPort.hpp"
 
 namespace rim
@@ -30,8 +30,8 @@ class RawDataInput
 {
 public:
 
-    RawDataInput(ICentralInputPort& port, const IRuleResolver& resolver, const IInputClassifier& classifier)
-        : port_(port), resolver_(resolver), classifier_(classifier)
+    RawDataInput(ICentralInputPort& port, const IRuleResolver& resolver)
+        : port_(port), resolver_(resolver)
     {
     }
 
@@ -50,22 +50,13 @@ public:
         if (!value) return RIMResult::kErrConvert;
         item.value = *value;
 
-        auto kind = classifier_.Classify(id);
-        if (!kind) return RIMResult::kErrClassify;
-
-        switch (*kind) {
-            case InputKind::kFault:           return port_.PostFaultInput(item);
-            case InputKind::kOperationReport: return port_.PostOperationReport(item);
-            case InputKind::kCurrentValue:    return port_.PostCurrentValueInput(item);
-            default:                          return RIMResult::kErrClassify;
-        }
+        return port_.Post(item);
     }
 
 private:
 
-    ICentralInputPort&      port_;
-    const IRuleResolver&    resolver_;
-    const IInputClassifier& classifier_;
+    ICentralInputPort&   port_;
+    const IRuleResolver& resolver_;
 };
 
 } // namespace rim

@@ -33,7 +33,7 @@ public:
         const ICapabilityBuilder& builder)
         : store_(classifier)
         , capability_(store_.Reader(), builder, publisher_)
-        , adapter_(store_.Port(), resolver, classifier)
+        , adapter_(store_.Port(), resolver)
         , accessor_(store_.Reader(), capability_)
     {
     }
