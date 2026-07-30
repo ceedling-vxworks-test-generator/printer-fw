@@ -106,9 +106,60 @@ rim_printer_status_t st = rim_get_status(RIM_DOMAIN_CURRENT_ALL, true);
 - `RawValue`(構造体・配列を受け付ける型自由な生値)は本物のC `union`として`rim_raw_value_t`に
   対応する。`std::optional`を持つ型(`DataContext`/`CapabilitySet`/`MachineSnapshot`等)は
   `has_xxx`という`bool`フィールド付きのプレーン構造体に平坦化してある。
-- `capi/test/rim_capi_smoke.c`はCコンパイラ(gcc)でビルドし、C++実装とリンクして実行することで
-  実際にC言語から呼べることを検証するスモークテスト。gtestに依存しないため
-  `RIMANAGER_BUILD_TESTS`の値に関わらずトップレベルビルド時は既定でビルド・`ctest`登録される。
+### capi のテスト
+
+`capi/test/*.c` は**Cコンパイラ(gcc)でビルド**し、C++実装とリンクして実行する。
+gtestに依存しないため`RIMANAGER_BUILD_TESTS`の値に関わらず、トップレベルビルド時は
+既定でビルド・`ctest`登録される(ネットワーク不要)。
+
+```sh
+cmake -S . -B build && cmake --build build --target rim_capi_smoke
+ctest --test-dir build -R rim_capi_smoke --output-on-failure
+./build/rim_capi_smoke     # 直接実行すると性能値も見える
+```
+
+| ファイル | 内容 |
+|---|---|
+| `rim_capi_test.h` | 最小ハーネス(`RIM_EXPECT_*`)。失敗しても続行し件数を集計する |
+| `rim_capi_smoke.c` | 呼び出し可否・購読上限・不正引数の扱い |
+| `rim_capi_value_test.c` | **値の保証**(double経路の精度・切り捨て・clamp) |
+| `rim_capi_perf_test.c` | **性能測定** |
+
+#### 値の保証: double 経路の精度(実測で確認済み)
+
+受理点が`double`1本(`rim_raw_scalar`)なので整数の値落ちが懸念されるが、**`double`自体は
+原因にならない**ことを回帰テストで固定している。
+
+- `double`の仮数部は53bitあるため、**int32/uint32の全域が完全に正確**。`float`(仮数部24bit)
+  では壊れる`2^24+1`のような値も保たれる(`ValueUInt32IsExactThroughDouble`、
+  および全32ビット位置の往復テスト)。
+- **値落ちの実体は`double`ではなく Rule 内の`static_cast`による切り捨て**。小数は四捨五入
+  されず**0方向へ切り捨て**られる(`ValueTruncatesTowardZeroBeyondResolution`)。
+  例: 温度`25.678`→`2567`(2568ではない)、`-0.005`→`0`、インク残量`50.9`→`50`。
+  x100固定小数の分解能(0.01)より細かい桁は保持されない。
+- ⚠️ **既知の穴**: 型の範囲外入力(負値→uint32、巨大値、NaN/Inf)は C/C++ 規格上 **UB** で、
+  現状どの Rule も範囲チェックをしていない。実測挙動を
+  `ValueOutOfRangeIsUncheckedKnownGap`に記録して可視化しているが、この挙動に依存しては
+  ならない(恒久対策は Rule 側での範囲チェック追加。**未対応**)。
+
+#### 性能(参考値・ホスト実測)
+
+実機の性能保証はターゲット上での計測で行うこと。以下はホスト(x86_64/gcc)での相対比較用。
+テストのアサートは「桁が変わる破滅的退行」だけを捕まえる緩い上限にしてある(CI環境の負荷で
+揺れる厳しい閾値は偽陽性になるため)。Debugビルドでは約9倍遅くなる。
+
+| 経路 | Release | 備考 |
+|---|---|---|
+| `rim_push` のみ | ~45 ns/op | 変換＋分類＋バッファ格納 |
+| `rim_push` + `rim_dispatch` | ~170 ns/op | Registry反映・差分判定まで |
+| 同上 + 購読者あり(Capability不変) | ~170 ns/op | **配信は起きない** |
+| 同上 + 毎サイクルCapability変化 | ~260 ns/op | 最悪ケース(配信＋コールバック) |
+| `rim_get_status`(全域+Capability) | ~85 ns/op | 戻り値は336バイトの値返し |
+
+> 「Capability不変なら配信されない」ことをテストで確認している
+> (`PerfDispatchWithSubscriberNoCapabilityChange`)。生値が動いても意味づけ結果が
+> 変わらなければイベントゼロ、という設計契約が実際に効いている。
+> 高頻度で`rim_get_status`をポーリングする用途では、336バイトのコピーが毎回発生する点に注意。
 
 ## VSCodeでのデバッグ
 

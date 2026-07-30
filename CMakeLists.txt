@@ -125,17 +125,23 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rimanager.pc
 )
 
 # ============================================================
-# rim_capi_smoke — rim_capi.h が実際にC言語から呼べることを検証するスモークテスト。
+# rim_capi_smoke — rim_capi.h が実際にC言語から呼べることを検証するCテスト群。
+#   capi/test/*.c : スモーク(呼び出し可否) / 値の保証(double経路の精度) / 性能測定
 # gtest不使用・ネットワーク不要のため、RIMANAGER_BUILD_TESTS(gtestのFetchContentを伴う)とは
 # 独立に、トップレベルビルド時のみ既定でビルドする(ネットワーク制限下でもビルド・デバッグ可能)。
 # ============================================================
 if(RIMANAGER_IS_TOP_LEVEL)
     enable_testing()
 
-    add_executable(rim_capi_smoke capi/test/rim_capi_smoke.c)
-    target_include_directories(rim_capi_smoke PRIVATE ${PROJECT_SOURCE_DIR}/capi/inc ${PROJECT_SOURCE_DIR}/devices/printer_a/inc)
+    file(GLOB CAPI_TEST_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/capi/test/*.c)
+
+    add_executable(rim_capi_smoke ${CAPI_TEST_SOURCES})
+    target_include_directories(rim_capi_smoke PRIVATE
+        ${PROJECT_SOURCE_DIR}/capi/inc
+        ${PROJECT_SOURCE_DIR}/capi/test
+        ${PROJECT_SOURCE_DIR}/devices/printer_a/inc)
     target_link_libraries(rim_capi_smoke PRIVATE rimanager)
-    # 唯一のソースはCだが、rimanager(C++実装)とリンクするため C++ ランタイムでリンクする。
+    # ソースはCだが、rimanager(C++実装)とリンクするため C++ ランタイムでリンクする。
     set_target_properties(rim_capi_smoke PROPERTIES LINKER_LANGUAGE CXX)
     add_test(NAME rim_capi_smoke COMMAND rim_capi_smoke)
 endif()
