@@ -20,14 +20,26 @@
 
 /* --- 読み出しヘルパ(いずれも CurrentValue レーン=最新値上書きのidを使う) --- */
 
-static int32_t PushTemperature(double v)
+/* 単位を指定して温度を投入し、格納された絶対温度(ケルビン×100)を読み戻す。
+ * unit < 0 の場合は context 自体を渡さない(規定値=正規化済み扱いの検証用)。 */
+static int32_t PushTemperatureAs(double v, int unit)
 {
-    RIM_EXPECT_EQ_I(rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(v), NULL), RIM_OK);
+    rim_context_t ctx;
+    ctx.has_unit        = true;
+    ctx.unit            = (rim_source_unit_t)unit;
+    ctx.has_fault_state = false;
+    ctx.has_scale_x1000 = false;
+    ctx.has_key         = false;
+
+    RIM_EXPECT_EQ_I(rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(v), (unit < 0) ? NULL : &ctx), RIM_OK);
     rim_dispatch();
     rim_printer_status_t st = rim_get_status(RIM_DOMAIN_ENVIRONMENT, false);
-    RIM_EXPECT(st.has_data && st.data.has_temperature_x100);
-    return st.data.temperature_x100;
+    RIM_EXPECT(st.has_data && st.data.has_temperature_kelvin_x100);
+    return st.data.temperature_kelvin_x100;
 }
+
+/* context なし = 既に正規化済み(ケルビン)として扱われる。 */
+static int32_t PushTemperature(double v) { return PushTemperatureAs(v, -1); }
 
 static uint32_t PushMaintCount(double v)
 {
@@ -92,14 +104,32 @@ RIM_TEST(ValueUInt32AllBitPositionsRoundTrip)
 /* ============================================================
  * ② 整数値の温度(x100固定小数)が正確であること
  * ============================================================ */
-RIM_TEST(ValueCelsiusExactForRepresentableInputs)
+RIM_TEST(ValueKelvinExactForRepresentableInputs)
 {
-    RIM_EXPECT_EQ_I(PushTemperature(25.0),   2500);
-    RIM_EXPECT_EQ_I(PushTemperature(0.0),       0);
-    RIM_EXPECT_EQ_I(PushTemperature(-40.0), -4000);
-    RIM_EXPECT_EQ_I(PushTemperature(25.6),   2560);   /* 0.01刻みで表せる小数 */
-    RIM_EXPECT_EQ_I(PushTemperature(-2.5),   -250);
-    RIM_EXPECT_EQ_I(PushTemperature(100.25), 10025);
+    /* context なし = 既に正規化済み(ケルビン)としてそのまま採用される。 */
+    RIM_EXPECT_EQ_I(PushTemperature(298.15), 29815);
+    RIM_EXPECT_EQ_I(PushTemperature(0.0),        0);
+    RIM_EXPECT_EQ_I(PushTemperature(273.15), 27315);
+    RIM_EXPECT_EQ_I(PushTemperature(373.15), 37315);
+}
+
+/* Cから単位を指定して、摂氏/華氏がケルビンへ正規化されること(本件の主眼)。 */
+RIM_TEST(ValueTemperatureUnitIsNormalizedFromC)
+{
+    RIM_EXPECT_EQ_I(PushTemperatureAs(0.0,   RIM_UNIT_CELSIUS),    27315);  /* 0℃   = 273.15K */
+    RIM_EXPECT_EQ_I(PushTemperatureAs(25.0,  RIM_UNIT_CELSIUS),    29815);  /* 25℃  = 298.15K */
+    RIM_EXPECT_EQ_I(PushTemperatureAs(32.0,  RIM_UNIT_FAHRENHEIT), 27315);  /* 32°F = 0℃ */
+    RIM_EXPECT_EQ_I(PushTemperatureAs(212.0, RIM_UNIT_FAHRENHEIT), 37315);  /* 212°F = 100℃ */
+
+    /* 同じ温度は単位が違っても正規化後に一致する。 */
+    RIM_EXPECT_EQ_I(PushTemperatureAs(-40.0, RIM_UNIT_CELSIUS),
+                    PushTemperatureAs(-40.0, RIM_UNIT_FAHRENHEIT));
+
+    /* 明示的な kNormalized は換算しない。 */
+    RIM_EXPECT_EQ_I(PushTemperatureAs(298.15, RIM_UNIT_NORMALIZED), 29815);
+
+    /* 華氏は割り切れないため四捨五入される(切り捨てなら 31092)。 */
+    RIM_EXPECT_EQ_I(PushTemperatureAs(100.0, RIM_UNIT_FAHRENHEIT), 31093);
 }
 
 /* ============================================================
@@ -107,16 +137,8 @@ RIM_TEST(ValueCelsiusExactForRepresentableInputs)
  * ============================================================ */
 RIM_TEST(ValueTruncatesTowardZeroBeyondResolution)
 {
-    /* x100 の分解能(0.01)より細かい桁は、四捨五入ではなく切り捨てられる。 */
-    RIM_EXPECT_EQ_I(PushTemperature(25.678), 2567);   /* 2568 ではない */
-    RIM_EXPECT_EQ_I(PushTemperature(2.675),   267);   /* 267.5 → 267 */
-    RIM_EXPECT_EQ_I(PushTemperature(1.005),   100);   /* 100.5 → 100 */
-
-    /* 負値も 0 方向へ切り捨てる(-1 方向ではない)。 */
-    RIM_EXPECT_EQ_I(PushTemperature(-0.005),    0);   /* -0.5 → 0 */
-    RIM_EXPECT_EQ_I(PushTemperature(-25.678), -2567); /* -2568 ではない */
-
-    /* Percent 系も同様に切り捨て。 */
+    /* Percent 系は x1 の分解能を超える桁を 0方向へ切り捨てる。
+     * (温度は TemperatureRule のみ四捨五入。ValueTemperatureUnitIsNormalizedFromC 参照) */
     RIM_EXPECT_EQ_U(PushInkLevel(50.9), 50u);
     RIM_EXPECT_EQ_U(PushInkLevel(99.99), 99u);
 }
@@ -182,7 +204,8 @@ void RimCapiValueTests(void)
 {
     RIM_RUN(ValueUInt32IsExactThroughDouble);
     RIM_RUN(ValueUInt32AllBitPositionsRoundTrip);
-    RIM_RUN(ValueCelsiusExactForRepresentableInputs);
+    RIM_RUN(ValueKelvinExactForRepresentableInputs);
+    RIM_RUN(ValueTemperatureUnitIsNormalizedFromC);
     RIM_RUN(ValueTruncatesTowardZeroBeyondResolution);
     RIM_RUN(ValuePercentIsClamped);
     RIM_RUN(ValueBoolIsNonZeroTest);

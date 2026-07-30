@@ -6,7 +6,7 @@ namespace rim
 namespace
 {
 // 閾値(PrinterA固有・TBDを妥当値で確定)。
-constexpr std::int32_t  kTempAlertX100    = 6000;   // 60.00℃
+constexpr std::int32_t  kTempAlertKelvinX100 = 33315;  // 60.00℃ = 333.15K
 constexpr std::uint8_t  kHumidityLow      = 20;
 constexpr std::uint8_t  kHumidityHigh     = 80;
 constexpr std::uint8_t  kConsumableLow    = 10;     // %
@@ -50,7 +50,7 @@ CapabilitySet PrinterACapabilityBuilder::Build(const MachineSnapshot& s) const
         EnvCap c;
         bool inRange = true;
         if (env) {
-            if (env->temperatureX100 && *env->temperatureX100 > kTempAlertX100) inRange = false;
+            if (env->temperatureKelvinX100 && *env->temperatureKelvinX100 > kTempAlertKelvinX100) inRange = false;
             if (env->humidity && (*env->humidity < kHumidityLow || *env->humidity > kHumidityHigh)) inRange = false;
         }
         c.inRange = inRange;

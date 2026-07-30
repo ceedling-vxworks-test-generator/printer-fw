@@ -57,7 +57,7 @@ TEST(CurrentValueRegistryTest, ApplyAndDomainSnapshot)
 {
     CurrentValueRegistry reg;
 
-    RIMDataItem t; t.id = RIMDataId::kTemperature; t.value = RIMValue::CelsiusX100(2500);
+    RIMDataItem t; t.id = RIMDataId::kTemperature; t.value = RIMValue::KelvinX100(29815);
     EXPECT_EQ(reg.Apply(t), kDomainEnvironment);
     EXPECT_FALSE(reg.Apply(t).has_value());  // 同値は変化なし
 
@@ -66,8 +66,8 @@ TEST(CurrentValueRegistryTest, ApplyAndDomainSnapshot)
 
     auto envSnap = reg.MakeSnapshot(kDomainEnvironment);
     ASSERT_TRUE(envSnap.environment.has_value());
-    ASSERT_TRUE(envSnap.environment->temperatureX100.has_value());
-    EXPECT_EQ(*envSnap.environment->temperatureX100, 2500);
+    ASSERT_TRUE(envSnap.environment->temperatureKelvinX100.has_value());
+    EXPECT_EQ(*envSnap.environment->temperatureKelvinX100, 29815);
     // Environment のみ要求 → consumable は未生成。
     EXPECT_FALSE(envSnap.consumable.has_value());
 

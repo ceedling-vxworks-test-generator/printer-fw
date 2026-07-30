@@ -35,7 +35,9 @@ struct Fixture
 TEST(SystemFlowTest, TemperatureFlowsToEnvCap)
 {
     Fixture f;
-    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0));
+    // 摂氏で投入 → Adapter が絶対温度(ケルビン)へ正規化して DataStore へ渡す。
+    DataContext ctx; ctx.unit = SourceUnit::kCelsius;
+    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0), &ctx);
     f.system.Dispatch();
 
     ASSERT_GT(f.sub.count, 0);
@@ -72,12 +74,13 @@ TEST(SystemFlowTest, JobProgressFlowsToJobCap)
 TEST(SystemFlowTest, NoChangeNoRepublish)
 {
     Fixture f;
-    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0));
+    DataContext ctx; ctx.unit = SourceUnit::kCelsius;
+    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0), &ctx);
     f.system.Dispatch();
     const int c1 = f.sub.count;
 
     // 同値の再postはRegistry変化なし→通知なし→配信なし。
-    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0));
+    f.system.Adapter().Push(RIMDataId::kTemperature, RawValue::Scalar(25.0), &ctx);
     f.system.Dispatch();
     EXPECT_EQ(f.sub.count, c1);
 }

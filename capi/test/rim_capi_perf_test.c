@@ -45,7 +45,7 @@ RIM_TEST(PerfPushOnly)
     const clock_t t0 = clock();
     for (long i = 0; i < n; ++i) {
         /* 毎回異なる値にして「変化なしで早期returnする」経路に偏らせない。 */
-        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(20.0 + (double)(i % 100) * 0.01), NULL);
+        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(293.15 + (double)(i % 100) * 0.01), NULL);
     }
     const clock_t t1 = clock();
     Report("rim_push", NsPerOp(t0, t1, n), RIM_PERF_LIMIT_NS_PUSH);
@@ -57,7 +57,7 @@ RIM_TEST(PerfPushAndDispatch)
     const long n = RIM_PERF_ITERATIONS;
     const clock_t t0 = clock();
     for (long i = 0; i < n; ++i) {
-        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(20.0 + (double)(i % 100) * 0.01), NULL);
+        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(293.15 + (double)(i % 100) * 0.01), NULL);
         rim_dispatch();
     }
     const clock_t t1 = clock();
@@ -95,7 +95,7 @@ static void PerfOnPublish(const rim_machine_capability_t* cap, void* ctx)
 /*
  * 定常状態(生値は動くが Capability は変わらない)のコスト。
  * RIM は「生値の変化」ではなく「Capability(意味づけ結果)の変化」で配信するため、
- * 20.00〜20.99℃ の範囲で値が動いても EnvCap.inRange は true のままで配信は起きない。
+ * 293.15〜294.14K(約20℃)の範囲で値が動いても EnvCap.inRange は true のままで配信は起きない。
  * これが実運用で最も多い経路であり、購読者がいても配信されないことを併せて確認する。
  */
 RIM_TEST(PerfDispatchWithSubscriberNoCapabilityChange)
@@ -104,14 +104,14 @@ RIM_TEST(PerfDispatchWithSubscriberNoCapabilityChange)
     RIM_EXPECT(sub >= 0);
 
     /* 先に1回流して Capability を確定させる(初回はInitial配信が起きるため計測から除く)。 */
-    rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(20.0), NULL);
+    rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(293.15), NULL);
     rim_dispatch();
 
     const long n = RIM_PERF_ITERATIONS;
     g_perf_cb_hits = 0;
     const clock_t t0 = clock();
     for (long i = 0; i < n; ++i) {
-        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(20.0 + (double)(i % 100) * 0.01), NULL);
+        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(293.15 + (double)(i % 100) * 0.01), NULL);
         rim_dispatch();
     }
     const clock_t t1 = clock();
@@ -126,7 +126,7 @@ RIM_TEST(PerfDispatchWithSubscriberNoCapabilityChange)
 
 /*
  * 最悪ケース: 毎サイクル Capability が変化し、毎回配信＋コールバックまで走る。
- * 温度の警告閾値(60.00℃)を挟んで 20℃ ↔ 70℃ を往復させ、EnvCap.inRange を毎回反転させる。
+ * 温度の警告閾値(333.15K=60℃)を挟んで 293.15K(20℃) ↔ 343.15K(70℃) を往復させ、EnvCap.inRange を毎回反転させる。
  */
 RIM_TEST(PerfDispatchWithPublishEveryCycle)
 {
@@ -137,7 +137,7 @@ RIM_TEST(PerfDispatchWithPublishEveryCycle)
     g_perf_cb_hits = 0;
     const clock_t t0 = clock();
     for (long i = 0; i < n; ++i) {
-        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar((i % 2) ? 70.0 : 20.0), NULL);
+        rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar((i % 2) ? 343.15 : 293.15), NULL);
         rim_dispatch();
     }
     const clock_t t1 = clock();
@@ -151,7 +151,7 @@ RIM_TEST(PerfDispatchWithPublishEveryCycle)
     rim_unsubscribe(sub);
 
     /* 後続へ影響を残さないよう範囲内へ戻す。 */
-    rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(20.0), NULL);
+    rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(293.15), NULL);
     rim_dispatch();
 }
 

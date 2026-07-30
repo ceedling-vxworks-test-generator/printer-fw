@@ -34,7 +34,7 @@ struct OperationSnapshot
 // --- CurrentValue 副Snapshot(ドメイン別) ---
 struct EnvironmentSnapshot
 {
-    std::optional<std::int32_t> temperatureX100;
+    std::optional<std::int32_t> temperatureKelvinX100;  // 絶対温度(ケルビン)×100
     std::optional<std::uint8_t> humidity;
     std::optional<std::uint8_t> pressure;
 };

@@ -33,7 +33,7 @@ TEST(CapabilityBuilderTest, HighTemperatureOutOfRange)
 {
     MachineSnapshot snap;
     CurrentValueSnapshot cv;
-    EnvironmentSnapshot env; env.temperatureX100 = 7000;  // 70℃
+    EnvironmentSnapshot env; env.temperatureKelvinX100 = 34315;  // 70℃ = 343.15K
     cv.environment = env;
     snap.currentValue = cv;
 

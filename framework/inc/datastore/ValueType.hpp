@@ -10,7 +10,8 @@ namespace rim
 enum class ValueType
 {
     kNone = 0,
-    kCelsiusX100,  // 固定小数: 摂氏×100
+    kKelvinX100,   // 固定小数: 絶対温度(ケルビン)×100。温度の内部統一表現
+                   // (入力が摂氏/華氏でも Adapter でここへ正規化される)
     kPercent,      // 0..100
     kJobProgress,  // 0..100
     kFaultCode,    // uint32

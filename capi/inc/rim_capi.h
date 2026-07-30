@@ -73,7 +73,18 @@ typedef enum {
     RIM_FAULT_UPDATED_ACTIVE
 } rim_fault_state_t;
 
+/* 生値の単位/表現。同じidへ異なる単位で値が届く場合に Rule が分岐するのに使う。
+ * RIM_UNIT_NORMALIZED(=既定) は「既に正規化済み。変換しない」を意味する。
+ * 例) 温度は摂氏でも華氏でも投入でき、DataStore へは常にケルビンで格納される。 */
+typedef enum {
+    RIM_UNIT_NORMALIZED = 0,
+    RIM_UNIT_CELSIUS,
+    RIM_UNIT_FAHRENHEIT
+} rim_source_unit_t;
+
 typedef struct {
+    bool               has_unit;
+    rim_source_unit_t  unit;
     bool               has_fault_state;
     rim_fault_state_t  fault_state;
     bool               has_scale_x1000;
@@ -156,7 +167,7 @@ typedef struct {
     bool     op_job_active;
 
     bool     cur_present;
-    bool     env_present;      int32_t temperature_x100; bool has_temperature_x100;
+    bool     env_present;      int32_t temperature_kelvin_x100; bool has_temperature_kelvin_x100;
                                 uint8_t humidity;         bool has_humidity;
                                 uint8_t pressure;         bool has_pressure;
     bool     cons_present;     uint8_t ink_level;         bool has_ink_level;

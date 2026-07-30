@@ -45,7 +45,7 @@ bool CurrentValueRegistry::ValueEquals(const RIMValue& a, const RIMValue& b)
 {
     if (a.type != b.type) return false;
     switch (a.type) {
-        case ValueType::kCelsiusX100: return a.u.celsiusX100 == b.u.celsiusX100;
+        case ValueType::kKelvinX100:  return a.u.kelvinX100  == b.u.kelvinX100;
         case ValueType::kPercent:     return a.u.percent     == b.u.percent;
         case ValueType::kJobProgress: return a.u.jobProgress == b.u.jobProgress;
         case ValueType::kFaultCode:   return a.u.faultCode   == b.u.faultCode;
@@ -82,7 +82,7 @@ CurrentValueSnapshot CurrentValueRegistry::MakeSnapshot(RegistryDomainSet domain
 
     if (domains & kDomainEnvironment) {
         EnvironmentSnapshot e;
-        if (slot(RIMDataId::kTemperature).present) e.temperatureX100 = slot(RIMDataId::kTemperature).value.u.celsiusX100;
+        if (slot(RIMDataId::kTemperature).present) e.temperatureKelvinX100 = slot(RIMDataId::kTemperature).value.u.kelvinX100;
         if (slot(RIMDataId::kHumidity).present)    e.humidity        = slot(RIMDataId::kHumidity).value.u.percent;
         if (slot(RIMDataId::kPressure).present)    e.pressure        = slot(RIMDataId::kPressure).value.u.percent;
         snap.environment = e;

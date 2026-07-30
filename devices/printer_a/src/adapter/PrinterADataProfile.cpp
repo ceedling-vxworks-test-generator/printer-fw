@@ -8,7 +8,7 @@ namespace
 {
 
 // Rule実体は状態を持たないため、id横断で共有する単一インスタンスとして保持する。
-const CelsiusRule   kCelsius;
+const TemperatureRule kTemperature;
 const PercentRule   kPercent;
 const ProgressRule  kProgress;
 const FaultCodeRule kFaultCode;
@@ -27,7 +27,7 @@ struct Entry
 // RIMDataId の宣言順に並べ、id をそのまま添字にする(O(1)、稠密ID規約。
 // framework の CurrentValueBuffer/Registry と同じ流儀)。
 const Entry kTable[] = {
-    { RIMDataId::kTemperature,      &kCelsius,   InputKind::kCurrentValue },
+    { RIMDataId::kTemperature,      &kTemperature, InputKind::kCurrentValue },
     { RIMDataId::kHumidity,         &kPercent,   InputKind::kCurrentValue },
     { RIMDataId::kPressure,         &kPercent,   InputKind::kCurrentValue },
     { RIMDataId::kInkLevel,         &kPercent,   InputKind::kCurrentValue },

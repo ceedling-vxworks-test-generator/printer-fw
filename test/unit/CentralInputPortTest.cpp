@@ -68,7 +68,7 @@ TEST(CentralInputPortTest, OperationIdGoesToOperationQueue)
 TEST(CentralInputPortTest, CurrentValueIdGoesToCurrentBuffer)
 {
     Fixture f;
-    auto it = Fixture::Item(RIMDataId::kTemperature, RIMValue::CelsiusX100(2500));
+    auto it = Fixture::Item(RIMDataId::kTemperature, RIMValue::KelvinX100(29815));
 
     EXPECT_EQ(f.port.Post(it), RIMResult::kOk);
     EXPECT_EQ(f.faultQueue.Size(), 0u);

@@ -17,7 +17,7 @@ struct RIMValue
 
     union
     {
-        std::int32_t  celsiusX100;
+        std::int32_t  kelvinX100;
         std::uint8_t  percent;
         std::uint8_t  jobProgress;
         std::uint32_t faultCode;
@@ -25,7 +25,7 @@ struct RIMValue
         std::uint32_t count;
     } u{};
 
-    static RIMValue CelsiusX100(std::int32_t v) { RIMValue r; r.type = ValueType::kCelsiusX100; r.u.celsiusX100 = v; return r; }
+    static RIMValue KelvinX100(std::int32_t v)  { RIMValue r; r.type = ValueType::kKelvinX100;  r.u.kelvinX100 = v;  return r; }
     static RIMValue Percent(std::uint8_t v)     { RIMValue r; r.type = ValueType::kPercent;     r.u.percent = v;     return r; }
     static RIMValue JobProgress(std::uint8_t v) { RIMValue r; r.type = ValueType::kJobProgress; r.u.jobProgress = v; return r; }
     static RIMValue FaultCode(std::uint32_t v)  { RIMValue r; r.type = ValueType::kFaultCode;   r.u.faultCode = v;   return r; }

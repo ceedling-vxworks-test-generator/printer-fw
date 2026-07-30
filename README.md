@@ -14,11 +14,12 @@ RIM_AdapterLayer(L1) → RIM_DatastoreLayer(L2) → RIM_CapabilityLayer(L3) → 
 ```
 
 ### L1 RIM_AdapterLayer
-`RawDataInput`(型自由 PushI32/PushF/PushU32) → `IRuleResolver.SelectRule` → `IRule.Convert`(正規化)
-→ `IInputClassifier.Classify`(性質判別) → CentralInputPort の3種post。
+`RawDataInput`(型自由な受理点 `Push(id, RawValue, ctx?)` 1本) → `IRuleResolver.SelectRule`
+→ `IRule.Convert`(型・単位の正規化) → `CentralInputPort.Post`。
+性質判別(`IInputClassifier.Classify`)とレーン振り分けは **L2の責務**。
 
 ### L2 RIM_DatastoreLayer
-`CentralInputPort`(3種post・検証) → 3レーン(`FaultInputQueue`/`OperationReportQueue`/`CurrentValueBuffer`)
+`CentralInputPort`(`Post`1本・Classifyで振り分け・検証) → 3レーン(`FaultInputQueue`/`OperationReportQueue`/`CurrentValueBuffer`)
 → 3Dispatcher(`FaultDispatcher`/`OperationDispatcher`/`CurrentValueDispatcher`)
 → 3Registry(`FaultRegistry`/`OperationRegistry`/`CurrentValueRegistry`) ← `MachineRegistry`(集約)
 → `MachineSnapshotReader.Capture`。`Registry.Apply`→変更ドメイン、`notifyUpdated(RegistryDomainSet)`。
@@ -50,10 +51,11 @@ Event / 優先度Critical・High は Rate Limit 除外。
 ## 設計判断(仕様TBDの確定)
 - 更新通知後の取得範囲: PrintCap 等の横断依存のため全ドメインを capture。
 - 優先度ポリシー: Error/非Safety=Critical、Maint/消耗品少=High、Job/Env変化=Normal、他=Low。
-- 閾値: 温度>60℃、湿度20-80%、消耗品<10%、メンテカウンタ>10000。
+- 閾値: 温度>60℃(=333.15K)、湿度20-80%、消耗品<10%、メンテカウンタ>10000。
 - 喪失検知: Queue満杯を kErrPost で検知。フル再同期プロトコルは今後(hook)。
 - Rate Limit: 最小間隔既定0(無効)。トレーリングエッジ配信は周期タスク導入時に実装(hook)。
-- C API(extern"C")は持たない(旧`old/rim/` の役割)。
+- 温度の内部統一表現は絶対温度(ケルビン)×100。入力単位は `context.unit` で分岐する。
+- C API(extern"C")は `capi/` が提供する(下記)。
 
 ## ビルド・テスト
 ```sh
@@ -106,6 +108,7 @@ rim_printer_status_t st = rim_get_status(RIM_DOMAIN_CURRENT_ALL, true);
 - `RawValue`(構造体・配列を受け付ける型自由な生値)は本物のC `union`として`rim_raw_value_t`に
   対応する。`std::optional`を持つ型(`DataContext`/`CapabilitySet`/`MachineSnapshot`等)は
   `has_xxx`という`bool`フィールド付きのプレーン構造体に平坦化してある。
+
 ### capi のテスト
 
 `capi/test/*.c` は**Cコンパイラ(gcc)でビルド**し、C++実装とリンクして実行する。
@@ -122,8 +125,34 @@ ctest --test-dir build -R rim_capi_smoke --output-on-failure
 |---|---|
 | `rim_capi_test.h` | 最小ハーネス(`RIM_EXPECT_*`)。失敗しても続行し件数を集計する |
 | `rim_capi_smoke.c` | 呼び出し可否・購読上限・不正引数の扱い |
-| `rim_capi_value_test.c` | **値の保証**(double経路の精度・切り捨て・clamp) |
+| `rim_capi_value_test.c` | **値の保証**(単位正規化・double経路の精度・切り捨て・clamp) |
 | `rim_capi_perf_test.c` | **性能測定** |
+
+#### 単位の正規化(context による分岐)
+
+同じ id へ**異なる単位**で値が届く場合、id を増やさず `context.unit` で分岐する。
+Rule が内部統一表現へ換算するため、DataStore 以降は単位を意識しない。
+
+```c
+rim_context_t ctx = {0};
+ctx.has_unit = true;
+
+ctx.unit = RIM_UNIT_CELSIUS;      rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(25.0),  &ctx);
+ctx.unit = RIM_UNIT_FAHRENHEIT;   rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(77.0),  &ctx);
+rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(298.15), NULL);  /* 単位省略=正規化済み扱い */
+```
+
+温度の内部統一表現は**絶対温度(ケルビン)×100**(`ValueType::kKelvinX100`)。上の3つはいずれも
+298.15K → `29815` として格納される。
+
+| `ctx.unit` | 換算 |
+|---|---|
+| `RIM_UNIT_CELSIUS` | K = C + 273.15 |
+| `RIM_UNIT_FAHRENHEIT` | K = (F − 32) × 5/9 + 273.15 |
+| `RIM_UNIT_NORMALIZED` / 省略 | 換算しない(既にケルビンとみなす) |
+
+> 華氏→摂氏の `(F−32)×5/9` は割り切れないため、`TemperatureRule` **のみ四捨五入**する
+> (他のRuleは0方向への切り捨て)。例: 100°F = 310.9277…K → `31093`。
 
 #### 値の保証: double 経路の精度(実測で確認済み)
 
@@ -135,8 +164,8 @@ ctest --test-dir build -R rim_capi_smoke --output-on-failure
   および全32ビット位置の往復テスト)。
 - **値落ちの実体は`double`ではなく Rule 内の`static_cast`による切り捨て**。小数は四捨五入
   されず**0方向へ切り捨て**られる(`ValueTruncatesTowardZeroBeyondResolution`)。
-  例: 温度`25.678`→`2567`(2568ではない)、`-0.005`→`0`、インク残量`50.9`→`50`。
-  x100固定小数の分解能(0.01)より細かい桁は保持されない。
+  例: インク残量`50.9`→`50`、`99.99`→`99`。分解能より細かい桁は保持されない。
+  (温度の `TemperatureRule` のみ例外的に四捨五入する。上記「単位の正規化」参照)
 - ⚠️ **既知の穴**: 型の範囲外入力(負値→uint32、巨大値、NaN/Inf)は C/C++ 規格上 **UB** で、
   現状どの Rule も範囲チェックをしていない。実測挙動を
   `ValueOutOfRangeIsUncheckedKnownGap`に記録して可視化しているが、この挙動に依存しては

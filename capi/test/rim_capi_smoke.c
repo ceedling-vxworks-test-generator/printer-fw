@@ -24,7 +24,7 @@ RIM_TEST(SmokeSubscribeAndDispatch)
     RIM_EXPECT(sub >= 0);
 
     g_cb_count = 0;
-    RIM_EXPECT_EQ_I(rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(25.0), NULL), RIM_OK);
+    RIM_EXPECT_EQ_I(rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(298.15), NULL), RIM_OK);
     rim_dispatch();
     RIM_EXPECT(g_cb_count > 0);
 
@@ -50,6 +50,7 @@ RIM_TEST(SmokeRawValueFactories)
 RIM_TEST(SmokeFaultWithContextAndAccessor)
 {
     rim_context_t ctx;
+    ctx.has_unit        = false;
     ctx.has_fault_state = true;
     ctx.fault_state     = RIM_FAULT_RAISED;
     ctx.has_scale_x1000 = false;

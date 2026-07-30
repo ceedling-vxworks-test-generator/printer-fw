@@ -28,13 +28,13 @@ public:
 };
 
 // --- テスト用 Rule 群(scalar / array / struct) ---
-class ScalarCelsiusRule final : public IRule
+class ScalarKelvinRule final : public IRule
 {
 public:
     std::optional<RIMValue> Convert(const RawValue& raw, const DataContext&) const override
     {
         if (raw.kind != RawValue::Kind::kScalar) return std::nullopt;
-        return RIMValue::CelsiusX100(static_cast<std::int32_t>(raw.scalar * 100.0));
+        return RIMValue::KelvinX100(static_cast<std::int32_t>(raw.scalar * 100.0));
     }
 };
 
@@ -92,7 +92,7 @@ public:
     const IRule* SelectRule(RIMDataId id) const override
     {
         switch (id) {
-            case RIMDataId::kTemperature: return &celsius_;    // scalar
+            case RIMDataId::kTemperature: return &kelvin_;     // scalar
             case RIMDataId::kHumidity:    return &arrayAvg_;   // array
             case RIMDataId::kPressure:    return &structPct_;  // struct
             case RIMDataId::kFaultCode:   return &fault_;      // scalar
@@ -101,7 +101,7 @@ public:
         }
     }
 private:
-    ScalarCelsiusRule   celsius_;
+    ScalarKelvinRule    kelvin_;
     ArrayAvgPercentRule arrayAvg_;
     StructPercentRule   structPct_;
     ScalarFaultRule     fault_;
@@ -123,8 +123,8 @@ TEST(AdapterTest, ScalarPushIsNormalizedAndPosted)
 
     ASSERT_EQ(f.port.posted.size(), 1u);
     EXPECT_EQ(f.port.posted[0].id, RIMDataId::kTemperature);
-    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kCelsiusX100);
-    EXPECT_EQ(f.port.posted[0].value.u.celsiusX100, 2500);
+    EXPECT_EQ(f.port.posted[0].value.type, ValueType::kKelvinX100);
+    EXPECT_EQ(f.port.posted[0].value.u.kelvinX100, 2500);
 }
 
 TEST(AdapterTest, ArrayPushIsNormalized)

@@ -38,6 +38,10 @@ static_assert(static_cast<int>(RIM_FAULT_ALL_CLEARED)    == static_cast<int>(rim
 static_assert(static_cast<int>(RIM_FAULT_UPDATED_HEAL)   == static_cast<int>(rim::FaultState::kUpdatedHeal),   "rim_fault_state_t drifted from FaultState");
 static_assert(static_cast<int>(RIM_FAULT_UPDATED_ACTIVE) == static_cast<int>(rim::FaultState::kUpdatedActive), "rim_fault_state_t drifted from FaultState");
 
+static_assert(static_cast<int>(RIM_UNIT_NORMALIZED) == static_cast<int>(rim::SourceUnit::kNormalized), "rim_source_unit_t drifted from SourceUnit");
+static_assert(static_cast<int>(RIM_UNIT_CELSIUS)    == static_cast<int>(rim::SourceUnit::kCelsius),    "rim_source_unit_t drifted from SourceUnit");
+static_assert(static_cast<int>(RIM_UNIT_FAHRENHEIT) == static_cast<int>(rim::SourceUnit::kFahrenheit), "rim_source_unit_t drifted from SourceUnit");
+
 static_assert(static_cast<int>(RIM_PRIORITY_LOW)      == static_cast<int>(rim::CapabilityPriority::kLow),      "rim_capability_priority_t drifted");
 static_assert(static_cast<int>(RIM_PRIORITY_NORMAL)   == static_cast<int>(rim::CapabilityPriority::kNormal),   "rim_capability_priority_t drifted");
 static_assert(static_cast<int>(RIM_PRIORITY_HIGH)     == static_cast<int>(rim::CapabilityPriority::kHigh),     "rim_capability_priority_t drifted");
@@ -183,6 +187,7 @@ rim_result_t rim_push(rim_id_t id, rim_raw_value_t raw, const rim_context_t* ctx
 
     rim::DataContext cxx_ctx;
     if (ctx) {
+        if (ctx->has_unit)        cxx_ctx.unit       = static_cast<rim::SourceUnit>(ctx->unit);
         if (ctx->has_fault_state) cxx_ctx.faultState = static_cast<rim::FaultState>(ctx->fault_state);
         if (ctx->has_scale_x1000) cxx_ctx.scaleX1000 = ctx->scale_x1000;
         if (ctx->has_key)         cxx_ctx.key        = ctx->key;
@@ -267,7 +272,7 @@ rim_printer_status_t rim_get_status(uint32_t domains, bool include_capability)
 
             if (cv.environment) {
                 d.env_present = true;
-                if (cv.environment->temperatureX100) { d.has_temperature_x100 = true; d.temperature_x100 = *cv.environment->temperatureX100; }
+                if (cv.environment->temperatureKelvinX100) { d.has_temperature_kelvin_x100 = true; d.temperature_kelvin_x100 = *cv.environment->temperatureKelvinX100; }
                 if (cv.environment->humidity)         { d.has_humidity         = true; d.humidity         = *cv.environment->humidity; }
                 if (cv.environment->pressure)         { d.has_pressure         = true; d.pressure         = *cv.environment->pressure; }
             }
