@@ -8,6 +8,8 @@
 #include "CapabilityAccessor.hpp"
 
 #include "StoreInputQueue.hpp"
+#include "QueueInputPort.hpp"
+#include "RawDataInput.hpp"
 #include "ValueStore.hpp"
 #include "AggregateRIMSnapshotReader.hpp"
 #include "DataStoreWorker.hpp"
@@ -26,6 +28,21 @@
 #include "GenericCapabilityPublisher.hpp"
 
 #include "IErrorDefinitionRegistry.hpp"
+
+//
+// C 側ミラーと C++ 側列挙の値がずれていないことをビルド時に検査する。
+// ずれたまま動くと「摂氏として送ったのに華氏として換算される」ような、
+// 実行時まで気付けない不具合になるため。
+//
+static_assert(
+    static_cast<int>(rim::SourceUnit::kNormalized) == RIM_UNIT_NORMALIZED,
+    "rim_source_unit_t と rim::SourceUnit がずれている");
+static_assert(
+    static_cast<int>(rim::SourceUnit::kCelsius) == RIM_UNIT_CELSIUS,
+    "rim_source_unit_t と rim::SourceUnit がずれている");
+static_assert(
+    static_cast<int>(rim::SourceUnit::kFahrenheit) == RIM_UNIT_FAHRENHEIT,
+    "rim_source_unit_t と rim::SourceUnit がずれている");
 
 namespace
 {
@@ -124,6 +141,22 @@ struct RIManagerContext
 
     rim::StoreInputQueue
         storeQueue;
+
+    //
+    // Adapter(L1)
+    //
+    // 受理点は RawDataInput::Push の1本のみ。id -> Rule の対応は Product が
+    // 持つ(PrinterADataProfile のテーブル)。
+    //
+    rim::QueueInputPort
+        inputPort;
+
+    // 規則表は Product が持つ(定義は products/ 側。core は宣言しか知らない)
+    const rim::IRuleResolver*
+        ruleResolver {rim::GetProductRuleResolver()};
+
+    rim::RawDataInput
+        adapter;
 
     rim::CapabilityInputQueue
         capabilityQueue;
@@ -225,7 +258,12 @@ struct RIManagerContext
         errorRegistry {};
 
     RIManagerContext()
-        : snapshotReader(
+        : inputPort(
+            storeQueue)
+        , adapter(
+            inputPort,
+            *ruleResolver)
+        , snapshotReader(
             valueStore)
         , notifyManager(
             mailbox,
@@ -413,12 +451,17 @@ int CopyOut(
     return RI_SUCCESS;
 }
 
-// 試験用投入の共通処理。
-int InjectValue(
+//
+// データ投入の共通処理。
+//
+// **Adapter の受理点(RawDataInput::Push)を通す**。以前はキューへ直接積んで
+// いたため、規則による正規化(単位換算・クランプ)を素通りしていた。
+//
+int InjectRaw(
     RIM_HANDLE handle,
     std::uint16_t dataId,
-    rim::ValueType valueType,
-    const rim::RIMValue& value)
+    double value,
+    const rim_context_t* ctx)
 {
     if (handle == nullptr)
     {
@@ -428,20 +471,35 @@ int InjectValue(
     auto* context =
         ToContext(handle);
 
-    rim::RIMDataItem item{};
+    rim::DataContext dataContext{};
 
-    item.id =
-        static_cast<rim::RIMDataId>(
-            dataId);
+    if (ctx != nullptr)
+    {
+        if (ctx->has_unit)
+        {
+            dataContext.unit =
+                static_cast<rim::SourceUnit>(
+                    ctx->unit);
+        }
 
-    item.valueType = valueType;
+        if (ctx->has_scale_x1000)
+        {
+            dataContext.scaleX1000 =
+                ctx->scale_x1000;
+        }
+    }
 
-    item.value = value;
+    const rim::RIMResult result =
+        context->adapter.Push(
+            static_cast<rim::RIMDataId>(
+                dataId),
+            rim::RawValue::Scalar(
+                value),
+            ctx != nullptr ? &dataContext : nullptr);
 
-    context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return result == rim::RIMResult::kOk
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 }
@@ -783,17 +841,29 @@ int RIManager_SetErrorState(
     return RI_SUCCESS;
 }
 
+int RIManager_Push(
+    RIM_HANDLE handle,
+    uint16_t dataId,
+    double value,
+    const rim_context_t* ctx)
+{
+    return InjectRaw(
+        handle,
+        dataId,
+        value,
+        ctx);
+}
+
 int RIManager_TestInjectDouble(
     RIM_HANDLE handle,
     uint16_t dataId,
     double value)
 {
-    return InjectValue(
+    return InjectRaw(
         handle,
         dataId,
-        rim::ValueType::kDouble,
-        rim::RIMValueFactory::CreateDouble(
-            value));
+        value,
+        nullptr);
 }
 
 int RIManager_TestInjectInt32(
@@ -801,12 +871,12 @@ int RIManager_TestInjectInt32(
     uint16_t dataId,
     int32_t value)
 {
-    return InjectValue(
+    return InjectRaw(
         handle,
         dataId,
-        rim::ValueType::kInt32,
-        rim::RIMValueFactory::CreateInt32(
-            value));
+        static_cast<double>(
+            value),
+        nullptr);
 }
 
 int RIManager_TestInjectBool(
@@ -814,12 +884,11 @@ int RIManager_TestInjectBool(
     uint16_t dataId,
     int value)
 {
-    return InjectValue(
+    return InjectRaw(
         handle,
         dataId,
-        rim::ValueType::kBool,
-        rim::RIMValueFactory::CreateBool(
-            value != 0));
+        value != 0 ? 1.0 : 0.0,
+        nullptr);
 }
 
 }

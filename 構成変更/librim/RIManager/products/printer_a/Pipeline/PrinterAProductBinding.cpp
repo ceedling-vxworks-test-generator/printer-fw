@@ -5,6 +5,7 @@
 #include <new>
 
 #include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
+#include "DataItem/PrinterADataProfile.hpp"
 
 namespace rim
 {
@@ -102,6 +103,14 @@ void DestroyProductCapabilityRuleProvider(
 
         return;
     }
+}
+
+const IRuleResolver* GetProductRuleResolver()
+{
+    // 規則表は状態を持たない定数なので、単一のインスタンスを共有すれば足りる。
+    static const PrinterADataProfile profile;
+
+    return &profile;
 }
 
 } // namespace rim

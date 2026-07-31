@@ -1,4 +1,12 @@
 #pragma once
+
+//
+// PrinterAdapter - PrinterA のハードウェアを叩く実アダプタ。
+//
+// 読み出す先(RIMDataId::kTemperatureSensorA など)を知っているのは機種だけなので、
+// core ではなく products に置く。core は IHardwareAdapter という抽象しか知らない。
+//
+
 #include "AdapterDispatcher.hpp"
 #include "IHardwareAdapter.hpp"
 namespace rim {

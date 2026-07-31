@@ -2,6 +2,7 @@
 
 #include "ErrorRepository.hpp"
 #include "ICapabilityRuleProvider.hpp"
+#include "IRuleResolver.hpp"
 
 namespace rim
 {
@@ -37,5 +38,18 @@ ICapabilityRuleProvider* CreateProductCapabilityRuleProvider(
 // 上で払い出したものを返却する。nullptr を渡してもよい(何もしない)。
 void DestroyProductCapabilityRuleProvider(
     ICapabilityRuleProvider* provider);
+
+//
+// この Product の「データ id -> 正規化規則」の対応表を返す。
+//
+// Adapter(core)は id を渡して規則を引くだけで、どの id にどの規則が付くかを
+// 知らない。対応表は機種ごとに違うため products 側で定義する。
+//
+// 表は静的な定数なので、インスタンスごとに作り分ける必要は無い
+// (Capability 規則と違い、core のサービスへの参照を持たない)。
+// 生成失敗は想定しないが、実装が無い機種では nullptr を返してよい
+// (その場合 Adapter は全ての Push を kErrConvert で弾く)。
+//
+const IRuleResolver* GetProductRuleResolver();
 
 } // namespace rim

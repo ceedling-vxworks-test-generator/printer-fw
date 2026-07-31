@@ -3,11 +3,46 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "rim_types.h"
 #include "rim_capability.h"
+
+/* ------------------------------------------------------------------ */
+/* データ投入時に添える文脈                                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * 生値がどの単位で送られてきたかを示す。
+ *
+ * 同じ id へ摂氏でも華氏でも投入でき、規則が内部統一表現へ正規化する
+ * (単位ごとに id を増やさずに済ませるための仕組み)。
+ * 未指定は RIM_UNIT_NORMALIZED、つまり「既に正規化済み。換算しない」の扱いになる
+ * (単位不明を推測して勝手に換算することはしない)。
+ *
+ * C++ 側 rim::SourceUnit と値が一致していること。ずれたらビルドで検出する
+ * (rim_api.cpp の static_assert)。
+ */
+typedef enum rim_source_unit_t
+{
+    RIM_UNIT_NORMALIZED = 0,   /* 既に正規化済み(換算しない) */
+    RIM_UNIT_CELSIUS    = 1,   /* 摂氏 [degC] */
+    RIM_UNIT_FAHRENHEIT = 2    /* 華氏 [degF] */
+} rim_source_unit_t;
+
+/*
+ * データに添える補足情報。has_xxx が false のフィールドは未指定として扱う。
+ */
+typedef struct rim_context_t
+{
+    bool              has_unit;
+    rim_source_unit_t unit;
+
+    bool              has_scale_x1000;
+    int32_t           scale_x1000;   /* スケール係数 x1000 */
+} rim_context_t;
 
 /*
  * RIManager C API
@@ -130,7 +165,27 @@ int RIManager_SetErrorState(
     int state);
 
 /* ------------------------------------------------------------------ */
-/* データ投入(試験用)                                                  */
+/* データ投入                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Adapter の受理点。
+ *
+ * 値は double 1本で受け、id ごとの規則が内部統一表現へ正規化する
+ * (単位換算・クランプなど)。ctx に単位を添えると、同じ id へ摂氏でも華氏でも
+ * 投入できる。ctx は NULL 可(その場合は既に正規化済みとして扱う)。
+ *
+ * double で受けても int32 / uint32 の値は正確に往復する(仮数部53ビット)。
+ * 精度が落ちるのは 2^53 を超える整数を渡した場合だけである。
+ */
+int RIManager_Push(
+    RIM_HANDLE handle,
+    uint16_t dataId,
+    double value,
+    const rim_context_t* ctx);
+
+/* ------------------------------------------------------------------ */
+/* データ投入(試験用の短縮形)                                          */
 /* ------------------------------------------------------------------ */
 
 /*

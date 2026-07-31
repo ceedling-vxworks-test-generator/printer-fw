@@ -17,6 +17,12 @@ target_include_directories(
 
         ${CMAKE_CURRENT_SOURCE_DIR}
 
+        # RIMDataId.hpp / PrinterARules.hpp のヘッダ注入。
+        # core は #include "RIMDataId.hpp" と名前だけで書いており、
+        # 実体はこのパス解決で機種側から供給される。
+        ${CMAKE_CURRENT_SOURCE_DIR}/DataItem
+        ${CMAKE_CURRENT_SOURCE_DIR}/Adapter
+
         ${PROJECT_SOURCE_DIR}/include
 
         ${PROJECT_SOURCE_DIR}/core/common/include
