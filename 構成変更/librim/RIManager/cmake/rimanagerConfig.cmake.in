@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+# rimanager の CMake パッケージ設定。
+#   find_package(rimanager REQUIRED)
+#   target_link_libraries(mainFW PRIVATE rimanager::rimanager)
+include("${CMAKE_CURRENT_LIST_DIR}/rimanagerTargets.cmake")
+
+check_required_components(rimanager)
