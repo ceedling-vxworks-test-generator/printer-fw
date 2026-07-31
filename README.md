@@ -1,220 +1,111 @@
-# printer-fw — ReactiveInfoManager (C++ OO / 旧ex仕様③準拠)
+# printer-fw — ReactiveInfoManager (RIM)
 
-`old/ex/` の各レイヤ仕様③(2026-07-07 正)を **C++ OO ＋ framework/devices 構造**で実装したもの。
-本ディレクトリ構成が printer-fw の正式なコード。旧`pf_*`フレームワーク一式は `old/` を参照。
-機器のセンサ値を受理・正規化し、性質別にステージングして Snapshot を作り、8種Capabilityを
-生成して購読者へ配信する。
+印刷機の組込みソフトウェア向け **共通フレームワーク**。複数機種へ流用できる、
+長期運用可能なライブラリ。機種依存部(`products/`)と機種非依存部(`core/`)を
+明確に分離する。
 
-## レイヤ構成(仕様③)
+- **実装言語**: 組込み向け C++17。例外・RTTI・動的確保を使わない
+  (`-fno-exceptions -fno-rtti`、定常運転中の動的確保ゼロを実測で確認)。
+- **公開 API**: `extern "C"` の C ABI(`include/rim_api.h`)。C 言語の mainFW から
+  そのままリンク・呼び出しできる。
+- **スレッドモデル**: RIM 内で完結する。`RIManager_Start()` でワーカスレッドを
+  3本(Datastore/Capability/Publisher)起動し、呼び出し側は `Push` するだけでよい。
+
+過去の設計変遷は `old/`(最初期の5レイヤ+Observer方式)と
+`移行計画.md`(現行アーキテクチャへ至る過程の記録)を参照。
+
+## アーキテクチャ
 
 ```
-RIM_AdapterLayer(L1) → RIM_DatastoreLayer(L2) → RIM_CapabilityLayer(L3) → RIM_PublisherLayer(L4)
-                              │
-                              └→ Accessor Layer(隣接・Pull参照)
+Adapter(L1) → Datastore(L2) → Capability(L3) → Publisher(L4)
+                                    │
+                                    └→ Accessor(隣接・Pull参照)
 ```
 
-### L1 RIM_AdapterLayer
-`RawDataInput`(型自由な受理点 `Push(id, RawValue, ctx?)` 1本) → `IRuleResolver.SelectRule`
-→ `IRule.Convert`(型・単位の正規化) → `CentralInputPort.Post`。
-性質判別(`IInputClassifier.Classify`)とレーン振り分けは **L2の責務**。
+### L1 Adapter — `core/adapter/`
 
-### L2 RIM_DatastoreLayer
-`CentralInputPort`(`Post`1本・Classifyで振り分け・検証) → 3レーン(`FaultInputQueue`/`OperationReportQueue`/`CurrentValueBuffer`)
-→ 3Dispatcher(`FaultDispatcher`/`OperationDispatcher`/`CurrentValueDispatcher`)
-→ 3Registry(`FaultRegistry`/`OperationRegistry`/`CurrentValueRegistry`) ← `MachineRegistry`(集約)
-→ `MachineSnapshotReader.Capture`。`Registry.Apply`→変更ドメイン、`notifyUpdated(RegistryDomainSet)`。
-ドメイン単位 mutex。RegistryDomain は Fault/Operation/Environment/Consumable/Safety/Maintenance/Health。
+外部から入る受理点は `RawDataInput::Push(id, RawValue, ctx?)` の1本のみ。
+`RawValue` はスカラ/構造体/配列を非所有参照で受ける(コピーしない)。
+`IRuleResolver::SelectRule(id)` が機種側のテーブルから規則を引き、
+`IRule::Convert` が単位換算・クランプ等の正規化を行う。
 
-### L3 RIM_CapabilityLayer
-`CapabilityManager`(IRegistryUpdateNotifier実装) が更新通知→Snapshot取得→`ICapabilityBuilder.Build`
-→`CapabilityDiffChecker`(意味的差分)→`CapabilityPriorityChecker`(優先度)→`IPublisher.Notify`。
-8種Capability(Error/Job/Env/Maint/Health/Safety/Consumable/Print)。ErrorCap/JobCap変化は Event 通知。
+同じ `id` へ摂氏でも華氏でも投入でき、どちらで来たかは
+`DataContext::unit` で判別する(id を単位ごとに増やさない)。
 
-### L4 RIM_PublisherLayer
-`PublishEngine`(IPublisher実装) が トリガ評価・Rate Limit → `SubscriptionBroker`(関心Cap一致)
-→ `StateRepository`(購読者ごと配信的差分) → Push配信。5トリガ(OnChange/Periodic/Threshold/Event/Initial)。
-Event / 優先度Critical・High は Rate Limit 除外。
+### L2 Datastore — `core/store/` `core/storage/`
 
-### Accessor Layer
-`PrinterStatusReader.GetPrinterStatus` → `PrinterStatus{data, capability}`。参照専用・Pull・状態非保持。
+`ICentralInputPort::Post` で受けた項目を、`DataContext::faultState` の
+有無で「現在値」か「異常報告」かに振り分ける(判別は L2 の責務)。
+現在値は `ValueStore`(id 添字の固定長配列)へ、異常報告は
+`FaultApplier` 経由で `ErrorRepository` へ入る。レーンは1本のまま。
 
-## framework / devices
+`ValueStore` から作った `RIMSnapshot` を Capability 段のキューへ送る。
 
-- **framework/**(機種共通): 全レイヤ機構・共通型・抽象IF(IRule/IRuleResolver/IInputClassifier/
-  IRegistryUpdateNotifier/IMachineSnapshotReader/ICapabilityBuilder/IPublisher/ISubscriber)・
-  固定容量コンテナ・`RIMSystem`(結線)。
-- **devices/printer_a/**(機種可変): `RIMDataId`(id一覧)、`PrinterADataProfile`(SelectRule/Classify)、
-  Rule群、`PrinterACapabilityBuilder`(8種判定)。`RIMDataId` は devices 側の定義で、framework は
-  ヘッダ名にのみ依存する(機種展開してもframework無改修。詳細は`docs/adapter/02_詳細設計.md`§1.1)。
-- **devices/_skeleton/**: 新機種テンプレ(ビルド対象外・README参照)。
+### L3 Capability — `core/capability/`
 
-## 設計判断(仕様TBDの確定)
-- 更新通知後の取得範囲: PrintCap 等の横断依存のため全ドメインを capture。
-- 優先度ポリシー: Error/非Safety=Critical、Maint/消耗品少=High、Job/Env変化=Normal、他=Low。
-- 閾値: 温度>60℃(=333.15K)、湿度20-80%、消耗品<10%、メンテカウンタ>10000。
-- 喪失検知: Queue満杯を kErrPost で検知。フル再同期プロトコルは今後(hook)。
-- Rate Limit: 最小間隔既定0(無効)。トレーリングエッジ配信は周期タスク導入時に実装(hook)。
-- 温度の内部統一表現は絶対温度(ケルビン)×100。入力単位は `context.unit` で分岐する。
-- C API(extern"C")は `capi/` が提供する(下記)。
+Capability は **型消去**されている(`CapabilityId` + `CapabilityPayload` の
+不透明バイト列)。Core は Capability の中身を一切知らない。規則
+(`ICapabilityRule`)は機種側(`products/<機種>/CapabilityItem/`)が持ち、
+`ICapabilityRuleProvider` 経由で Core の `CapabilityEvaluator` へ登録される。
 
-## ビルド・テスト
+生成した値は `CapabilityStore` に保持され、`CapabilityChangeTracker` が
+前回値とのバイト比較で変化を検知する(**値が変化したときだけ配信**する。
+生値が動いても Capability が変わらなければ配信は起きない)。
+
+### L4 Publisher — `core/publisher/`
+
+`SubscriberMailbox`(ポーリング購読用、固定長リング)と
+`CallbackSubscriptionRegistry`(コールバック購読用)の両方に配信する。
+コールバックは `std::function` ではなく関数ポインタ + `userData`
+(動的確保も例外も経路に持ち込まない)。
+
+### core ↔ products の接続
+
+`RIMDataId`(データ種別)と Capability の規則は **機種側にしかない**。
+Core は `#include "RIMDataId.hpp"` のように名前だけを知っており、実体は
+ビルド時のインクルードパス解決で機種側から供給される(ヘッダ注入。
+`FreeRTOSConfig.h` と同じ考え方)。関数の解決は
+`core/common/include/ProductBinding.hpp` で宣言だけ行い、定義は
+`products/<機種>/Pipeline/<機種>ProductBinding.cpp` に置いてリンク時に
+解決する。**`core/` のどのファイルにも機種名は一切現れない。**
+
+新機種を追加するときは `products/skeleton/` を雛形にする。
+
+## ディレクトリ構成
+
+```
+core/                  機種非依存の共通ロジック
+products/printer_a/    PrinterA 固有の定義・規則
+products/skeleton/     新機種を起こすときの雛形
+include/               公開 C API(rim_api.h 等)
+test/                  gtest ベースの単体・結合・E2E・性能試験
+test/capi/             C から実際にリンクして実行する試験(gtest 不使用)
+old/                   最初期の設計(5レイヤ+Observer方式)。参考用に保持
+```
+
+## ビルド
+
 ```sh
-cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure
+cmake -S . -B build -DRIMANAGER_BUILD_TESTS=OFF
+cmake --build build --target rim_capi_smoke
+ctest --test-dir build
 ```
-テスト: Registry(Fault/Operation/CurrentValue) / Capability(Builder/Diff/Priority) / 全系フロー(SystemFlow)。
 
-## mainFW への組み込み(ライブラリ化)
+`RIMANAGER_BUILD_TESTS`(既定: トップレベルビルドなら ON)を有効にすると
+gtest ベースの試験(`rimanager_functional_test` / `rimanager_performance_test`)
+もビルドする。gtest は CMake の `FetchContent` で取得するため、ネットワーク制限
+下では `OFF` にすること(`rim_capi_smoke` はこの設定と独立にビルドできる)。
 
-`rimanager` は `install`/`find_package` に対応した通常のCMakeライブラリとして配布できる。
+### mainFW への組み込み
 
 ```sh
-cmake -S . -B build -DRIMANAGER_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/path/to/prefix
-cmake --build build
-cmake --install build
+cmake --install build --prefix /path/to/prefix
 ```
 
-mainFW側は次のように参照する(`find_package` 経由、または `add_subdirectory`)。
+`find_package(rimanager)` または `pkg-config rimanager` のどちらからでも
+利用できる。
 
 ```cmake
 find_package(rimanager REQUIRED)
 target_link_libraries(mainFW PRIVATE rimanager::rimanager)
 ```
-
-`RIMANAGER_BUILD_TESTS` は既定でトップレベルビルド時のみON(`add_subdirectory()`で組み込まれた
-場合は自動的にOFF)。framework(機種共通)と devices/printer_a(機種固有。`RIMDataId`を含む)の
-公開ヘッダは同じ `include/` 以下へマージしてインストールされるため、mainFW側の
-`#include "adapter/PrinterADataProfile.hpp"` 等はビルド前後で変わらない。
-
-## C言語から呼ぶ場合(`capi/`)
-
-mainFWがC言語の場合、C++実装(上記の`framework`/`devices`)を直接呼ぶことはできない
-(クラス・参照・テンプレート・`std::optional`・名前空間はいずれもC非互換)。`capi/`が
-その上に被せる薄い`extern "C"`シムで、C言語からはこの1ヘッダだけを使う。
-
-```c
-#include "rim_capi.h"
-
-rim_init();
-rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(25.0), NULL);
-rim_dispatch();
-
-rim_subscription_t sub = rim_subscribe(on_capability_changed, NULL, 0 /* 全Capabilityに関心 */);
-rim_printer_status_t st = rim_get_status(RIM_DOMAIN_CURRENT_ALL, true);
-```
-
-- `rim_id_t`(id一覧)は機種固有のため`devices/printer_a/inc/capi/rim_ids.h`が提供する。
-  C++側の`RIMDataId`と整数値が一致していることは`capi/src/rim_capi.cpp`の`static_assert`群が
-  ビルド時に検証する(手書きの2重管理のズレを機械チェック)。
-- `RawValue`(構造体・配列を受け付ける型自由な生値)は本物のC `union`として`rim_raw_value_t`に
-  対応する。`std::optional`を持つ型(`DataContext`/`CapabilitySet`/`MachineSnapshot`等)は
-  `has_xxx`という`bool`フィールド付きのプレーン構造体に平坦化してある。
-
-### capi のテスト
-
-`capi/test/*.c` は**Cコンパイラ(gcc)でビルド**し、C++実装とリンクして実行する。
-gtestに依存しないため`RIMANAGER_BUILD_TESTS`の値に関わらず、トップレベルビルド時は
-既定でビルド・`ctest`登録される(ネットワーク不要)。
-
-```sh
-cmake -S . -B build && cmake --build build --target rim_capi_smoke
-ctest --test-dir build -R rim_capi_smoke --output-on-failure
-./build/rim_capi_smoke     # 直接実行すると性能値も見える
-```
-
-| ファイル | 内容 |
-|---|---|
-| `rim_capi_test.h` | 最小ハーネス(`RIM_EXPECT_*`)。失敗しても続行し件数を集計する |
-| `rim_capi_smoke.c` | 呼び出し可否・購読上限・不正引数の扱い |
-| `rim_capi_value_test.c` | **値の保証**(単位正規化・double経路の精度・切り捨て・clamp) |
-| `rim_capi_perf_test.c` | **性能測定** |
-
-#### 単位の正規化(context による分岐)
-
-同じ id へ**異なる単位**で値が届く場合、id を増やさず `context.unit` で分岐する。
-Rule が内部統一表現へ換算するため、DataStore 以降は単位を意識しない。
-
-```c
-rim_context_t ctx = {0};
-ctx.has_unit = true;
-
-ctx.unit = RIM_UNIT_CELSIUS;      rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(25.0),  &ctx);
-ctx.unit = RIM_UNIT_FAHRENHEIT;   rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(77.0),  &ctx);
-rim_push(RIM_ID_TEMPERATURE, rim_raw_scalar(298.15), NULL);  /* 単位省略=正規化済み扱い */
-```
-
-温度の内部統一表現は**絶対温度(ケルビン)×100**(`ValueType::kKelvinX100`)。上の3つはいずれも
-298.15K → `29815` として格納される。
-
-| `ctx.unit` | 換算 |
-|---|---|
-| `RIM_UNIT_CELSIUS` | K = C + 273.15 |
-| `RIM_UNIT_FAHRENHEIT` | K = (F − 32) × 5/9 + 273.15 |
-| `RIM_UNIT_NORMALIZED` / 省略 | 換算しない(既にケルビンとみなす) |
-
-> 華氏→摂氏の `(F−32)×5/9` は割り切れないため、`TemperatureRule` **のみ四捨五入**する
-> (他のRuleは0方向への切り捨て)。例: 100°F = 310.9277…K → `31093`。
-
-#### 値の保証: double 経路の精度(実測で確認済み)
-
-受理点が`double`1本(`rim_raw_scalar`)なので整数の値落ちが懸念されるが、**`double`自体は
-原因にならない**ことを回帰テストで固定している。
-
-- `double`の仮数部は53bitあるため、**int32/uint32の全域が完全に正確**。`float`(仮数部24bit)
-  では壊れる`2^24+1`のような値も保たれる(`ValueUInt32IsExactThroughDouble`、
-  および全32ビット位置の往復テスト)。
-- **値落ちの実体は`double`ではなく Rule 内の`static_cast`による切り捨て**。小数は四捨五入
-  されず**0方向へ切り捨て**られる(`ValueTruncatesTowardZeroBeyondResolution`)。
-  例: インク残量`50.9`→`50`、`99.99`→`99`。分解能より細かい桁は保持されない。
-  (温度の `TemperatureRule` のみ例外的に四捨五入する。上記「単位の正規化」参照)
-- ⚠️ **既知の穴**: 型の範囲外入力(負値→uint32、巨大値、NaN/Inf)は C/C++ 規格上 **UB** で、
-  現状どの Rule も範囲チェックをしていない。実測挙動を
-  `ValueOutOfRangeIsUncheckedKnownGap`に記録して可視化しているが、この挙動に依存しては
-  ならない(恒久対策は Rule 側での範囲チェック追加。**未対応**)。
-
-#### 性能(参考値・ホスト実測)
-
-実機の性能保証はターゲット上での計測で行うこと。以下はホスト(x86_64/gcc)での相対比較用。
-テストのアサートは「桁が変わる破滅的退行」だけを捕まえる緩い上限にしてある(CI環境の負荷で
-揺れる厳しい閾値は偽陽性になるため)。Debugビルドでは約9倍遅くなる。
-
-| 経路 | Release | 備考 |
-|---|---|---|
-| `rim_push` のみ | ~45 ns/op | 変換＋分類＋バッファ格納 |
-| `rim_push` + `rim_dispatch` | ~170 ns/op | Registry反映・差分判定まで |
-| 同上 + 購読者あり(Capability不変) | ~170 ns/op | **配信は起きない** |
-| 同上 + 毎サイクルCapability変化 | ~260 ns/op | 最悪ケース(配信＋コールバック) |
-| `rim_get_status`(全域+Capability) | ~85 ns/op | 戻り値は336バイトの値返し |
-
-> 「Capability不変なら配信されない」ことをテストで確認している
-> (`PerfDispatchWithSubscriberNoCapabilityChange`)。生値が動いても意味づけ結果が
-> 変わらなければイベントゼロ、という設計契約が実際に効いている。
-> 高頻度で`rim_get_status`をポーリングする用途では、336バイトのコピーが毎回発生する点に注意。
-
-## VSCodeでのデバッグ
-
-`.vscode/tasks.json`・`.vscode/launch.json`に`rim_capi_smoke`用のビルド・デバッグ設定がある。
-`build-debug/`という別ディレクトリを使い、`-DRIMANAGER_BUILD_TESTS=OFF`でgtestのFetchContent
-(ネットワーク要)を避けているため、ネットワーク制限下でもビルド・ブレークポイントでの
-停止が可能(gdb使用、`.c`/`.cpp`どちらのファイルにもブレークポイントを張れる)。
-
-1. VSCodeでこのリポジトリを開く(拡張機能`C/C++`があること)
-2. 実行とデバッグ(Ctrl+Shift+D)から「Debug rim_capi_smoke」を選択して開始
-   (`preLaunchTask`が自動でconfigure・ビルドする)
-3. `capi/src/rim_capi.cpp`や`capi/test/rim_capi_smoke.c`にブレークポイントを置いて確認する
-
-`miDebuggerPath`はLinux(`/usr/bin/gdb`)を既定にしている。macOSでは`MIMode`を`lldb`に変更するか、
-`gdb`のインストール先に合わせて`miDebuggerPath`を書き換えること。
-
-### うまく止まらないとき
-
-- **`warning: gdb failed to set controlling terminal: Operation not permitted` が出て、
-  プログラムが起動しない**
-  gdbがシェル経由でプログラムを起動する際に制御端末を設定できないために起きる
-  (WSL・Dockerコンテナ・devcontainer等の制限された環境で発生する)。`launch.json`の
-  `setupCommands`に`set startup-with-shell off`を入れてあるので通常は回避されるが、
-  それでも出る場合は`"externalConsole": true`も試すこと。
-- **ブレークポイントの丸が灰色の中抜きになる**
-  デバッグ情報とソースの対応が取れていない状態。`build-debug/`を一度削除してから
-  「cmake: configure (Debug)」をやり直す(`CMAKE_BUILD_TYPE`がDebug以外だと`-g`が付かない)。
-- **プログラムの標準出力(`rim_capi_smoke: OK`)が見当たらない**
-  「デバッグコンソール」ではなく、統合ターミナルの`cppdbg: rim_capi_smoke`タブに出力される。

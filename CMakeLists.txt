@@ -4,71 +4,104 @@ endif()
 
 cmake_minimum_required(VERSION 3.20)
 
-project(RIManager_Impl VERSION 0.1.0 LANGUAGES CXX C)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+project(
+    RIManager_Impl
+    VERSION 0.1.0
+    LANGUAGES CXX C)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-# mainFW へ add_subdirectory() で組み込まれた場合(=このプロジェクトがトップレベルでない場合)は、
-# 既定でテストをビルドしない。rimanager 自身の gtest/FetchContent がmainFW側のビルドを
-# 巻き込まないようにするため(ネットワーク制限下のCIでも rimanager 本体は問題なく組み込める)。
+#
+# mainFW へ add_subdirectory() で組み込まれた場合(=このプロジェクトがトップレベルで
+# ない場合)は、既定でテストをビルドしない。rimanager 自身の gtest/FetchContent が
+# mainFW 側のビルドを巻き込まないようにするため(ネットワーク制限下の CI でも
+# rimanager 本体は問題なく組み込める)。
+#
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(RIMANAGER_IS_TOP_LEVEL ON)
 else()
     set(RIMANAGER_IS_TOP_LEVEL OFF)
 endif()
-option(RIMANAGER_BUILD_TESTS "Build rimanager's own unit/integration tests" ${RIMANAGER_IS_TOP_LEVEL})
+
+option(RIMANAGER_BUILD_TESTS "Build rimanager's own unit/integration/e2e/performance tests" ${RIMANAGER_IS_TOP_LEVEL})
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+
+if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(
+        -O0
+        -g
+        --coverage
+    )
+
+    add_link_options(
+        --coverage
+    )
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_subdirectory(
+    core)
+
+add_subdirectory(
+    products/printer_a)
 
 #
-# インクルードルート:
-#   framework/inc          … 機種共通(全レイヤ機構・共通型・抽象IF・固定容量コンテナ)
-#   devices/printer_a/inc  … PrinterA 固有(DataProfile / Rule / CapabilityBuilder /
-#                             datastore/RIMDataId.hpp = id一覧 / capi/rim_ids.h = idのCミラー)
-#   capi/inc                … C言語のmainFWから呼ぶための唯一の公開ヘッダ(rim_capi.h)。
-#                             内部実装はC++のまま、extern "C" な薄いシムを被せる。
-# 各ルート配下でレイヤー接頭辞を維持しているため既存 #include はそのまま解決される。
-# 特に datastore/RIMDataId.hpp / capi/rim_ids.h は framework 側には存在せず devices 側のみが
-# 提供する(framework は型名にのみ依存し、id の中身を知らない。機種展開時はこれらのヘッダを
-# devices/<機種>/inc/ に用意すれば framework は無改修のまま差し替わる)。
-# devices/_skeleton は雛形なのでビルド対象に含めない。
-# install 後は全ルートを1つの include/ 以下へ統合するため、mainFW 側の #include は
-# ビルド前後で書き換え不要(下記 install(DIRECTORY ...) 参照)。
+# rim-core 自身の翻訳単位(RIMDataItem.hpp 経由で RIMDataId.hpp を include するもの)を
+# コンパイルするには、products 側が提供する RIMDataId.hpp / PrinterARules.hpp が
+# 見える必要がある(ヘッダ注入)。
 #
-set(RIM_INCLUDE_DIRS
-    ${PROJECT_SOURCE_DIR}/framework/inc
-    ${PROJECT_SOURCE_DIR}/devices/printer_a/inc
-    ${PROJECT_SOURCE_DIR}/capi/inc
+# rim-core の CMakeLists.txt にも core の C++ コードにも「printer_a」という文字列は
+# 一切現れない。**どの機種向けにビルドするかを知っているのはこの最上位の
+# CMakeLists.txt だけ**であり、そこから rim-core のコンパイルにだけ影響する
+# PRIVATE パスとして渡す(rim-core の公開 IF には出さない。products 側は自分の
+# PUBLIC include で既にこのパスを持っている)。
+#
+target_include_directories(rim-core
+    PRIVATE
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/products/printer_a/DataItem>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/products/printer_a/Adapter>
 )
 
+#
+# rimanager - core と products/printer_a のオブジェクトを1つにまとめた実体の
+# STATIC ライブラリ。消費側(mainFW)は find_package(rimanager) して
+# rimanager::rimanager にリンクすればよい。
+#
+# rim-core と rim-product-printer-a は互いのシンボルを参照し合う
+# (ProductBinding 経由: rim-core の rim_api.cpp が products 側の実装を呼ぶ)。
+# 両方を STATIC アーカイブにすると、リンカがアーカイブを1パスしか処理しない
+# ため、素直な順序ではどちらを先に置いても他方の未解決シンボルが残る
+# (実際に発生することを確認済み)。
+#
+# core/CMakeLists.txt と products/printer_a/CMakeLists.txt を OBJECT ライブラリに
+# しておき、ここで1つの実アーカイブへまとめることで、アーカイブ間の解決順という
+# 問題自体を無くしている(1つのアーカイブ内の相互参照はインデックス経由で解決
+# できるため、複数アーカイブの時のような1パス制限を受けない)。
+#
 add_library(rimanager STATIC)
 add_library(rimanager::rimanager ALIAS rimanager)
 
-target_include_directories(rimanager
+target_link_libraries(rimanager
     PUBLIC
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/framework/inc>
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/devices/printer_a/inc>
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/capi/inc>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-file(GLOB_RECURSE RIM_SOURCES
-    CONFIGURE_DEPENDS
-    framework/src/*.cpp
-    devices/printer_a/src/*.cpp
-    capi/src/*.cpp
-)
-
-target_sources(rimanager
-    PRIVATE
-        ${RIM_SOURCES}
+        rim-core
+        rim-product-printer-a
 )
 
 # ============================================================
 # インストール / エクスポート(mainFW への組み込み・find_package 用)
 # ============================================================
+#
+# rim-core / rim-product-printer-a は OBJECT ライブラリであり、それ自体は
+# ファイルを生成しない(オブジェクトは rimanager の .a に取り込まれる)。
+# それでも rimanager が PUBLIC でリンクしている以上、CMake のターゲットグラフの
+# 整合性のため同じ export set に含める必要がある。
+#
+install(TARGETS rim-core rim-product-printer-a
+    EXPORT rimanagerTargets
+)
 install(TARGETS rimanager
     EXPORT  rimanagerTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -76,20 +109,43 @@ install(TARGETS rimanager
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# 公開ヘッダ: framework(機種共通)と devices/printer_a(機種固有)を同じ include/ 直下へ
-# マージしてインストールする(パス上の衝突なし。datastore/RIMDataId.hpp は devices 側にしか
-# 存在しないため、framework 側の同名ディレクトリへ自然に合流する)。
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/framework/inc/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.hpp"
-)
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/devices/printer_a/inc/
+#
+# 公開ヘッダ: core の全レイヤと products/printer_a を同じ include/ 直下へ
+# マージしてインストールする(ファイル名の衝突が無いことは確認済み)。
+# RIMDataId.hpp は products/printer_a/DataItem 側にしか存在しないため、
+# core 側の include/ に自然に合流する(ヘッダ注入方式)。
+#
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/capi/inc/
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/common/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.h"
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/adapter/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/store/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/storage/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/capability/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/publisher/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/products/printer_a/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
 )
 
 install(EXPORT rimanagerTargets
@@ -125,33 +181,48 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rimanager.pc
 )
 
 # ============================================================
-# rim_capi_smoke — rim_capi.h が実際にC言語から呼べることを検証するCテスト群。
-#   capi/test/*.c : スモーク(呼び出し可否) / 値の保証(double経路の精度) / 性能測定
-# gtest不使用・ネットワーク不要のため、RIMANAGER_BUILD_TESTS(gtestのFetchContentを伴う)とは
-# 独立に、トップレベルビルド時のみ既定でビルドする(ネットワーク制限下でもビルド・デバッグ可能)。
+# rim_capi_smoke — C の公開ヘッダ(rim_api.h)が実際に C から呼べることを検証する
+# C テスト群。gtest 不使用・ネットワーク不要のため、RIMANAGER_BUILD_TESTS
+# (gtest の FetchContent を伴う)とは独立に、トップレベルビルド時のみ既定で
+# ビルドする(ネットワーク制限下でもビルド・デバッグ可能)。
 # ============================================================
 if(RIMANAGER_IS_TOP_LEVEL)
     enable_testing()
 
-    file(GLOB CAPI_TEST_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/capi/test/*.c)
+    file(GLOB CAPI_TEST_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/test/capi/*.c)
 
-    add_executable(rim_capi_smoke ${CAPI_TEST_SOURCES})
-    target_include_directories(rim_capi_smoke PRIVATE
-        ${PROJECT_SOURCE_DIR}/capi/inc
-        ${PROJECT_SOURCE_DIR}/capi/test
-        ${PROJECT_SOURCE_DIR}/devices/printer_a/inc)
-    target_link_libraries(rim_capi_smoke PRIVATE rimanager)
-    # ソースはCだが、rimanager(C++実装)とリンクするため C++ ランタイムでリンクする。
-    set_target_properties(rim_capi_smoke PROPERTIES LINKER_LANGUAGE CXX)
-    add_test(NAME rim_capi_smoke COMMAND rim_capi_smoke)
+    if(CAPI_TEST_SOURCES)
+        add_executable(rim_capi_smoke ${CAPI_TEST_SOURCES})
+
+        target_include_directories(rim_capi_smoke PRIVATE
+            ${PROJECT_SOURCE_DIR}/include
+            ${PROJECT_SOURCE_DIR}/test/capi
+            ${PROJECT_SOURCE_DIR}/products/printer_a)
+
+        target_link_libraries(rim_capi_smoke PRIVATE rimanager)
+
+        # ソースは C だが、rimanager(C++実装)とリンクするため C++ ランタイムでリンクする。
+        set_target_properties(rim_capi_smoke PROPERTIES LINKER_LANGUAGE CXX)
+
+        add_test(NAME rim_capi_smoke COMMAND rim_capi_smoke)
+    endif()
 endif()
 
 # ============================================================
-# テスト(rimanager_test、gtestベース) — RIMANAGER_BUILD_TESTS=ON の時のみ
+# gtest ベースのテスト(RIMANAGER_BUILD_TESTS=ON の時のみ)
 # ============================================================
 if(RIMANAGER_BUILD_TESTS)
     include(CTest)
     enable_testing()
+
+    #
+    # テストは googletest が例外と RTTI を必要とするため、
+    # rim-core から PUBLIC で伝播してくる -fno-exceptions / -fno-rtti を打ち消す。
+    # (打ち消すのはテスト実行ファイルだけで、ライブラリ本体の指定は変わらない)
+    #
+    set(RIM_TEST_ENABLE_EXCEPTIONS
+        -fexceptions
+        -frtti)
 
     include(FetchContent)
 
@@ -163,28 +234,136 @@ if(RIMANAGER_BUILD_TESTS)
 
     FetchContent_MakeAvailable(googletest)
 
-    file(GLOB_RECURSE TEST_SOURCES
+    file(GLOB_RECURSE FUNCTIONAL_TEST_SOURCES
         CONFIGURE_DEPENDS
-        test/**/*.cpp
+
+        test/unit/*.cpp
+        test/unit/**/*.cpp
+
+        test/integration/*.cpp
+        test/integration/**/*.cpp
+
+        test/e2e/*.cpp
+        test/e2e/**/*.cpp
+
+        test/thread/*.cpp
+        test/thread/**/*.cpp
     )
 
-    add_executable(rimanager_test
-        ${TEST_SOURCES}
+    file(GLOB_RECURSE PERFORMANCE_TEST_SOURCES
+        CONFIGURE_DEPENDS
+
+        test/performance/*.cpp
+        test/performance/**/*.cpp
     )
 
-    target_include_directories(rimanager_test
+    add_executable(
+        rimanager_functional_test
+        ${FUNCTIONAL_TEST_SOURCES}
+    )
+
+    add_executable(
+        rimanager_performance_test
+        ${PERFORMANCE_TEST_SOURCES}
+    )
+
+    target_include_directories(
+        rimanager_functional_test
         PRIVATE
             ${PROJECT_SOURCE_DIR}
-            ${RIM_INCLUDE_DIRS}
+
+            # PerformanceTestFixture.hpp / PerformanceStatistics.hpp
+            ${PROJECT_SOURCE_DIR}/test/performance
     )
 
-    target_link_libraries(rimanager_test
+    target_include_directories(
+        rimanager_performance_test
         PRIVATE
-            rimanager
+            ${PROJECT_SOURCE_DIR}
+
+            # PerformanceTestFixture.hpp / PerformanceStatistics.hpp
+            ${PROJECT_SOURCE_DIR}/test/performance
+    )
+
+    target_compile_options(
+        rimanager_functional_test
+        PRIVATE
+            ${RIM_TEST_ENABLE_EXCEPTIONS})
+
+    target_compile_options(
+        rimanager_performance_test
+        PRIVATE
+            ${RIM_TEST_ENABLE_EXCEPTIONS})
+
+    target_link_libraries(
+        rimanager_functional_test
+        PRIVATE
+            rim-core
+            rim-product-printer-a
+            GTest::gtest
+            GTest::gtest_main
+    )
+
+    target_link_libraries(
+        rimanager_performance_test
+        PRIVATE
+            rim-core
+            rim-product-printer-a
             GTest::gtest
             GTest::gtest_main
     )
 
     include(GoogleTest)
-    gtest_discover_tests(rimanager_test)
+
+    gtest_discover_tests(
+        rimanager_functional_test
+    )
+
+    gtest_discover_tests(
+        rimanager_performance_test
+    )
+
+    find_program(LCOV_EXECUTABLE lcov)
+    find_program(GENHTML_EXECUTABLE genhtml)
+
+    if(ENABLE_COVERAGE
+       AND LCOV_EXECUTABLE
+       AND GENHTML_EXECUTABLE)
+
+        add_custom_target(coverage
+
+            # 古いデータ削除
+            COMMAND ${LCOV_EXECUTABLE}
+                --directory .
+                --zerocounters
+
+            # テスト実行
+            COMMAND ${CMAKE_CTEST_COMMAND}
+                --output-on-failure
+
+            # カバレッジ収集
+            COMMAND ${LCOV_EXECUTABLE}
+                --capture
+                --ignore-errors mismatch
+                --directory .
+                --output-file coverage.info
+
+            # 不要コード除外
+            COMMAND ${LCOV_EXECUTABLE}
+                --remove coverage.info
+                '/usr/*'
+                '*/_deps/*'
+                '*/test/*'
+                --output-file coverage.info
+
+            # HTML生成
+            COMMAND ${GENHTML_EXECUTABLE}
+                coverage.info
+                --output-directory coverage_html
+
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+
+            COMMENT "Generating code coverage report"
+        )
+    endif()
 endif()
