@@ -25,7 +25,7 @@ inline void AddDoubleItem(
         RIMValueFactory::CreateDouble(
             value);
 
-    snapshot.items.push_back(item);
+    snapshot.items.PushBack(item);
 }
 
 inline void AddBoolItem(
@@ -43,7 +43,7 @@ inline void AddBoolItem(
         RIMValueFactory::CreateBool(
             value);
 
-    snapshot.items.push_back(item);
+    snapshot.items.PushBack(item);
 }
 
 inline void AddInt32Item(
@@ -61,7 +61,7 @@ inline void AddInt32Item(
         RIMValueFactory::CreateInt32(
             value);
 
-    snapshot.items.push_back(item);
+    snapshot.items.PushBack(item);
 }
 
 inline double GetDouble(

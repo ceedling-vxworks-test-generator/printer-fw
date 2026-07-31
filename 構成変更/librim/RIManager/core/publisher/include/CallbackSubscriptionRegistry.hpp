@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <utility>
 
 #include "CallbackSubscriber.hpp"
 #include "CapabilityConfig.hpp"
@@ -20,25 +19,30 @@ namespace rim
 // Capability の増減で Core は無改修になる。
 //
 // 全静的確保(固定長配列)。上限は kCapabilitySubscriptionMaxCount。
-// ※ std::function は実装によっては動的確保しうる。組込み向けの完全な静的化は
-//    別途 IF ポインタ方式への置換で対応する(非機能要件の項目)。
+// コールバックは std::function ではなく関数ポインタ + userData で保持するため、
+// 購読時も含めて動的確保は一切起きない。
 //
 class CallbackSubscriptionRegistry
 {
 public:
 
     // 指定 Capability の通知を購読する。満杯なら kInvalidSubscriptionId。
-    SubscriptionId Subscribe(CapabilityId id, CapabilityCallback callback)
+    // userData はコールバックへそのまま渡される(Core は中身を見ない)。
+    SubscriptionId Subscribe(
+        CapabilityId id,
+        CapabilityCallbackFn callback,
+        void* userData = nullptr)
     {
-        if (id >= kCapabilityMaxCount)              return kInvalidSubscriptionId;
-        if (!callback)                              return kInvalidSubscriptionId;
+        if (id >= kCapabilityMaxCount)                 return kInvalidSubscriptionId;
+        if (callback == nullptr)                       return kInvalidSubscriptionId;
         if (count_ >= kCapabilitySubscriptionMaxCount) return kInvalidSubscriptionId;
 
         const SubscriptionId subscriptionId = nextId_++;
 
         entries_[count_].subscriptionId = subscriptionId;
         entries_[count_].capabilityId   = id;
-        entries_[count_].callback       = std::move(callback);
+        entries_[count_].callback       = callback;
+        entries_[count_].userData       = userData;
         ++count_;
 
         return subscriptionId;
@@ -52,7 +56,8 @@ public:
 
         for (std::size_t i = 0; i < count_; ++i) {
             if (entries_[i].capabilityId != id) continue;
-            entries_[i].callback(entries_[i].subscriptionId, id, payload);
+            entries_[i].callback(
+                entries_[i].subscriptionId, id, payload, entries_[i].userData);
             ++notified;
         }
 
@@ -65,7 +70,7 @@ public:
             if (entries_[i].subscriptionId != id) continue;
 
             // 末尾を詰める(順序は保証しない)
-            entries_[i] = std::move(entries_[count_ - 1]);
+            entries_[i] = entries_[count_ - 1];
             entries_[count_ - 1] = Entry{};
             --count_;
             return true;
@@ -97,9 +102,10 @@ private:
 
     struct Entry
     {
-        SubscriptionId     subscriptionId{kInvalidSubscriptionId};
-        CapabilityId       capabilityId{kInvalidCapabilityId};
-        CapabilityCallback callback{};
+        SubscriptionId       subscriptionId{kInvalidSubscriptionId};
+        CapabilityId         capabilityId{kInvalidCapabilityId};
+        CapabilityCallbackFn callback{nullptr};
+        void*                userData{nullptr};
     };
 
     SubscriptionId nextId_{1};

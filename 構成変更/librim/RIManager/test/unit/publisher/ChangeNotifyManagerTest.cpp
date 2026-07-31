@@ -6,6 +6,8 @@
 #include "ChangeNotifyManager.hpp"
 #include "SubscriberMailbox.hpp"
 
+#include "test/support/CallbackTestHelper.hpp"
+
 //
 // 変化した Capability を「ポーリング購読者(Mailbox)」と
 // 「コールバック購読者」の両方へ届ける段。
@@ -84,26 +86,12 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    bool called = false;
-
-    double received = 0.0;
+    rim::CapabilityRecorder recorder;
 
     callbackRegistry.Subscribe(
         kSlotA,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload& payload)
-        {
-            called = true;
-
-            const auto* cap =
-                payload.As<SampleCapability>();
-
-            if (cap != nullptr)
-            {
-                received = cap->value;
-            }
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     rim::ChangeNotifyManager manager(
         mailbox,
@@ -114,10 +102,17 @@ TEST(
         Make(42.0));
 
     EXPECT_TRUE(
-        called);
+        recorder.Called());
+
+    const auto* cap =
+        recorder.As<SampleCapability>();
+
+    ASSERT_NE(
+        cap,
+        nullptr);
 
     EXPECT_DOUBLE_EQ(
-        received,
+        cap->value,
         42.0);
 }
 
@@ -130,16 +125,12 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    bool called = false;
+    rim::CapabilityRecorder recorder;
 
     callbackRegistry.Subscribe(
         kSlotB,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload&)
-        {
-            called = true;
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     rim::ChangeNotifyManager manager(
         mailbox,
@@ -150,7 +141,7 @@ TEST(
         Make(1.0));
 
     EXPECT_FALSE(
-        called);
+        recorder.Called());
 }
 
 TEST(
@@ -164,18 +155,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    int callbackCalls = 0;
+    rim::CapabilityRecorder recorder;
 
     for (rim::CapabilityId id = 0; id < 2; ++id)
     {
         callbackRegistry.Subscribe(
             id,
-            [&](rim::SubscriptionId,
-                rim::CapabilityId,
-                const rim::CapabilityPayload&)
-            {
-                ++callbackCalls;
-            });
+            rim::CapabilityRecorder::Callback,
+            &recorder);
     }
 
     rim::ChangeNotifyManager manager(
@@ -186,7 +173,7 @@ TEST(
     manager.Notify(kSlotB, Make(2.0));
 
     EXPECT_EQ(
-        callbackCalls,
+        recorder.calls.load(),
         2);
 
     EXPECT_EQ(

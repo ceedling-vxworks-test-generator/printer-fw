@@ -4,12 +4,18 @@
 
 #include "CallbackSubscriptionRegistry.hpp"
 
+#include "test/support/CallbackTestHelper.hpp"
+
 //
 // コールバック購読。
 //
 // 旧実装は SubscribeEnvironment / SubscribeError / … と Capability ごとに
 // 購読関数と std::vector を持っていた(Capability を増やすたびに Core を改修)。
 // 現在は購読したい CapabilityId を引数で渡す1本にまとまっている。
+//
+// コールバックは std::function ではなく **関数ポインタ + userData** である
+// (暗黙の動的確保と例外送出を経路から外すため)。捕捉付きラムダは渡せないので、
+// 状態は CapabilityRecorder に置いてそのアドレスを userData で渡す。
 //
 
 namespace
@@ -42,17 +48,13 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
-    bool called = false;
+    rim::CapabilityRecorder recorder;
 
     const auto id =
         registry.Subscribe(
             kSlotA,
-            [&](rim::SubscriptionId,
-                rim::CapabilityId,
-                const rim::CapabilityPayload&)
-            {
-                called = true;
-            });
+            rim::CapabilityRecorder::Callback,
+            &recorder);
 
     EXPECT_NE(
         id,
@@ -65,7 +67,7 @@ TEST(
         1U);
 
     EXPECT_TRUE(
-        called);
+        recorder.Called());
 }
 
 TEST(
@@ -74,47 +76,35 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
-    rim::SubscriptionId receivedSubscription =
-        rim::kInvalidSubscriptionId;
-
-    rim::CapabilityId receivedCapability =
-        rim::kInvalidCapabilityId;
-
-    std::int32_t receivedValue = 0;
+    rim::CapabilityRecorder recorder;
 
     const auto id =
         registry.Subscribe(
             kSlotA,
-            [&](rim::SubscriptionId subscription,
-                rim::CapabilityId capability,
-                const rim::CapabilityPayload& payload)
-            {
-                receivedSubscription = subscription;
-                receivedCapability   = capability;
-
-                const auto* cap =
-                    payload.As<SampleCapability>();
-
-                if (cap != nullptr)
-                {
-                    receivedValue = cap->value;
-                }
-            });
+            rim::CapabilityRecorder::Callback,
+            &recorder);
 
     registry.Notify(
         kSlotA,
         Make(7));
 
     EXPECT_EQ(
-        receivedSubscription,
+        recorder.lastSubscription.load(),
         id);
 
     EXPECT_EQ(
-        receivedCapability,
+        recorder.lastCapability.load(),
         kSlotA);
 
+    const auto* cap =
+        recorder.As<SampleCapability>();
+
+    ASSERT_NE(
+        cap,
+        nullptr);
+
     EXPECT_EQ(
-        receivedValue,
+        cap->value,
         7);
 }
 
@@ -124,33 +114,25 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
-    int aCalls = 0;
-    int bCalls = 0;
+    rim::CapabilityRecorder a;
+    rim::CapabilityRecorder b;
 
     registry.Subscribe(
         kSlotA,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload&)
-        {
-            ++aCalls;
-        });
+        rim::CapabilityRecorder::Callback,
+        &a);
 
     registry.Subscribe(
         kSlotB,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload&)
-        {
-            ++bCalls;
-        });
+        rim::CapabilityRecorder::Callback,
+        &b);
 
     registry.Notify(
         kSlotA,
         Make(1));
 
-    EXPECT_EQ(aCalls, 1);
-    EXPECT_EQ(bCalls, 0);
+    EXPECT_EQ(a.calls.load(), 1);
+    EXPECT_EQ(b.calls.load(), 0);
 }
 
 TEST(
@@ -159,18 +141,14 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
-    int calls = 0;
+    rim::CapabilityRecorder recorder;
 
     for (int i = 0; i < 3; ++i)
     {
         registry.Subscribe(
             kSlotA,
-            [&](rim::SubscriptionId,
-                rim::CapabilityId,
-                const rim::CapabilityPayload&)
-            {
-                ++calls;
-            });
+            rim::CapabilityRecorder::Callback,
+            &recorder);
     }
 
     EXPECT_EQ(
@@ -179,7 +157,9 @@ TEST(
             Make(1)),
         3U);
 
-    EXPECT_EQ(calls, 3);
+    EXPECT_EQ(
+        recorder.calls.load(),
+        3);
 }
 
 TEST(
@@ -188,17 +168,13 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
-    bool called = false;
+    rim::CapabilityRecorder recorder;
 
     const auto id =
         registry.Subscribe(
             kSlotA,
-            [&](rim::SubscriptionId,
-                rim::CapabilityId,
-                const rim::CapabilityPayload&)
-            {
-                called = true;
-            });
+            rim::CapabilityRecorder::Callback,
+            &recorder);
 
     EXPECT_TRUE(
         registry.Unsubscribe(
@@ -209,7 +185,7 @@ TEST(
         Make(1));
 
     EXPECT_FALSE(
-        called);
+        recorder.Called());
 }
 
 TEST(
@@ -230,25 +206,19 @@ TEST(
     // 内部で末尾を詰めて削除するため、残りが壊れないことを確認する。
     rim::CallbackSubscriptionRegistry registry;
 
-    int remainingCalls = 0;
+    rim::CapabilityRecorder removed;
+    rim::CapabilityRecorder remaining;
 
     const auto first =
         registry.Subscribe(
             kSlotA,
-            [&](rim::SubscriptionId,
-                rim::CapabilityId,
-                const rim::CapabilityPayload&)
-            {
-            });
+            rim::CapabilityRecorder::Callback,
+            &removed);
 
     registry.Subscribe(
         kSlotA,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload&)
-        {
-            ++remainingCalls;
-        });
+        rim::CapabilityRecorder::Callback,
+        &remaining);
 
     ASSERT_TRUE(
         registry.Unsubscribe(
@@ -259,8 +229,11 @@ TEST(
         Make(1));
 
     EXPECT_EQ(
-        remainingCalls,
+        remaining.calls.load(),
         1);
+
+    EXPECT_FALSE(
+        removed.Called());
 
     EXPECT_EQ(
         registry.Count(),
@@ -269,14 +242,15 @@ TEST(
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    RejectsEmptyCallback)
+    RejectsNullCallback)
 {
     rim::CallbackSubscriptionRegistry registry;
 
     EXPECT_EQ(
         registry.Subscribe(
             kSlotA,
-            rim::CapabilityCallback{}),
+            nullptr,
+            nullptr),
         rim::kInvalidSubscriptionId);
 }
 
@@ -286,6 +260,8 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
+    rim::CapabilityRecorder recorder;
+
     const rim::CapabilityId outOfRange =
         static_cast<rim::CapabilityId>(
             rim::kCapabilityMaxCount);
@@ -293,11 +269,8 @@ TEST(
     EXPECT_EQ(
         registry.Subscribe(
             outOfRange,
-            [](rim::SubscriptionId,
-               rim::CapabilityId,
-               const rim::CapabilityPayload&)
-            {
-            }),
+            rim::CapabilityRecorder::Callback,
+            &recorder),
         rim::kInvalidSubscriptionId);
 }
 
@@ -308,6 +281,8 @@ TEST(
     // 固定容量なので、満杯になったら採番失敗を返す(黙って伸びない)。
     rim::CallbackSubscriptionRegistry registry;
 
+    rim::CapabilityRecorder recorder;
+
     for (std::size_t i = 0;
          i < rim::kCapabilitySubscriptionMaxCount;
          ++i)
@@ -315,22 +290,16 @@ TEST(
         ASSERT_NE(
             registry.Subscribe(
                 kSlotA,
-                [](rim::SubscriptionId,
-                   rim::CapabilityId,
-                   const rim::CapabilityPayload&)
-                {
-                }),
+                rim::CapabilityRecorder::Callback,
+                &recorder),
             rim::kInvalidSubscriptionId);
     }
 
     EXPECT_EQ(
         registry.Subscribe(
             kSlotA,
-            [](rim::SubscriptionId,
-               rim::CapabilityId,
-               const rim::CapabilityPayload&)
-            {
-            }),
+            rim::CapabilityRecorder::Callback,
+            &recorder),
         rim::kInvalidSubscriptionId);
 }
 
@@ -340,29 +309,22 @@ TEST(
 {
     rim::CallbackSubscriptionRegistry registry;
 
+    rim::CapabilityRecorder recorder;
+
     registry.Subscribe(
         kSlotA,
-        [](rim::SubscriptionId,
-           rim::CapabilityId,
-           const rim::CapabilityPayload&)
-        {
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     registry.Subscribe(
         kSlotB,
-        [](rim::SubscriptionId,
-           rim::CapabilityId,
-           const rim::CapabilityPayload&)
-        {
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     registry.Subscribe(
         kSlotB,
-        [](rim::SubscriptionId,
-           rim::CapabilityId,
-           const rim::CapabilityPayload&)
-        {
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     EXPECT_EQ(
         registry.CountFor(kSlotA),

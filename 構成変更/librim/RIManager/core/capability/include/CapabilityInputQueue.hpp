@@ -1,100 +1,22 @@
 #pragma once
 
-#include <mutex>
-#include <queue>
-#include <condition_variable>
-
+#include "FixedQueue.hpp"
+#include "RIMConfig.hpp"
 #include "RIMSnapshot.hpp"
 
 namespace rim
 {
 
-class CapabilityInputQueue
-{
-public:
+//
+// Datastore 段から Capability 段へ Snapshot を渡すキュー。
+//
+// 以前は std::queue + mutex + condition_variable を手書きしており、
+// **push のたびにノードを動的確保**していた(定常運転中にヒープを触る)。
+// 固定容量リング(FixedQueue)へ置き換えて確保をゼロにしてある。
+//
+// 満杯時は最も古いものを捨てて最新を残す。捨てたことは DroppedCount() で
+// 観測できるので、消費が追いついていないことを検知できる。
+//
+using CapabilityInputQueue = FixedQueue<RIMSnapshot, kCapabilityQueueDepth>;
 
-    void Push(
-        const RIMSnapshot& snapshot)
-    {
-        std::lock_guard<std::mutex>
-            lock(mutex_);
-
-        queue_.push(
-            snapshot);
-
-        cv_.notify_one();
-
-    }
-
-    bool TryPop(
-        RIMSnapshot& snapshot)
-    {
-        std::lock_guard<std::mutex>
-            lock(mutex_);
-
-        if (queue_.empty())
-        {
-            return false;
-        }
-
-        snapshot =
-            queue_.front();
-
-        queue_.pop();
-
-        return true;
-    }
-
-    bool WaitAndPop(
-        RIMSnapshot& snapshot)
-    {
-        std::unique_lock<std::mutex>
-            lock(mutex_);
-
-        cv_.wait(
-            lock,
-            [this]
-            {
-                return shutdown_
-                    || !queue_.empty();
-            });
-
-        if (shutdown_
-            && queue_.empty())
-        {
-            return false;
-        }
-
-        snapshot =
-            queue_.front();
-
-        queue_.pop();
-
-        return true;
-    }
-
-    void Shutdown()
-    {
-        {
-            std::lock_guard<std::mutex>
-                lock(mutex_);
-
-            shutdown_ = true;
-        }
-
-        cv_.notify_all();
-    }
-
-private:
-
-    std::mutex mutex_;
-
-    std::condition_variable cv_;
-
-    bool shutdown_{false};
-
-    std::queue<RIMSnapshot>
-        queue_;
-};
-
-}
+} // namespace rim

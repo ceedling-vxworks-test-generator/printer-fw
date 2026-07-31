@@ -5,6 +5,8 @@
 #include "CapabilityStore.hpp"
 #include "ChangeNotifyManager.hpp"
 #include "GenericCapabilityPublisher.hpp"
+
+#include "test/support/CallbackTestHelper.hpp"
 #include "PublishManager.hpp"
 #include "SubscriberMailbox.hpp"
 
@@ -36,20 +38,16 @@ TEST(
     rim::CapabilityPublisherRegistry
         publisherRegistry;
 
-    rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
+    rim::StorePublishBinding binding
+    {
+        &store,
+        &notifyManager,
+        rim::kCapEnvironment
+    };
 
-            if (store.TryGet(
-                    rim::kCapEnvironment,
-                    payload))
-            {
-                notifyManager.Notify(
-                    rim::kCapEnvironment,
-                    payload);
-            }
-        });
+    rim::GenericCapabilityPublisher publisher(
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     publisherRegistry.Register(
         rim::kCapEnvironment,

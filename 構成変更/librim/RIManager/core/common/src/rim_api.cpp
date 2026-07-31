@@ -33,6 +33,47 @@ namespace
 struct RIManagerContext;
 
 //
+// CallbackSlot - C の {コールバック, userData} の組を保持する枠。
+//
+// Core の購読 IF は「関数ポインタ + userData(1個)」なので、C 側の
+// コールバックと userData の**2つ**をそのまま渡せない。
+// この枠を1つ確保して、そのアドレスを userData として渡す(トランポリン方式)。
+// 枠は固定長配列から払い出すため動的確保は起きない。
+//
+struct CallbackSlot
+{
+    RICapabilityCallback callback {nullptr};
+    void*                userData {nullptr};
+    rim::SubscriptionId  subscriptionId {rim::kInvalidSubscriptionId};
+    bool                 used {false};
+};
+
+// Core から呼ばれ、C のコールバックへ橋渡しする。
+void CapabilityTrampoline(
+    rim::SubscriptionId subscriptionId,
+    rim::CapabilityId capabilityId,
+    const rim::CapabilityPayload& payload,
+    void* userData)
+{
+    auto* slot =
+        static_cast<CallbackSlot*>(
+            userData);
+
+    if (slot == nullptr ||
+        slot->callback == nullptr)
+    {
+        return;
+    }
+
+    slot->callback(
+        subscriptionId,
+        capabilityId,
+        payload.Data(),
+        payload.Size(),
+        slot->userData);
+}
+
+//
 // StorePublisher - 「現在値を Store から読んで通知経路へ流す」配信器。
 //
 // 旧実装は Capability ごとに別々のラムダを std::function で包み、
@@ -145,6 +186,10 @@ struct RIManagerContext
     // Capability ごとの配信器(値で保持。動的確保しない)
     StorePublisher
         publishers[rim::kCapabilityMaxCount] {};
+
+    // C コールバックの保持枠(同上)
+    CallbackSlot
+        callbackSlots[rim::kCapabilitySubscriptionMaxCount] {};
 
     //
     // Worker
@@ -588,28 +633,42 @@ int RIManager_SubscribeCapability(
     auto* context =
         ToContext(handle);
 
-    const auto id =
-        context->callbackRegistry.Subscribe(
-            capabilityId,
-            [callback,
-             userData]
-            (
-                rim::SubscriptionId subscription,
-                rim::CapabilityId capability,
-                const rim::CapabilityPayload& payload)
-            {
-                callback(
-                    subscription,
-                    capability,
-                    payload.Data(),
-                    payload.Size(),
-                    userData);
-            });
+    // 空き枠を探す
+    CallbackSlot* slot = nullptr;
 
-    if (id == rim::kInvalidSubscriptionId)
+    for (auto& candidate : context->callbackSlots)
+    {
+        if (!candidate.used)
+        {
+            slot = &candidate;
+            break;
+        }
+    }
+
+    if (slot == nullptr)
     {
         return RI_INTERNAL_ERROR;
     }
+
+    slot->callback = callback;
+    slot->userData = userData;
+
+    const auto id =
+        context->callbackRegistry.Subscribe(
+            capabilityId,
+            CapabilityTrampoline,
+            slot);
+
+    if (id == rim::kInvalidSubscriptionId)
+    {
+        // 枠を戻してから失敗を返す
+        *slot = CallbackSlot{};
+
+        return RI_INTERNAL_ERROR;
+    }
+
+    slot->subscriptionId = id;
+    slot->used           = true;
 
     *subscriptionId = id;
 
@@ -628,9 +687,25 @@ int RIManager_Unsubscribe(
     auto* context =
         ToContext(handle);
 
-    return context->callbackRegistry.
-               Unsubscribe(
-                   subscriptionId)
+    const bool removed =
+        context->callbackRegistry.Unsubscribe(
+            subscriptionId);
+
+    if (removed)
+    {
+        // 枠を解放する(解放し忘れると購読数の上限に達してしまう)
+        for (auto& slot : context->callbackSlots)
+        {
+            if (slot.used &&
+                slot.subscriptionId == subscriptionId)
+            {
+                slot = CallbackSlot{};
+                break;
+            }
+        }
+    }
+
+    return removed
            ? RI_SUCCESS
            : RI_NO_DATA;
 }

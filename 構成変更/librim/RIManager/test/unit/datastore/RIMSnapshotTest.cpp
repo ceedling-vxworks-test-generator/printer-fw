@@ -21,7 +21,7 @@ TEST(
         rim::RIMValueFactory::CreateDouble(
             300.15);
 
-    snapshot.items.push_back(
+    snapshot.items.PushBack(
         source);
 
     rim::RIMDataItem result{};
@@ -75,7 +75,7 @@ TEST(
         rim::RIMValueFactory::CreateDouble(
             300.15);
 
-    snapshot.items.push_back(
+    snapshot.items.PushBack(
         item);
 
     double value{};

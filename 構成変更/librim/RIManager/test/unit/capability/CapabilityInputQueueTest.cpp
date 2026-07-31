@@ -26,7 +26,7 @@ TEST(
             rim::RIMValueFactory::CreateDouble(
                 300.15);
 
-        input.items.push_back(item);
+        input.items.PushBack(item);
     }
 
     {
@@ -42,7 +42,7 @@ TEST(
             rim::RIMValueFactory::CreateDouble(
                 60.0);
 
-        input.items.push_back(item);
+        input.items.PushBack(item);
     }
 
     queue.Push(

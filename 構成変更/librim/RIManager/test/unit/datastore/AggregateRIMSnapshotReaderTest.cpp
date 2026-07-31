@@ -119,7 +119,7 @@ TEST(
 
 
     EXPECT_EQ(
-        snapshot.items.size(),
+        snapshot.items.Size(),
         3U);
 
 

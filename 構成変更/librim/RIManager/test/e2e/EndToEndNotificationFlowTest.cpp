@@ -9,6 +9,8 @@
 #include "PublishManager.hpp"
 #include "SubscriberMailbox.hpp"
 
+#include "test/support/CallbackTestHelper.hpp"
+
 #include "CapabilityItem/PrinterACapabilityIds.hpp"
 #include "CapabilityItem/PrinterACapabilityTypes.hpp"
 
@@ -52,20 +54,16 @@ TEST(
 {
     Fixture f;
 
-    rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
+    rim::StorePublishBinding binding
+    {
+        &f.store,
+        &f.notifyManager,
+        rim::kCapEnvironment
+    };
 
-            if (f.store.TryGet(
-                    rim::kCapEnvironment,
-                    payload))
-            {
-                f.notifyManager.Notify(
-                    rim::kCapEnvironment,
-                    payload);
-            }
-        });
+    rim::GenericCapabilityPublisher publisher(
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     f.RegisterPublisher(
         rim::kCapEnvironment,
@@ -117,20 +115,16 @@ TEST(
 {
     Fixture f;
 
-    rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
+    rim::StorePublishBinding binding
+    {
+        &f.store,
+        &f.notifyManager,
+        rim::kCapError
+    };
 
-            if (f.store.TryGet(
-                    rim::kCapError,
-                    payload))
-            {
-                f.notifyManager.Notify(
-                    rim::kCapError,
-                    payload);
-            }
-        });
+    rim::GenericCapabilityPublisher publisher(
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     f.RegisterPublisher(
         rim::kCapError,
@@ -194,20 +188,16 @@ TEST(
 {
     Fixture f;
 
-    rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
+    rim::StorePublishBinding binding
+    {
+        &f.store,
+        &f.notifyManager,
+        rim::kCapPrintReady
+    };
 
-            if (f.store.TryGet(
-                    rim::kCapPrintReady,
-                    payload))
-            {
-                f.notifyManager.Notify(
-                    rim::kCapPrintReady,
-                    payload);
-            }
-        });
+    rim::GenericCapabilityPublisher publisher(
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     f.RegisterPublisher(
         rim::kCapPrintReady,

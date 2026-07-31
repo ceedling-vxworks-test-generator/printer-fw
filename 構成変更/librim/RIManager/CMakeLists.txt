@@ -34,6 +34,15 @@ add_subdirectory(
 include(CTest)
 enable_testing()
 
+#
+# テストは googletest が例外と RTTI を必要とするため、
+# rim-core から PUBLIC で伝播してくる -fno-exceptions / -fno-rtti を打ち消す。
+# (打ち消すのはテスト実行ファイルだけで、ライブラリ本体の指定は変わらない)
+#
+set(RIM_TEST_ENABLE_EXCEPTIONS
+    -fexceptions
+    -frtti)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -116,6 +125,16 @@ target_include_directories(
         # PerformanceTestFixture.hpp / PerformanceStatistics.hpp
         ${PROJECT_SOURCE_DIR}/test/performance
 )
+
+target_compile_options(
+    rimanager_functional_test
+    PRIVATE
+        ${RIM_TEST_ENABLE_EXCEPTIONS})
+
+target_compile_options(
+    rimanager_performance_test
+    PRIVATE
+        ${RIM_TEST_ENABLE_EXCEPTIONS})
 
 target_link_libraries(
     rimanager_functional_test

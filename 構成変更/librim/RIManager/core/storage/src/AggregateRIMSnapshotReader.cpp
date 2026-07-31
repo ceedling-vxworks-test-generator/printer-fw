@@ -1,7 +1,5 @@
 #include "AggregateRIMSnapshotReader.hpp"
 
-#include "RIMValueAccessor.hpp"
-
 namespace rim
 {
 
@@ -17,8 +15,10 @@ AggregateRIMSnapshotReader::Read() const
 {
     RIMSnapshot snapshot{};
 
-    snapshot.items =
-        store_.GetAll();
+    // 旧実装は store_.GetAll() の返り値(std::vector)を代入していたため、
+    // Snapshot を作るたびに動的確保が起きていた。
+    store_.CopyAllTo(
+        snapshot.items);
 
     return snapshot;
 }

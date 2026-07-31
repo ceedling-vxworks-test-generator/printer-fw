@@ -12,6 +12,8 @@
 #include "PublisherWorker.hpp"
 #include "SubscriberMailbox.hpp"
 
+#include "test/support/CallbackTestHelper.hpp"
+
 //
 // 「変化した id の一覧」を受けて、その id の配信器を叩く段。
 //
@@ -77,41 +79,23 @@ TEST(
 {
     Fixture f;
 
-    bool called = false;
-
-    std::int32_t receivedId = 0;
+    rim::CapabilityRecorder recorder;
 
     f.callbackRegistry.Subscribe(
         kSlotA,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload& payload)
-        {
-            called = true;
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
-            const auto* cap =
-                payload.As<SampleCapability>();
-
-            if (cap != nullptr)
-            {
-                receivedId = cap->id;
-            }
-        });
+    rim::StorePublishBinding binding
+    {
+        &f.store,
+        &f.notifyManager,
+        kSlotA
+    };
 
     rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
-
-            if (f.store.TryGet(
-                    kSlotA,
-                    payload))
-            {
-                f.notifyManager.Notify(
-                    kSlotA,
-                    payload);
-            }
-        });
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     f.publisherRegistry.Register(
         kSlotA,
@@ -139,10 +123,17 @@ TEST(
         f.worker.ExecuteOnce());
 
     EXPECT_TRUE(
-        called);
+        recorder.Called());
+
+    const auto* received =
+        recorder.As<SampleCapability>();
+
+    ASSERT_NE(
+        received,
+        nullptr);
 
     EXPECT_EQ(
-        receivedId,
+        received->id,
         123);
 }
 
@@ -175,10 +166,12 @@ TEST(
     int bCalls = 0;
 
     rim::GenericCapabilityPublisher publisherA(
-        [&] { ++aCalls; });
+        rim::CountingPublish,
+        &aCalls);
 
     rim::GenericCapabilityPublisher publisherB(
-        [&] { ++bCalls; });
+        rim::CountingPublish,
+        &bCalls);
 
     f.publisherRegistry.Register(kSlotA, &publisherA);
     f.publisherRegistry.Register(kSlotB, &publisherB);

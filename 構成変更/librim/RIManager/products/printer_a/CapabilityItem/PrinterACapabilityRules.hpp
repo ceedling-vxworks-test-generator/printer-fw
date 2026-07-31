@@ -118,7 +118,7 @@ public:
         snapshot.TryGetBool(RIMDataId::kLeftDoorOpen,  leftDoorOpen);
 
         const bool doorsClosed = !upperDoorOpen && !rightDoorOpen && !leftDoorOpen;
-        const bool noError     = repository_.GetAll().empty();
+        const bool noError     = repository_.GetAll().Empty();
 
         PrintReadyCapability cap{};
         cap.ready = doorsClosed && noError;

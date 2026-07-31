@@ -19,19 +19,19 @@ TEST(
         repository.GetAll();
 
     ASSERT_EQ(
-        errors.size(),
+        errors.Size(),
         1U);
 
     EXPECT_EQ(
-        errors.front().errorCode,
+        errors[0].errorCode,
         1001U);
 
     EXPECT_EQ(
-        errors.front().state,
+        errors[0].state,
         rim::ErrorState::kActive);
 
     EXPECT_EQ(
-        errors.front().severity,
+        errors[0].severity,
         rim::ErrorSeverity::kError);
 
 }
@@ -54,7 +54,7 @@ TEST(
             1001));
 
     EXPECT_TRUE(
-        repository.GetAll().empty());
+        repository.GetAll().Empty());
 }
 
 TEST(
@@ -79,11 +79,11 @@ TEST(
         repository.GetAll();
 
     ASSERT_EQ(
-        errors.size(),
+        errors.Size(),
         1U);
 
     EXPECT_EQ(
-        errors.front().state,
+        errors[0].state,
         rim::ErrorState::kRecovered);
 }
 
@@ -133,7 +133,7 @@ TEST(
             }));
 
     ASSERT_EQ(
-        repository.GetAll().size(),
+        repository.GetAll().Size(),
         1U);
 }
 
@@ -154,11 +154,11 @@ TEST(
         repository.GetAll();
 
     ASSERT_EQ(
-        errors.size(),
+        errors.Size(),
         1U);
 
     EXPECT_EQ(
-        errors.front().severity,
+        errors[0].severity,
         rim::ErrorSeverity::kFatal);
 }
 

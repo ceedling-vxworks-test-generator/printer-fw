@@ -29,6 +29,8 @@
 #include "CapabilityPublisherRegistry.hpp"
 #include "GenericCapabilityPublisher.hpp"
 
+#include "test/support/CallbackTestHelper.hpp"
+
 #include "CapabilityItem/PrinterACapabilityIds.hpp"
 #include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
 
@@ -72,17 +74,12 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    std::atomic<bool> called{
-        false};
+    rim::CapabilityRecorder recorder;
 
     callbackRegistry.Subscribe(
         rim::kCapEnvironment,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload&)
-        {
-            called = true;
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     rim::ChangeNotifyManager notifyManager(
         mailbox,
@@ -91,20 +88,16 @@ TEST(
     rim::CapabilityPublisherRegistry
         publisherRegistry;
 
-    rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
+    rim::StorePublishBinding binding
+    {
+        &capabilityStore,
+        &notifyManager,
+        rim::kCapEnvironment
+    };
 
-            if (capabilityStore.TryGet(
-                    rim::kCapEnvironment,
-                    payload))
-            {
-                notifyManager.Notify(
-                    rim::kCapEnvironment,
-                    payload);
-            }
-        });
+    rim::GenericCapabilityPublisher publisher(
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     publisherRegistry.Register(
         rim::kCapEnvironment,
@@ -149,7 +142,7 @@ TEST(
         std::chrono::steady_clock::now()
         + std::chrono::seconds(1);
 
-    while (!called &&
+    while (!recorder.Called() &&
            std::chrono::steady_clock::now() <
                timeout)
     {
@@ -164,5 +157,5 @@ TEST(
     dataStoreWorker.Stop();
 
     EXPECT_TRUE(
-        called);
+        recorder.Called());
 }

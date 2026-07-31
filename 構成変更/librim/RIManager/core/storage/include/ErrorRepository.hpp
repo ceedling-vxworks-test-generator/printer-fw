@@ -1,96 +1,111 @@
 #pragma once
 
-#include <algorithm>
-#include <vector>
+#include <cstddef>
+#include <cstdint>
 
 #include "ErrorInfo.hpp"
+#include "FixedVector.hpp"
+#include "RIMConfig.hpp"
 
 namespace rim
 {
 
+//
+// ErrorRepository - 発生中の異常一覧。
+//
+// 旧実装は std::vector<ErrorInfo> だったため、異常が増えるたびに動的確保が
+// 起きていた。固定容量(kMaxErrors)にして確保を無くしてある。
+// 上限を超えた追加は false を返す(黙って伸びない)。
+//
 class ErrorRepository
 {
 public:
 
+    using Container =
+        FixedVector<ErrorInfo, kMaxErrors>;
+
+    // 追加する。同じ errorCode が既にあれば false(重複は持たない)。
+    // 上限に達している場合も false。
     bool Add(
         const ErrorInfo& info)
     {
-        const auto it =
-            std::find_if(
-                errors_.begin(),
-                errors_.end(),
-                [&](const ErrorInfo& current)
-                {
-                    return
-                        current.errorCode ==
-                        info.errorCode;
-                });
-
-        if (it != errors_.end())
+        if (Find(info.errorCode) != nullptr)
         {
             return false;
         }
 
-        errors_.push_back(
+        return errors_.PushBack(
             info);
-
-        return true;
     }
 
     bool Remove(
         std::uint32_t errorCode)
     {
-        const auto oldSize =
-            errors_.size();
+        for (std::size_t i = 0; i < errors_.Size(); ++i)
+        {
+            if (errors_[i].errorCode != errorCode)
+            {
+                continue;
+            }
 
-        errors_.erase(
-            std::remove_if(
-                errors_.begin(),
-                errors_.end(),
-                [&](const ErrorInfo& info)
-                {
-                    return
-                        info.errorCode
-                        == errorCode;
-                }),
-            errors_.end());
+            errors_.Erase(i);
 
-        return oldSize !=
-               errors_.size();
+            return true;
+        }
+
+        return false;
     }
 
     bool SetState(
         std::uint32_t errorCode,
         ErrorState state)
     {
-        for (auto& error
-             : errors_)
-        {
-            if (error.errorCode ==
-                errorCode)
-            {
-                error.state =
-                    state;
+        ErrorInfo* found =
+            Find(errorCode);
 
-                return true;
-            }
+        if (found == nullptr)
+        {
+            return false;
         }
 
-        return false;
+        found->state = state;
+
+        return true;
     }
 
-    const std::vector<
-        ErrorInfo>&
-    GetAll() const
+    const Container& GetAll() const
     {
         return errors_;
     }
 
+    // 上限に達しているか(これ以上 Add できない)。
+    bool Full() const
+    {
+        return errors_.Full();
+    }
+
+    void Clear()
+    {
+        errors_.Clear();
+    }
+
 private:
 
-    std::vector<
-        ErrorInfo>
-        errors_;
+    ErrorInfo* Find(
+        std::uint32_t errorCode)
+    {
+        for (std::size_t i = 0; i < errors_.Size(); ++i)
+        {
+            if (errors_[i].errorCode == errorCode)
+            {
+                return &errors_[i];
+            }
+        }
+
+        return nullptr;
+    }
+
+    Container errors_;
 };
 
 }

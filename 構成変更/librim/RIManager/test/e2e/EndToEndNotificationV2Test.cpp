@@ -17,6 +17,8 @@
 #include "CapabilityPublisherRegistry.hpp"
 #include "ChangeNotifyManager.hpp"
 #include "GenericCapabilityPublisher.hpp"
+
+#include "test/support/CallbackTestHelper.hpp"
 #include "PublishManager.hpp"
 #include "PublisherInputQueue.hpp"
 #include "PublisherWorker.hpp"
@@ -62,16 +64,12 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    bool called = false;
+    rim::CapabilityRecorder recorder;
 
     callbackRegistry.Subscribe(
         rim::kCapEnvironment,
-        [&](rim::SubscriptionId,
-            rim::CapabilityId,
-            const rim::CapabilityPayload&)
-        {
-            called = true;
-        });
+        rim::CapabilityRecorder::Callback,
+        &recorder);
 
     rim::ChangeNotifyManager notifyManager(
         mailbox,
@@ -80,20 +78,16 @@ TEST(
     rim::CapabilityPublisherRegistry
         publisherRegistry;
 
-    rim::GenericCapabilityPublisher publisher(
-        [&]
-        {
-            rim::CapabilityPayload payload;
+    rim::StorePublishBinding binding
+    {
+        &capabilityStore,
+        &notifyManager,
+        rim::kCapEnvironment
+    };
 
-            if (capabilityStore.TryGet(
-                    rim::kCapEnvironment,
-                    payload))
-            {
-                notifyManager.Notify(
-                    rim::kCapEnvironment,
-                    payload);
-            }
-        });
+    rim::GenericCapabilityPublisher publisher(
+        rim::StorePublishBinding::Publish,
+        &binding);
 
     publisherRegistry.Register(
         rim::kCapEnvironment,
@@ -137,5 +131,5 @@ TEST(
         publisherWorker.ExecuteOnce());
 
     EXPECT_TRUE(
-        called);
+        recorder.Called());
 }
