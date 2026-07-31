@@ -3,54 +3,59 @@
 #include "AdapterDispatcher.hpp"
 #include "PrinterAdapter.hpp"
 
-#include "StoreInputQueue.hpp"
-#include "DataStoreWorker.hpp"
 #include "AggregateRIMSnapshotReader.hpp"
+#include "DataStoreWorker.hpp"
 #include "ErrorRepository.hpp"
+#include "StoreInputQueue.hpp"
 
+#include "CapabilityEvaluator.hpp"
 #include "CapabilityInputQueue.hpp"
+#include "CapabilityStore.hpp"
 #include "CapabilityWorker.hpp"
-#include "CapabilityManager.hpp"
-#include "MachineCapabilityStore.hpp"
 
+#include "CallbackSubscriptionRegistry.hpp"
+#include "CapabilityPublisherRegistry.hpp"
+#include "ChangeNotifyManager.hpp"
+#include "GenericCapabilityPublisher.hpp"
+#include "PublishManager.hpp"
 #include "PublisherInputQueue.hpp"
 #include "PublisherWorker.hpp"
-
-#include "PublishManager.hpp"
-#include "ChangeNotifyManager.hpp"
-
-#include "SubscriptionRegistry.hpp"
 #include "SubscriberMailbox.hpp"
-#include "CallbackSubscriptionRegistry.hpp"
 
-#include "CapabilityPublisherRegistry.hpp"
-#include "GenericCapabilityPublisher.hpp"
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
+
+//
+// Adapter からコールバック到達までの全段。
+//
+// Product(PrinterACapabilityRuleSet)が規則を持ち込み、Core の各段は
+// CapabilityId と型消去バイト列だけを扱う、という現在の構成をそのまま組んでいる。
+//
 
 TEST(
     EndToEndNotificationV2Test,
     AdapterToCallback)
 {
-    rim::StoreInputQueue storeQueue;
-
+    rim::StoreInputQueue      storeQueue;
     rim::CapabilityInputQueue capabilityQueue;
-
-    rim::PublisherInputQueue publisherQueue;
+    rim::PublisherInputQueue  publisherQueue;
 
     rim::ValueStore valueStore;
 
     rim::AggregateRIMSnapshotReader reader(
         valueStore);
 
-    rim::MachineCapabilityStore capabilityStore;
+    rim::CapabilityStore capabilityStore;
 
     rim::ErrorRepository errorRepository;
 
-    rim::CapabilityManager capabilityManager(
-        capabilityStore,
+    rim::PrinterACapabilityRuleSet ruleSet(
         errorRepository);
 
-    rim::SubscriptionRegistry
-        subscriptionRegistry;
+    rim::CapabilityEvaluator capabilityEvaluator;
+
+    ruleSet.RegisterTo(
+        capabilityEvaluator);
 
     rim::SubscriberMailbox mailbox;
 
@@ -59,13 +64,12 @@ TEST(
 
     bool called = false;
 
-    callbackRegistry.SubscribeEnvironment(
-        [&](rim::SubscriptionId subscriptionId,
-            const rim::EnvironmentCapability& capability)
+    callbackRegistry.Subscribe(
+        rim::kCapEnvironment,
+        [&](rim::SubscriptionId,
+            rim::CapabilityId,
+            const rim::CapabilityPayload&)
         {
-            (void)subscriptionId;
-            (void)capability;
-
             called = true;
         });
 
@@ -76,19 +80,27 @@ TEST(
     rim::CapabilityPublisherRegistry
         publisherRegistry;
 
-    publisherRegistry.Register(
-        "Environment",
-        std::make_unique<
-            rim::GenericCapabilityPublisher>(
-            [&]
+    rim::GenericCapabilityPublisher publisher(
+        [&]
+        {
+            rim::CapabilityPayload payload;
+
+            if (capabilityStore.TryGet(
+                    rim::kCapEnvironment,
+                    payload))
             {
                 notifyManager.Notify(
-                    capabilityStore.GetEnvironment());
-            }));
+                    rim::kCapEnvironment,
+                    payload);
+            }
+        });
 
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
+    publisherRegistry.Register(
+        rim::kCapEnvironment,
+        &publisher);
+
+    rim::PublishManager publishManager(
+        publisherRegistry);
 
     rim::DataStoreWorker dataStoreWorker(
         storeQueue,
@@ -98,7 +110,7 @@ TEST(
 
     rim::CapabilityWorker capabilityWorker(
         capabilityQueue,
-        capabilityManager,
+        capabilityEvaluator,
         capabilityStore,
         publisherQueue);
 

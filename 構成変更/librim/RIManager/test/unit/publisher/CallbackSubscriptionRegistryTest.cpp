@@ -1,76 +1,201 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
+
 #include "CallbackSubscriptionRegistry.hpp"
 
-TEST(
-    CallbackSubscriptionRegistryTest,
-    InvokeCallback)
+//
+// コールバック購読。
+//
+// 旧実装は SubscribeEnvironment / SubscribeError / … と Capability ごとに
+// 購読関数と std::vector を持っていた(Capability を増やすたびに Core を改修)。
+// 現在は購読したい CapabilityId を引数で渡す1本にまとまっている。
+//
+
+namespace
 {
-    bool called = false;
 
-    rim::SubscriptionId receivedId{};
+struct SampleCapability
+{
+    std::int32_t value{};
+};
 
-    rim::CallbackSubscriptionRegistry callbackRegistry;
+constexpr rim::CapabilityId kSlotA = 0;
+constexpr rim::CapabilityId kSlotB = 1;
 
-    const auto id =
-        callbackRegistry.SubscribeEnvironment(
-            [&](rim::SubscriptionId subscriptionId,
-                const rim::EnvironmentCapability& capability)
-            {
-                (void)subscriptionId;
-                (void)capability;
+rim::CapabilityPayload Make(
+    std::int32_t value)
+{
+    SampleCapability cap{};
 
-                called = true;
-            });
+    cap.value = value;
 
-    rim::EnvironmentCapability cap{};
-
-    callbackRegistry.NotifyEnvironment(
+    return rim::CapabilityPayload::From(
         cap);
+}
 
-    EXPECT_TRUE(
-        called);
 }
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    GenerateUniqueSubscriptionId)
+    SubscribeAndNotify)
 {
-    rim::CallbackSubscriptionRegistry
-        registry;
+    rim::CallbackSubscriptionRegistry registry;
 
-    const auto id1 =
-        registry.SubscribeEnvironment(
-            [&](rim::SubscriptionId,
-                const rim::EnvironmentCapability&)
-            {
-            });
+    bool called = false;
 
-    const auto id2 =
-        registry.SubscribeEnvironment(
+    const auto id =
+        registry.Subscribe(
+            kSlotA,
             [&](rim::SubscriptionId,
-                const rim::EnvironmentCapability&)
+                rim::CapabilityId,
+                const rim::CapabilityPayload&)
             {
+                called = true;
             });
 
     EXPECT_NE(
-        id1,
-        id2);
+        id,
+        rim::kInvalidSubscriptionId);
+
+    EXPECT_EQ(
+        registry.Notify(
+            kSlotA,
+            Make(1)),
+        1U);
+
+    EXPECT_TRUE(
+        called);
 }
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    UnsubscribeRemovesCallback)
+    CallbackReceivesIdAndPayload)
 {
-    rim::CallbackSubscriptionRegistry
-        registry;
+    rim::CallbackSubscriptionRegistry registry;
+
+    rim::SubscriptionId receivedSubscription =
+        rim::kInvalidSubscriptionId;
+
+    rim::CapabilityId receivedCapability =
+        rim::kInvalidCapabilityId;
+
+    std::int32_t receivedValue = 0;
+
+    const auto id =
+        registry.Subscribe(
+            kSlotA,
+            [&](rim::SubscriptionId subscription,
+                rim::CapabilityId capability,
+                const rim::CapabilityPayload& payload)
+            {
+                receivedSubscription = subscription;
+                receivedCapability   = capability;
+
+                const auto* cap =
+                    payload.As<SampleCapability>();
+
+                if (cap != nullptr)
+                {
+                    receivedValue = cap->value;
+                }
+            });
+
+    registry.Notify(
+        kSlotA,
+        Make(7));
+
+    EXPECT_EQ(
+        receivedSubscription,
+        id);
+
+    EXPECT_EQ(
+        receivedCapability,
+        kSlotA);
+
+    EXPECT_EQ(
+        receivedValue,
+        7);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    OnlyMatchingCapabilityIsNotified)
+{
+    rim::CallbackSubscriptionRegistry registry;
+
+    int aCalls = 0;
+    int bCalls = 0;
+
+    registry.Subscribe(
+        kSlotA,
+        [&](rim::SubscriptionId,
+            rim::CapabilityId,
+            const rim::CapabilityPayload&)
+        {
+            ++aCalls;
+        });
+
+    registry.Subscribe(
+        kSlotB,
+        [&](rim::SubscriptionId,
+            rim::CapabilityId,
+            const rim::CapabilityPayload&)
+        {
+            ++bCalls;
+        });
+
+    registry.Notify(
+        kSlotA,
+        Make(1));
+
+    EXPECT_EQ(aCalls, 1);
+    EXPECT_EQ(bCalls, 0);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    MultipleSubscribersOnSameCapability)
+{
+    rim::CallbackSubscriptionRegistry registry;
+
+    int calls = 0;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        registry.Subscribe(
+            kSlotA,
+            [&](rim::SubscriptionId,
+                rim::CapabilityId,
+                const rim::CapabilityPayload&)
+            {
+                ++calls;
+            });
+    }
+
+    EXPECT_EQ(
+        registry.Notify(
+            kSlotA,
+            Make(1)),
+        3U);
+
+    EXPECT_EQ(calls, 3);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    Unsubscribe)
+{
+    rim::CallbackSubscriptionRegistry registry;
 
     bool called = false;
 
     const auto id =
-        registry.SubscribeEnvironment(
+        registry.Subscribe(
+            kSlotA,
             [&](rim::SubscriptionId,
-                const rim::EnvironmentCapability&)
+                rim::CapabilityId,
+                const rim::CapabilityPayload&)
             {
                 called = true;
             });
@@ -79,8 +204,9 @@ TEST(
         registry.Unsubscribe(
             id));
 
-    registry.NotifyEnvironment(
-        rim::EnvironmentCapability{});
+    registry.Notify(
+        kSlotA,
+        Make(1));
 
     EXPECT_FALSE(
         called);
@@ -88,182 +214,161 @@ TEST(
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    EnvironmentError)
+    UnsubscribeUnknownIdReturnsFalse)
 {
-    rim::CallbackSubscriptionRegistry
-        registry;
-
-    bool environmentCalled = false;
-
-    bool errorCalled = false;
-
-    registry.SubscribeEnvironment(
-        [&](rim::SubscriptionId subscriptionId,
-            const rim::EnvironmentCapability& capability)
-        {
-            (void)subscriptionId;
-            (void)capability;
-
-            environmentCalled = true;
-        });
-
-    registry.SubscribeError(
-        [&](rim::SubscriptionId subscriptionId,
-            const rim::ErrorCapability& capability)
-        {
-            (void)subscriptionId;
-            (void)capability;
-
-            errorCalled = true;
-        });
-
-    registry.NotifyEnvironment(
-        rim::EnvironmentCapability{});
-
-    EXPECT_TRUE(
-        environmentCalled);
+    rim::CallbackSubscriptionRegistry registry;
 
     EXPECT_FALSE(
-        errorCalled);
-
-    environmentCalled = false;
-    errorCalled = false;
-
-    registry.NotifyError(
-        rim::ErrorCapability{});
-
-    EXPECT_FALSE(
-        environmentCalled);
-
-    EXPECT_TRUE(
-        errorCalled);
+        registry.Unsubscribe(
+            9999));
 }
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    NotifyError)
+    UnsubscribeKeepsOtherSubscribers)
 {
-    rim::CallbackSubscriptionRegistry
-        registry;
+    // 内部で末尾を詰めて削除するため、残りが壊れないことを確認する。
+    rim::CallbackSubscriptionRegistry registry;
 
-    bool called = false;
+    int remainingCalls = 0;
 
-    registry.SubscribeError(
-        [&](rim::SubscriptionId,
-            const rim::ErrorCapability&)
-        {
-            called = true;
-        });
-
-    registry.NotifyError(
-        rim::ErrorCapability{});
-
-    EXPECT_TRUE(
-        called);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    NotifyPrintReady)
-{
-    rim::CallbackSubscriptionRegistry
-        registry;
-
-    bool called = false;
-
-    registry.SubscribePrintReady(
-        [&](rim::SubscriptionId,
-            const rim::PrintReadyCapability&)
-        {
-            called = true;
-        });
-
-    registry.NotifyPrintReady(
-        rim::PrintReadyCapability{});
-
-    EXPECT_TRUE(
-        called);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    NotifyConsumable)
-{
-    rim::CallbackSubscriptionRegistry
-        registry;
-
-    bool called = false;
-
-    registry.SubscribeConsumable(
-        [&](rim::SubscriptionId,
-            const rim::ConsumableCapability&)
-        {
-            called = true;
-        });
-
-    registry.NotifyConsumable(
-        rim::ConsumableCapability{});
-
-    EXPECT_TRUE(
-        called);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    NotifyJob)
-{
-    rim::CallbackSubscriptionRegistry
-        registry;
-
-    bool called = false;
-
-    registry.SubscribeJob(
-        [&](rim::SubscriptionId,
-            const rim::JobCapability&)
-        {
-            called = true;
-        });
-
-    rim::JobCapability capability{};
-
-    capability.jobActive = true;
-    capability.jobId = 123;
-
-    registry.NotifyJob(
-        capability);
-
-    EXPECT_TRUE(
-        called);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    UnsubscribeJob)
-{
-    rim::CallbackSubscriptionRegistry
-        registry;
-
-    bool called = false;
-
-    const auto id =
-        registry.SubscribeJob(
+    const auto first =
+        registry.Subscribe(
+            kSlotA,
             [&](rim::SubscriptionId,
-                const rim::JobCapability&)
+                rim::CapabilityId,
+                const rim::CapabilityPayload&)
             {
-                called = true;
             });
 
-    EXPECT_TRUE(
+    registry.Subscribe(
+        kSlotA,
+        [&](rim::SubscriptionId,
+            rim::CapabilityId,
+            const rim::CapabilityPayload&)
+        {
+            ++remainingCalls;
+        });
+
+    ASSERT_TRUE(
         registry.Unsubscribe(
-            id));
+            first));
 
-    rim::JobCapability capability{};
+    registry.Notify(
+        kSlotA,
+        Make(1));
 
-    capability.jobActive = true;
+    EXPECT_EQ(
+        remainingCalls,
+        1);
 
-    registry.NotifyJob(
-        capability);
+    EXPECT_EQ(
+        registry.Count(),
+        1U);
+}
 
-    EXPECT_FALSE(
-        called);
+TEST(
+    CallbackSubscriptionRegistryTest,
+    RejectsEmptyCallback)
+{
+    rim::CallbackSubscriptionRegistry registry;
+
+    EXPECT_EQ(
+        registry.Subscribe(
+            kSlotA,
+            rim::CapabilityCallback{}),
+        rim::kInvalidSubscriptionId);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    RejectsOutOfRangeCapabilityId)
+{
+    rim::CallbackSubscriptionRegistry registry;
+
+    const rim::CapabilityId outOfRange =
+        static_cast<rim::CapabilityId>(
+            rim::kCapabilityMaxCount);
+
+    EXPECT_EQ(
+        registry.Subscribe(
+            outOfRange,
+            [](rim::SubscriptionId,
+               rim::CapabilityId,
+               const rim::CapabilityPayload&)
+            {
+            }),
+        rim::kInvalidSubscriptionId);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    RejectsSubscriptionWhenFull)
+{
+    // 固定容量なので、満杯になったら採番失敗を返す(黙って伸びない)。
+    rim::CallbackSubscriptionRegistry registry;
+
+    for (std::size_t i = 0;
+         i < rim::kCapabilitySubscriptionMaxCount;
+         ++i)
+    {
+        ASSERT_NE(
+            registry.Subscribe(
+                kSlotA,
+                [](rim::SubscriptionId,
+                   rim::CapabilityId,
+                   const rim::CapabilityPayload&)
+                {
+                }),
+            rim::kInvalidSubscriptionId);
+    }
+
+    EXPECT_EQ(
+        registry.Subscribe(
+            kSlotA,
+            [](rim::SubscriptionId,
+               rim::CapabilityId,
+               const rim::CapabilityPayload&)
+            {
+            }),
+        rim::kInvalidSubscriptionId);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    CountsSubscribersPerCapability)
+{
+    rim::CallbackSubscriptionRegistry registry;
+
+    registry.Subscribe(
+        kSlotA,
+        [](rim::SubscriptionId,
+           rim::CapabilityId,
+           const rim::CapabilityPayload&)
+        {
+        });
+
+    registry.Subscribe(
+        kSlotB,
+        [](rim::SubscriptionId,
+           rim::CapabilityId,
+           const rim::CapabilityPayload&)
+        {
+        });
+
+    registry.Subscribe(
+        kSlotB,
+        [](rim::SubscriptionId,
+           rim::CapabilityId,
+           const rim::CapabilityPayload&)
+        {
+        });
+
+    EXPECT_EQ(
+        registry.CountFor(kSlotA),
+        1U);
+
+    EXPECT_EQ(
+        registry.CountFor(kSlotB),
+        2U);
 }

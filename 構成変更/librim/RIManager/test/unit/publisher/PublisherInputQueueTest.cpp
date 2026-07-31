@@ -2,33 +2,46 @@
 
 #include "PublisherInputQueue.hpp"
 
+//
+// 旧試験は CapabilityChangeSet(std::vector<std::string>)に "Environment" などの
+// 文字列を積んでいた。現在は CapabilityChangeList(CapabilityId の固定長配列)。
+//
+
+namespace
+{
+
+constexpr rim::CapabilityId kSlotA = 0;
+constexpr rim::CapabilityId kSlotB = 1;
+
+}
+
 TEST(
     PublisherInputQueueTest,
     PushPop)
 {
     rim::PublisherInputQueue queue;
 
-    rim::CapabilityChangeSet input{};
+    rim::CapabilityChangeList input{};
 
-    input.changedCapabilities.push_back(
-        "Environment");
+    input.Add(
+        kSlotA);
 
     queue.Push(
         input);
 
-    rim::CapabilityChangeSet output{};
+    rim::CapabilityChangeList output{};
 
     ASSERT_TRUE(
         queue.TryPop(
             output));
 
     ASSERT_EQ(
-        output.changedCapabilities.size(),
+        output.Size(),
         1U);
 
-    EXPECT_EQ(
-        output.changedCapabilities.front(),
-        "Environment");
+    EXPECT_TRUE(
+        output.Contains(
+            kSlotA));
 }
 
 TEST(
@@ -37,27 +50,40 @@ TEST(
 {
     rim::PublisherInputQueue queue;
 
-    rim::CapabilityChangeSet input{};
+    rim::CapabilityChangeList input{};
 
-    input.changedCapabilities.push_back(
-        "Error");
+    input.Add(
+        kSlotB);
 
     queue.Push(
         input);
 
-    rim::CapabilityChangeSet output{};
+    rim::CapabilityChangeList output{};
 
     ASSERT_TRUE(
         queue.WaitAndPop(
             output));
 
     ASSERT_EQ(
-        output.changedCapabilities.size(),
+        output.Size(),
         1U);
 
-    EXPECT_EQ(
-        output.changedCapabilities.front(),
-        "Error");
+    EXPECT_TRUE(
+        output.Contains(
+            kSlotB));
+}
+
+TEST(
+    PublisherInputQueueTest,
+    TryPopOnEmptyReturnsFalse)
+{
+    rim::PublisherInputQueue queue;
+
+    rim::CapabilityChangeList output{};
+
+    EXPECT_FALSE(
+        queue.TryPop(
+            output));
 }
 
 TEST(
@@ -68,7 +94,7 @@ TEST(
 
     queue.Shutdown();
 
-    rim::CapabilityChangeSet input{};
+    rim::CapabilityChangeList input{};
 
     EXPECT_FALSE(
         queue.WaitAndPop(

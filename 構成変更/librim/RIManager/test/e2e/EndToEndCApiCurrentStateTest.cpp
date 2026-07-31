@@ -1,15 +1,22 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <thread>
 
 #include "rim_api.h"
 
-#include "EnvironmentCapability.hpp"
-#include "ErrorCapability.hpp"
-#include "PrintReadyCapability.hpp"
-#include "ConsumableCapability.hpp"
-#include "JobCapability.hpp"
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityTypes.hpp"
+#include "DataItem/PrinterADataIds.hpp"
+
+//
+// 「現在値の読み出し」と「変化通知」は別経路である、ことの確認。
+//
+// 通知は1回取り出すと消えるが、現在値は何度でも読める。
+// 旧試験は _GetCurrentEnvironment / _GetCurrentError / … と Capability ごとの
+// 関数を叩いていたが、現在はどちらも id 引数の1本にまとまっている。
+//
 
 namespace
 {
@@ -55,6 +62,33 @@ protected:
             kWaitTime);
     }
 
+    // 現在値を型付きで読む短縮形。
+    template <typename T>
+    int GetCurrent(
+        RICapabilityId id,
+        T& out)
+    {
+        return RIManager_GetCurrentCapability(
+            handle_,
+            id,
+            &out,
+            sizeof out,
+            nullptr);
+    }
+
+    template <typename T>
+    int GetNotification(
+        RICapabilityId id,
+        T& out)
+    {
+        return RIManager_GetCapability(
+            handle_,
+            id,
+            &out,
+            sizeof out,
+            nullptr);
+    }
+
     RIM_HANDLE handle_{};
 };
 
@@ -66,20 +100,21 @@ TEST_F(
     GetCurrentEnvironment)
 {
     ASSERT_EQ(
-        RIManager_TestInjectTemperature(
+        RIManager_TestInjectDouble(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kTemperatureSensorA),
             30.0),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::EnvironmentCapability
-        capability{};
+    rim::EnvironmentCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentEnvironment(
-            handle_,
-            &capability),
+        GetCurrent(
+            rim::kCapEnvironment,
+            capability),
         RI_SUCCESS);
 
     EXPECT_DOUBLE_EQ(
@@ -92,29 +127,29 @@ TEST_F(
     CurrentStateSurvivesNotificationConsumption)
 {
     ASSERT_EQ(
-        RIManager_TestInjectTemperature(
+        RIManager_TestInjectDouble(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kTemperatureSensorA),
             30.0),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::EnvironmentCapability
-        eventCapability{};
+    rim::EnvironmentCapability eventCapability{};
 
     ASSERT_EQ(
-        RIManager_GetEnvironment(
-            handle_,
-            &eventCapability),
+        GetNotification(
+            rim::kCapEnvironment,
+            eventCapability),
         RI_SUCCESS);
 
-    rim::EnvironmentCapability
-        currentCapability{};
+    rim::EnvironmentCapability currentCapability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentEnvironment(
-            handle_,
-            &currentCapability),
+        GetCurrent(
+            rim::kCapEnvironment,
+            currentCapability),
         RI_SUCCESS);
 
     EXPECT_DOUBLE_EQ(
@@ -124,75 +159,46 @@ TEST_F(
 
 TEST_F(
     EndToEndCApiCurrentStateTest,
-    CurrentStateCanBeReadMultipleTimes)
+    NotificationIsConsumedButCurrentIsNot)
 {
     ASSERT_EQ(
-        RIManager_TestInjectTemperature(
+        RIManager_TestInjectDouble(
             handle_,
-            35.0),
+            rim::ToDataId(
+                rim::RIMDataId::kTemperatureSensorA),
+            30.0),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::EnvironmentCapability
-        first{};
-
-    rim::EnvironmentCapability
-        second{};
+    rim::EnvironmentCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentEnvironment(
-            handle_,
-            &first),
+        GetNotification(
+            rim::kCapEnvironment,
+            capability),
         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_GetCurrentEnvironment(
-            handle_,
-            &second),
-        RI_SUCCESS);
+    // 通知は消費済み
+    EXPECT_EQ(
+        GetNotification(
+            rim::kCapEnvironment,
+            capability),
+        RI_NO_DATA);
 
-    EXPECT_DOUBLE_EQ(
-        first.temperature,
-        35.0);
-
-    EXPECT_DOUBLE_EQ(
-        second.temperature,
-        35.0);
-}
-
-TEST_F(
-    EndToEndCApiCurrentStateTest,
-    NotificationIsConsumed)
-{
-    ASSERT_EQ(
-        RIManager_TestInjectTemperature(
-            handle_,
-            40.0),
-        RI_SUCCESS);
-
-    WaitPipeline();
-
-    rim::EnvironmentCapability
-        capability{};
-
-    ASSERT_EQ(
-        RIManager_GetEnvironment(
-            handle_,
-            &capability),
+    // 現在値は何度でも読める
+    EXPECT_EQ(
+        GetCurrent(
+            rim::kCapEnvironment,
+            capability),
         RI_SUCCESS);
 
     EXPECT_EQ(
-        RIManager_GetEnvironment(
-            handle_,
-            &capability),
-        RI_NO_DATA);
+        GetCurrent(
+            rim::kCapEnvironment,
+            capability),
+        RI_SUCCESS);
 }
-
-
-
-
-
 
 TEST_F(
     EndToEndCApiCurrentStateTest,
@@ -206,27 +212,26 @@ TEST_F(
 
     WaitPipeline();
 
-    rim::ErrorCapability
-        capability{};
+    rim::ErrorCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentError(
-            handle_,
-            &capability),
+        GetCurrent(
+            rim::kCapError,
+            capability),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        capability.errors.size(),
+        capability.count,
         1U);
 
     EXPECT_EQ(
-        capability.errors.front().errorCode,
+        capability.errors[0].errorCode,
         1001U);
 }
 
 TEST_F(
     EndToEndCApiCurrentStateTest,
-    ErrorStateSurvivesNotificationConsumption)
+    RemovedErrorDisappearsFromCurrentState)
 {
     ASSERT_EQ(
         RIManager_AddError(
@@ -236,66 +241,63 @@ TEST_F(
 
     WaitPipeline();
 
-    rim::ErrorCapability
-        eventCapability{};
-
     ASSERT_EQ(
-        RIManager_GetError(
+        RIManager_RemoveError(
             handle_,
-            &eventCapability),
+            1001),
         RI_SUCCESS);
 
-    rim::ErrorCapability
-        currentCapability{};
+    WaitPipeline();
+
+    rim::ErrorCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentError(
-            handle_,
-            &currentCapability),
+        GetCurrent(
+            rim::kCapError,
+            capability),
         RI_SUCCESS);
-
-    ASSERT_EQ(
-        currentCapability.errors.size(),
-        1U);
 
     EXPECT_EQ(
-        currentCapability.errors.front().errorCode,
-        1001U);
+        capability.count,
+        0U);
 }
-
-
 
 TEST_F(
     EndToEndCApiCurrentStateTest,
     GetCurrentPrintReady)
 {
     ASSERT_EQ(
-        RIManager_TestInjectUpperDoorOpen(
+        RIManager_TestInjectBool(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kUpperDoorOpen),
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_TestInjectRightDoorOpen(
+        RIManager_TestInjectBool(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kRightDoorOpen),
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_TestInjectLeftDoorOpen(
+        RIManager_TestInjectBool(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kLeftDoorOpen),
             0),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::PrintReadyCapability
-        capability{};
+    rim::PrintReadyCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentPrintReady(
-            handle_,
-            &capability),
+        GetCurrent(
+            rim::kCapPrintReady,
+            capability),
         RI_SUCCESS);
 
     EXPECT_TRUE(
@@ -304,48 +306,28 @@ TEST_F(
 
 TEST_F(
     EndToEndCApiCurrentStateTest,
-    PrintReadyStateSurvivesNotificationConsumption)
+    OpenDoorMakesPrintNotReady)
 {
     ASSERT_EQ(
-        RIManager_TestInjectUpperDoorOpen(
+        RIManager_TestInjectBool(
             handle_,
-            0),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIManager_TestInjectRightDoorOpen(
-            handle_,
-            0),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIManager_TestInjectLeftDoorOpen(
-            handle_,
-            0),
+            rim::ToDataId(
+                rim::RIMDataId::kUpperDoorOpen),
+            1),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::PrintReadyCapability
-        eventCapability{};
+    rim::PrintReadyCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetPrintReady(
-            handle_,
-            &eventCapability),
+        GetCurrent(
+            rim::kCapPrintReady,
+            capability),
         RI_SUCCESS);
 
-    rim::PrintReadyCapability
-        currentCapability{};
-
-    ASSERT_EQ(
-        RIManager_GetCurrentPrintReady(
-            handle_,
-            &currentCapability),
-        RI_SUCCESS);
-
-    EXPECT_TRUE(
-        currentCapability.ready);
+    EXPECT_FALSE(
+        capability.ready);
 }
 
 TEST_F(
@@ -353,20 +335,21 @@ TEST_F(
     GetCurrentConsumable)
 {
     ASSERT_EQ(
-        RIManager_TestInjectStapleLevel(
+        RIManager_TestInjectInt32(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kStapleLevel),
             80),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::ConsumableCapability
-        capability{};
+    rim::ConsumableCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentConsumable(
-            handle_,
-            &capability),
+        GetCurrent(
+            rim::kCapConsumable,
+            capability),
         RI_SUCCESS);
 
     EXPECT_EQ(
@@ -379,26 +362,29 @@ TEST_F(
     GetCurrentJob)
 {
     ASSERT_EQ(
-        RIManager_TestInjectJobActive(
+        RIManager_TestInjectBool(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kJobActive),
             1),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_TestInjectJobId(
+        RIManager_TestInjectInt32(
             handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kJobId),
             123),
         RI_SUCCESS);
 
     WaitPipeline();
 
-    rim::JobCapability
-        capability{};
+    rim::JobCapability capability{};
 
     ASSERT_EQ(
-        RIManager_GetCurrentJob(
-            handle_,
-            &capability),
+        GetCurrent(
+            rim::kCapJob,
+            capability),
         RI_SUCCESS);
 
     EXPECT_TRUE(
@@ -409,3 +395,34 @@ TEST_F(
         123);
 }
 
+TEST_F(
+    EndToEndCApiCurrentStateTest,
+    WrittenSizeIsReported)
+{
+    ASSERT_EQ(
+        RIManager_TestInjectDouble(
+            handle_,
+            rim::ToDataId(
+                rim::RIMDataId::kTemperatureSensorA),
+            30.0),
+        RI_SUCCESS);
+
+    WaitPipeline();
+
+    rim::EnvironmentCapability capability{};
+
+    std::size_t written = 0;
+
+    ASSERT_EQ(
+        RIManager_GetCurrentCapability(
+            handle_,
+            rim::kCapEnvironment,
+            &capability,
+            sizeof capability,
+            &written),
+        RI_SUCCESS);
+
+    EXPECT_EQ(
+        written,
+        sizeof(rim::EnvironmentCapability));
+}

@@ -1,40 +1,126 @@
 #include <gtest/gtest.h>
 
-#include "CapabilityChangeDetector.hpp"
-#include "MachineCapabilityStore.hpp"
+#include "CapabilityChangeTracker.hpp"
+#include "CapabilityEvaluator.hpp"
+#include "CapabilityStore.hpp"
+#include "ErrorRepository.hpp"
+
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
+
+#include "test/support/SnapshotTestHelper.hpp"
+
+//
+// 値が変わっていなければ配信しない、という RIM の基本方針の確認。
+// (生の値が来たときではなく、Capability が変わったときだけ配信する)
+//
 
 TEST(
-    CapabilityChangeDetectorTest,
-    NoNotifyWhenSameValue)
+    CapabilityToPublisherNoChangeTest,
+    NoChangeWhenSameSnapshotIsEvaluatedTwice)
 {
-    rim::MachineCapabilityStore store;
+    rim::RIMSnapshot snapshot{};
 
-    rim::CapabilityChangeDetector detector;
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kTemperatureSensorA,
+        300.15);
 
-    rim::EnvironmentCapability capability{};
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kHumiditySensor,
+        60.0);
 
-    capability.temperature = 300.15;
-    capability.humidity = 60.0;
+    rim::ErrorRepository errorRepository;
 
-    store.Store(
-        capability);
+    rim::PrinterACapabilityRuleSet ruleSet(
+        errorRepository);
+
+    rim::CapabilityEvaluator evaluator;
+
+    ruleSet.RegisterTo(
+        evaluator);
+
+    rim::CapabilityStore store;
+
+    rim::CapabilityChangeTracker tracker;
+
+    evaluator.Evaluate(
+        snapshot,
+        store);
 
     const auto first =
-        detector.Detect(
+        tracker.Detect(
             store);
 
+    // 初回は全 Capability が「変化」として上がる
     EXPECT_EQ(
-        1U,
-        first.changedCapabilities.size());
-
-    EXPECT_EQ(
-        "Environment",
-        first.changedCapabilities.front());
-
-    const auto second =
-        detector.Detect(
-            store);
+        first.Size(),
+        ruleSet.CapabilityCount());
 
     EXPECT_TRUE(
-        second.changedCapabilities.empty());
+        first.Contains(
+            rim::kCapEnvironment));
+
+    // 同じ Snapshot をもう一度評価しても、変化は無い
+    evaluator.Evaluate(
+        snapshot,
+        store);
+
+    EXPECT_TRUE(
+        tracker.Detect(
+            store)
+            .Empty());
+}
+
+TEST(
+    CapabilityToPublisherNoChangeTest,
+    OnlyTheAffectedCapabilityIsReported)
+{
+    rim::RIMSnapshot snapshot{};
+
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kTemperatureSensorA,
+        300.15);
+
+    rim::ErrorRepository errorRepository;
+
+    rim::PrinterACapabilityRuleSet ruleSet(
+        errorRepository);
+
+    rim::CapabilityEvaluator evaluator;
+
+    ruleSet.RegisterTo(
+        evaluator);
+
+    rim::CapabilityStore store;
+
+    rim::CapabilityChangeTracker tracker;
+
+    evaluator.Evaluate(snapshot, store);
+
+    tracker.Detect(store);
+
+    // 温度だけ動かす
+    rim::RIMSnapshot changed{};
+
+    rim::AddDoubleItem(
+        changed,
+        rim::RIMDataId::kTemperatureSensorA,
+        305.15);
+
+    evaluator.Evaluate(changed, store);
+
+    const auto changes =
+        tracker.Detect(store);
+
+    EXPECT_TRUE(
+        changes.Contains(
+            rim::kCapEnvironment));
+
+    // 扉も異常も動いていないので印字可否は変わらない
+    EXPECT_FALSE(
+        changes.Contains(
+            rim::kCapPrintReady));
 }

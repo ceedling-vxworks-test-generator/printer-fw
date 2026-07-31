@@ -1,35 +1,22 @@
 #include <gtest/gtest.h>
 
-#include "RIMSnapshot.hpp"
-#include "EnvironmentRule.hpp"
-#include "PrintReadyRule.hpp"
+#include "CapabilityEvaluator.hpp"
+#include "CapabilityStore.hpp"
 #include "ErrorRepository.hpp"
-#include "RIMValueFactory.hpp"
 
-namespace
-{
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
+#include "CapabilityItem/PrinterACapabilityTypes.hpp"
 
-void AddBoolItem(
-    rim::RIMSnapshot& snapshot,
-    rim::RIMDataId id,
-    bool value)
-{
-    rim::RIMDataItem item{};
+#include "test/support/SnapshotTestHelper.hpp"
 
-    item.id = id;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::CreateBool(
-            value);
-
-    snapshot.items.push_back(
-        item);
-}
-
-}
+//
+// Snapshot から Product の規則一式を通して Capability が揃うところまで。
+//
+// 旧試験は EnvironmentRule / PrintReadyRule を個別に new して呼んでいたが、
+// 規則の生成と登録は Product(PrinterACapabilityRuleSet)の責務になったため、
+// 実運用と同じ組み立てで確認する。
+//
 
 TEST(
     EndToEndSnapshotToCapabilityTest,
@@ -37,72 +24,147 @@ TEST(
 {
     rim::RIMSnapshot snapshot{};
 
-    {
-        rim::RIMDataItem item{};
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kTemperatureSensorA,
+        30.0);
 
-        item.id =
-            rim::RIMDataId::kTemperatureSensorA;
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kHumiditySensor,
+        40.0);
 
-        item.valueType =
-            rim::ValueType::kDouble;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                30.0);
-
-        snapshot.items.push_back(item);
-    }
-
-    {
-        rim::RIMDataItem item{};
-
-        item.id =
-            rim::RIMDataId::kHumiditySensor;
-
-        item.valueType =
-            rim::ValueType::kDouble;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                40.0);
-
-        snapshot.items.push_back(item);
-    }
-    AddBoolItem(
+    rim::AddBoolItem(
         snapshot,
         rim::RIMDataId::kUpperDoorOpen,
         false);
 
-    AddBoolItem(
+    rim::AddBoolItem(
         snapshot,
         rim::RIMDataId::kRightDoorOpen,
         false);
 
-    AddBoolItem(
+    rim::AddBoolItem(
         snapshot,
         rim::RIMDataId::kLeftDoorOpen,
         false);
 
-    rim::EnvironmentRule envRule;
-    rim::PrintReadyRule readyRule;
-
-    auto env = envRule.Evaluate(snapshot);
-
     rim::ErrorRepository errorRepository;
 
-    auto ready =
-        readyRule.Evaluate(
-            snapshot,
-            errorRepository);
+    rim::PrinterACapabilityRuleSet ruleSet(
+        errorRepository);
+
+    rim::CapabilityEvaluator evaluator;
+
+    ruleSet.RegisterTo(
+        evaluator);
+
+    rim::CapabilityStore store;
+
+    evaluator.Evaluate(
+        snapshot,
+        store);
+
+    rim::CapabilityPayload payload;
+
+    ASSERT_TRUE(
+        store.TryGet(
+            rim::kCapEnvironment,
+            payload));
+
+    const auto* env =
+        payload.As<
+            rim::EnvironmentCapability>();
+
+    ASSERT_NE(
+        env,
+        nullptr);
 
     EXPECT_DOUBLE_EQ(
-        env.temperature,
+        env->temperature,
         30.0);
 
     EXPECT_DOUBLE_EQ(
-        env.humidity,
+        env->humidity,
         40.0);
 
+    ASSERT_TRUE(
+        store.TryGet(
+            rim::kCapPrintReady,
+            payload));
+
+    const auto* ready =
+        payload.As<
+            rim::PrintReadyCapability>();
+
+    ASSERT_NE(
+        ready,
+        nullptr);
+
     EXPECT_TRUE(
-        ready.ready);
+        ready->ready);
+}
+
+TEST(
+    EndToEndSnapshotToCapabilityTest,
+    ErrorBlocksPrintReady)
+{
+    rim::RIMSnapshot snapshot{};
+
+    rim::AddBoolItem(
+        snapshot,
+        rim::RIMDataId::kUpperDoorOpen,
+        false);
+
+    rim::AddBoolItem(
+        snapshot,
+        rim::RIMDataId::kRightDoorOpen,
+        false);
+
+    rim::AddBoolItem(
+        snapshot,
+        rim::RIMDataId::kLeftDoorOpen,
+        false);
+
+    rim::ErrorRepository errorRepository;
+
+    errorRepository.Add(
+        {
+            1001,
+            rim::ErrorState::kActive,
+            rim::ErrorSeverity::kError
+        });
+
+    rim::PrinterACapabilityRuleSet ruleSet(
+        errorRepository);
+
+    rim::CapabilityEvaluator evaluator;
+
+    ruleSet.RegisterTo(
+        evaluator);
+
+    rim::CapabilityStore store;
+
+    evaluator.Evaluate(
+        snapshot,
+        store);
+
+    rim::CapabilityPayload payload;
+
+    ASSERT_TRUE(
+        store.TryGet(
+            rim::kCapPrintReady,
+            payload));
+
+    const auto* ready =
+        payload.As<
+            rim::PrintReadyCapability>();
+
+    ASSERT_NE(
+        ready,
+        nullptr);
+
+    // 扉は閉まっているが異常があるので印字不可
+    EXPECT_FALSE(
+        ready->ready);
 }

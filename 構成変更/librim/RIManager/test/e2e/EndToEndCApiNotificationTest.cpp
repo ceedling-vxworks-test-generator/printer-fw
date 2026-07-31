@@ -5,7 +5,16 @@
 
 #include "rim_api.h"
 
-#include "EnvironmentCapability.hpp"
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityTypes.hpp"
+#include "DataItem/PrinterADataIds.hpp"
+
+//
+// C API 経由で「変化通知」を受け取れること。
+//
+// 旧試験は RIManager_TestInjectTemperature / _GetEnvironment という
+// 機種固有の関数名を叩いていた。現在はどちらも id 引数を取る汎用関数である。
+//
 
 TEST(
     EndToEndCApiNotificationTest,
@@ -24,13 +33,14 @@ TEST(
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_TestInjectTemperature(
+        RIManager_TestInjectDouble(
             handle,
+            rim::ToDataId(
+                rim::RIMDataId::kTemperatureSensorA),
             30.0),
         RI_SUCCESS);
 
-    rim::EnvironmentCapability
-        capability{};
+    rim::EnvironmentCapability capability{};
 
     bool received = false;
 
@@ -41,9 +51,12 @@ TEST(
     while (std::chrono::steady_clock::now()
            < timeout)
     {
-        if (RIManager_GetEnvironment(
+        if (RIManager_GetCapability(
                 handle,
-                &capability)
+                rim::kCapEnvironment,
+                &capability,
+                sizeof capability,
+                nullptr)
             == RI_SUCCESS)
         {
             received = true;
@@ -64,6 +77,93 @@ TEST(
             capability.temperature,
             30.0);
     }
+
+    ASSERT_EQ(
+        RIManager_Stop(
+            handle),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIManager_Destroy(
+            handle),
+        RI_SUCCESS);
+}
+
+TEST(
+    EndToEndCApiNotificationTest,
+    SmallBufferDoesNotConsumeTheNotification)
+{
+    // バッファ不足のときは通知を消費しない、という約束の確認。
+    // (消費してしまうと、受け側が作り直しても取り返しがつかない)
+    RIM_HANDLE handle{};
+
+    ASSERT_EQ(
+        RIManager_Create(
+            &handle),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIManager_Start(
+            handle),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIManager_TestInjectDouble(
+            handle,
+            rim::ToDataId(
+                rim::RIMDataId::kTemperatureSensorA),
+            30.0),
+        RI_SUCCESS);
+
+    const auto timeout =
+        std::chrono::steady_clock::now()
+        + std::chrono::seconds(1);
+
+    while (RIManager_HasPendingCapability(
+               handle,
+               rim::kCapEnvironment) != 1
+           && std::chrono::steady_clock::now()
+                  < timeout)
+    {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                10));
+    }
+
+    ASSERT_EQ(
+        RIManager_HasPendingCapability(
+            handle,
+            rim::kCapEnvironment),
+        1);
+
+    char tiny[1]{};
+
+    EXPECT_EQ(
+        RIManager_GetCapability(
+            handle,
+            rim::kCapEnvironment,
+            tiny,
+            sizeof tiny,
+            nullptr),
+        RI_BUFFER_TOO_SMALL);
+
+    // 通知はまだ残っている
+    EXPECT_EQ(
+        RIManager_HasPendingCapability(
+            handle,
+            rim::kCapEnvironment),
+        1);
+
+    rim::EnvironmentCapability capability{};
+
+    EXPECT_EQ(
+        RIManager_GetCapability(
+            handle,
+            rim::kCapEnvironment,
+            &capability,
+            sizeof capability,
+            nullptr),
+        RI_SUCCESS);
 
     ASSERT_EQ(
         RIManager_Stop(

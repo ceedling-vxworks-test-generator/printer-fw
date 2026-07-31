@@ -7,6 +7,9 @@
 
 #include "PerformanceTestFixture.hpp"
 
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "DataItem/PrinterADataIds.hpp"
+
 namespace
 {
 
@@ -18,11 +21,15 @@ std::atomic<int>
 
 void OnEnvironment(
     uint64_t subscriptionId,
-    const void* capability,
+    RICapabilityId capabilityId,
+    const void* data,
+    size_t size,
     void* userData)
 {
     (void)subscriptionId;
-    (void)capability;
+    (void)capabilityId;
+    (void)data;
+    (void)size;
     (void)userData;
 
     ++g_receivedCount;
@@ -39,8 +46,9 @@ TEST_F(
     uint64_t subscriptionId{};
 
     ASSERT_EQ(
-        RIManager_SubscribeEnvironment(
+        RIManager_SubscribeCapability(
             handle_,
+            rim::kCapEnvironment,
             OnEnvironment,
             nullptr,
             &subscriptionId),
@@ -54,8 +62,10 @@ TEST_F(
          ++i)
     {
         ASSERT_EQ(
-            RIManager_TestInjectTemperature(
+            RIManager_TestInjectDouble(
                 handle_,
+                rim::ToDataId(
+                    rim::RIMDataId::kTemperatureSensorA),
                 static_cast<double>(i)),
             RI_SUCCESS);
     }

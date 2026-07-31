@@ -5,6 +5,8 @@
 
 #include "rim_api.h"
 
+#include "DataItem/PrinterADataIds.hpp"
+
 TEST(
     ThroughputTest,
     Environment10000Messages)
@@ -32,8 +34,10 @@ TEST(
          ++i)
     {
         ASSERT_EQ(
-            RIManager_TestInjectTemperature(
+            RIManager_TestInjectDouble(
                 handle,
+                rim::ToDataId(
+                    rim::RIMDataId::kTemperatureSensorA),
                 static_cast<double>(i)),
             RI_SUCCESS);
     }

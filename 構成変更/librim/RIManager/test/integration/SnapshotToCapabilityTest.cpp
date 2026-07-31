@@ -1,34 +1,23 @@
 #include <gtest/gtest.h>
 
-#include "CapabilityManager.hpp"
-#include "MachineCapabilityStore.hpp"
+#include "CapabilityEvaluator.hpp"
+#include "CapabilityStore.hpp"
 #include "ErrorRepository.hpp"
-#include "RIMValueFactory.hpp"
 
-namespace
-{
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
+#include "CapabilityItem/PrinterACapabilityTypes.hpp"
 
-void AddBoolItem(
-    rim::RIMSnapshot& snapshot,
-    rim::RIMDataId id,
-    bool value)
-{
-    rim::RIMDataItem item{};
+#include "test/support/SnapshotTestHelper.hpp"
 
-    item.id = id;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::CreateBool(
-            value);
-
-    snapshot.items.push_back(
-        item);
-}
-
-}
+//
+// Snapshot -> Capability 生成。
+//
+// 旧試験は core の CapabilityManager が5種の規則を内蔵している前提だった。
+// 現在は Product(PrinterACapabilityRuleSet)が規則を持ち込み、
+// Core の CapabilityEvaluator はそれを回すだけである。
+// この試験は **その受け渡しが成立していること** の確認にもなっている。
+//
 
 TEST(
     SnapshotToCapabilityTest,
@@ -36,75 +25,114 @@ TEST(
 {
     rim::RIMSnapshot snapshot{};
 
-    {
-        rim::RIMDataItem item{};
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kTemperatureSensorA,
+        300.15);
 
-        item.id =
-            rim::RIMDataId::kTemperatureSensorA;
+    rim::AddDoubleItem(
+        snapshot,
+        rim::RIMDataId::kHumiditySensor,
+        60.0);
 
-        item.valueType =
-            rim::ValueType::kDouble;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                300.15);
-
-        snapshot.items.push_back(item);
-    }
-
-    {
-        rim::RIMDataItem item{};
-
-        item.id =
-            rim::RIMDataId::kHumiditySensor;
-
-        item.valueType =
-            rim::ValueType::kDouble;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                60.0);
-
-        snapshot.items.push_back(item);
-    }
-
-    AddBoolItem(
+    rim::AddBoolItem(
         snapshot,
         rim::RIMDataId::kUpperDoorOpen,
         false);
 
-    AddBoolItem(
+    rim::AddBoolItem(
         snapshot,
         rim::RIMDataId::kRightDoorOpen,
         false);
 
-    AddBoolItem(
+    rim::AddBoolItem(
         snapshot,
         rim::RIMDataId::kLeftDoorOpen,
         false);
 
-    rim::MachineCapabilityStore
-        store;
+    rim::ErrorRepository errorRepository;
 
-    rim::ErrorRepository
-        errorRepository;
+    rim::PrinterACapabilityRuleSet ruleSet(
+        errorRepository);
 
-    rim::CapabilityManager
-        manager(
-            store,
-            errorRepository);
+    rim::CapabilityEvaluator evaluator;
 
-    manager.Evaluate(
-        snapshot);
+    ruleSet.RegisterTo(
+        evaluator);
+
+    rim::CapabilityStore store;
+
+    evaluator.Evaluate(
+        snapshot,
+        store);
+
+    rim::CapabilityPayload payload;
+
+    ASSERT_TRUE(
+        store.TryGet(
+            rim::kCapEnvironment,
+            payload));
+
+    const auto* environment =
+        payload.As<
+            rim::EnvironmentCapability>();
+
+    ASSERT_NE(
+        environment,
+        nullptr);
 
     EXPECT_DOUBLE_EQ(
-        store.GetEnvironment().temperature,
+        environment->temperature,
         300.15);
 
     EXPECT_DOUBLE_EQ(
-        store.GetEnvironment().humidity,
+        environment->humidity,
         60.0);
 
+    ASSERT_TRUE(
+        store.TryGet(
+            rim::kCapPrintReady,
+            payload));
+
+    const auto* printReady =
+        payload.As<
+            rim::PrintReadyCapability>();
+
+    ASSERT_NE(
+        printReady,
+        nullptr);
+
     EXPECT_TRUE(
-        store.GetPrintReady().ready);
+        printReady->ready);
+}
+
+TEST(
+    SnapshotToCapabilityTest,
+    AllRegisteredCapabilitiesAreGenerated)
+{
+    // Product が登録した規則の数だけ Capability が生成されること。
+    // Core は「いくつあるか」を Product から受け取るだけで、中身を知らない。
+    rim::RIMSnapshot snapshot{};
+
+    rim::ErrorRepository errorRepository;
+
+    rim::PrinterACapabilityRuleSet ruleSet(
+        errorRepository);
+
+    rim::CapabilityEvaluator evaluator;
+
+    ruleSet.RegisterTo(
+        evaluator);
+
+    EXPECT_EQ(
+        evaluator.RuleCount(),
+        ruleSet.CapabilityCount());
+
+    rim::CapabilityStore store;
+
+    EXPECT_EQ(
+        evaluator.Evaluate(
+            snapshot,
+            store),
+        ruleSet.CapabilityCount());
 }

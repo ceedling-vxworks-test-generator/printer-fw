@@ -1,27 +1,30 @@
 #include <gtest/gtest.h>
 
-#include "MachineCapabilityStore.hpp"
-
-#include "PublishManager.hpp"
+#include "CallbackSubscriptionRegistry.hpp"
+#include "CapabilityPublisherRegistry.hpp"
+#include "CapabilityStore.hpp"
 #include "ChangeNotifyManager.hpp"
+#include "GenericCapabilityPublisher.hpp"
+#include "PublishManager.hpp"
 #include "SubscriberMailbox.hpp"
 
-#include "SubscriptionRegistry.hpp"
-#include "CallbackSubscriptionRegistry.hpp"
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityTypes.hpp"
 
-#include "CapabilityPublisherRegistry.hpp"
-#include "GenericCapabilityPublisher.hpp"
+//
+// Capability 保持 -> 配信 -> Mailbox、のつなぎ。
+//
+// 旧試験は "Environment" という文字列で配信器を登録していた。
+// 現在は CapabilityId(整数)で引くので、綴り間違いが起きようがない。
+//
 
 TEST(
     CapabilityToPublisherTest,
     NotifyEnvironmentChanged)
 {
-    rim::MachineCapabilityStore store;
+    rim::CapabilityStore store;
 
     rim::SubscriberMailbox mailbox;
-
-    rim::SubscriptionRegistry
-        subscriptionRegistry;
 
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
@@ -33,43 +36,78 @@ TEST(
     rim::CapabilityPublisherRegistry
         publisherRegistry;
 
-    publisherRegistry.Register(
-        "Environment",
-        std::make_unique<
-            rim::GenericCapabilityPublisher>(
-            [&]
+    rim::GenericCapabilityPublisher publisher(
+        [&]
+        {
+            rim::CapabilityPayload payload;
+
+            if (store.TryGet(
+                    rim::kCapEnvironment,
+                    payload))
             {
                 notifyManager.Notify(
-                    store.GetEnvironment());
-            }));
+                    rim::kCapEnvironment,
+                    payload);
+            }
+        });
 
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
+    publisherRegistry.Register(
+        rim::kCapEnvironment,
+        &publisher);
+
+    rim::PublishManager publishManager(
+        publisherRegistry);
 
     rim::EnvironmentCapability capability{};
 
     capability.temperature = 300.15;
-
-    capability.humidity = 60.0;
+    capability.humidity    = 60.0;
 
     store.Store(
-        capability);
+        rim::kCapEnvironment,
+        rim::CapabilityPayload::From(
+            capability));
 
     publishManager.Publish(
-        "Environment");
+        rim::kCapEnvironment);
 
-    rim::EnvironmentCapability out{};
+    rim::CapabilityPayload payload;
 
     ASSERT_TRUE(
         mailbox.Pop(
-            out));
+            rim::kCapEnvironment,
+            payload));
+
+    const auto* out =
+        payload.As<
+            rim::EnvironmentCapability>();
+
+    ASSERT_NE(
+        out,
+        nullptr);
 
     EXPECT_DOUBLE_EQ(
-        out.temperature,
+        out->temperature,
         300.15);
 
     EXPECT_DOUBLE_EQ(
-        out.humidity,
+        out->humidity,
         60.0);
+}
+
+TEST(
+    CapabilityToPublisherTest,
+    PublishUnknownCapabilityIsIgnored)
+{
+    rim::CapabilityPublisherRegistry
+        publisherRegistry;
+
+    rim::PublishManager publishManager(
+        publisherRegistry);
+
+    // 配信器が無い id を叩いても落ちない
+    publishManager.Publish(
+        rim::kCapJob);
+
+    SUCCEED();
 }

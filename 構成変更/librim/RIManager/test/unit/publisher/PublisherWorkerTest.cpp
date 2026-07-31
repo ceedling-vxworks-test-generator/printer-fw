@@ -1,246 +1,199 @@
 #include <gtest/gtest.h>
 
-#include "CapabilityChangeSet.hpp"
+#include <cstdint>
 
-#include "PublisherWorker.hpp"
-
-#include "PublishManager.hpp"
-#include "ChangeNotifyManager.hpp"
-#include "SubscriptionRegistry.hpp"
-#include "SubscriberMailbox.hpp"
 #include "CallbackSubscriptionRegistry.hpp"
-
+#include "CapabilityChangeList.hpp"
 #include "CapabilityPublisherRegistry.hpp"
+#include "CapabilityStore.hpp"
+#include "ChangeNotifyManager.hpp"
 #include "GenericCapabilityPublisher.hpp"
+#include "PublishManager.hpp"
+#include "PublisherWorker.hpp"
+#include "SubscriberMailbox.hpp"
 
-#include "MachineCapabilityStore.hpp"
+//
+// 「変化した id の一覧」を受けて、その id の配信器を叩く段。
+//
+// 旧試験は "Job" / "Error" という文字列で配信器を登録し、
+// MachineCapabilityStore.GetJob() のように機種固有の型を直接扱っていた。
+// 現在は id と CapabilityPayload だけで書ける。
+//
+
+namespace
+{
+
+struct SampleCapability
+{
+    bool         active{};
+    std::int32_t id{};
+};
+
+constexpr rim::CapabilityId kSlotA = 0;
+constexpr rim::CapabilityId kSlotB = 1;
+
+// 配信段一式。試験ごとに同じ組み立てが要るのでまとめてある。
+struct Fixture
+{
+    rim::CapabilityStore              store;
+    rim::SubscriberMailbox            mailbox;
+    rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::ChangeNotifyManager          notifyManager{mailbox, callbackRegistry};
+    rim::CapabilityPublisherRegistry  publisherRegistry;
+    rim::PublishManager               publishManager{publisherRegistry};
+    rim::PublisherInputQueue          queue;
+    rim::PublisherWorker              worker{queue, publishManager};
+};
+
+}
 
 TEST(
     PublisherWorkerTest,
     ReturnFalseWhenQueueEmpty)
 {
-    rim::PublisherInputQueue queue;
-
-    rim::MachineCapabilityStore store;
-
-    rim::SubscriptionRegistry
-        subscriptionRegistry;
-
-    rim::SubscriberMailbox mailbox;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::ChangeNotifyManager notifyManager(
-        mailbox,
-        callbackRegistry);
-
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
-
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
-
-    rim::PublisherWorker worker(
-        queue,
-        publishManager);
+    Fixture f;
 
     EXPECT_FALSE(
-        worker.ExecuteOnce());
+        f.worker.ExecuteOnce());
 }
 
 TEST(
     PublisherWorkerTest,
-    ExecuteOnce)
+    ExecuteOnceWithEmptyChangeList)
 {
-    rim::PublisherInputQueue queue;
+    Fixture f;
 
-    rim::MachineCapabilityStore store;
-
-    rim::SubscriptionRegistry
-        subscriptionRegistry;
-
-    rim::SubscriberMailbox mailbox;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::ChangeNotifyManager notifyManager(
-        mailbox,
-        callbackRegistry);
-
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
-
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
-
-    rim::PublisherWorker worker(
-        queue,
-        publishManager);
-
-    rim::CapabilityChangeSet changes{};
-
-    queue.Push(
-        changes);
+    // 空の一覧でも「1件処理した」ことは真になる(配信対象が無いだけ)
+    f.queue.Push(
+        rim::CapabilityChangeList{});
 
     EXPECT_TRUE(
-        worker.ExecuteOnce());
+        f.worker.ExecuteOnce());
 }
 
 TEST(
     PublisherWorkerTest,
-    PublishJob)
+    PublishesTheChangedCapability)
 {
-    rim::MachineCapabilityStore
-        store;
-
-    rim::SubscriberMailbox
-        mailbox;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
+    Fixture f;
 
     bool called = false;
 
-    callbackRegistry.SubscribeJob(
+    std::int32_t receivedId = 0;
+
+    f.callbackRegistry.Subscribe(
+        kSlotA,
         [&](rim::SubscriptionId,
-            const rim::JobCapability&)
+            rim::CapabilityId,
+            const rim::CapabilityPayload& payload)
         {
             called = true;
+
+            const auto* cap =
+                payload.As<SampleCapability>();
+
+            if (cap != nullptr)
+            {
+                receivedId = cap->id;
+            }
         });
 
-    rim::ChangeNotifyManager
-        notifyManager(
-            mailbox,
-            callbackRegistry);
+    rim::GenericCapabilityPublisher publisher(
+        [&]
+        {
+            rim::CapabilityPayload payload;
 
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
-
-    publisherRegistry.Register(
-        "Job",
-        std::make_unique<
-            rim::GenericCapabilityPublisher>(
-            [&]
+            if (f.store.TryGet(
+                    kSlotA,
+                    payload))
             {
-                notifyManager.Notify(
-                    store.GetJob());
-            }));
+                f.notifyManager.Notify(
+                    kSlotA,
+                    payload);
+            }
+        });
 
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
+    f.publisherRegistry.Register(
+        kSlotA,
+        &publisher);
 
-    rim::PublisherInputQueue
-        queue;
+    SampleCapability cap{};
 
-    rim::PublisherWorker
-        worker(
-            queue,
-            publishManager);
+    cap.active = true;
+    cap.id     = 123;
 
-    rim::JobCapability cap{};
+    f.store.Store(
+        kSlotA,
+        rim::CapabilityPayload::From(
+            cap));
 
-    cap.jobActive = true;
-    cap.jobId = 123;
+    rim::CapabilityChangeList changes{};
 
-    store.Store(
-        cap);
+    changes.Add(
+        kSlotA);
 
-    rim::CapabilityChangeSet changes{};
-
-    changes.changedCapabilities.push_back(
-        "Job");
-
-    queue.Push(
+    f.queue.Push(
         changes);
 
     ASSERT_TRUE(
-        worker.ExecuteOnce());
+        f.worker.ExecuteOnce());
 
     EXPECT_TRUE(
         called);
+
+    EXPECT_EQ(
+        receivedId,
+        123);
 }
 
 TEST(
     PublisherWorkerTest,
-    PublishError)
+    UnregisteredCapabilityIsIgnored)
 {
-    rim::MachineCapabilityStore
-        store;
+    // 配信器が登録されていない id が流れてきても落ちないこと。
+    Fixture f;
 
-    rim::SubscriberMailbox
-        mailbox;
+    rim::CapabilityChangeList changes{};
 
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
+    changes.Add(
+        kSlotB);
 
-    bool called = false;
+    f.queue.Push(
+        changes);
 
-    callbackRegistry.SubscribeError(
-        [&](rim::SubscriptionId,
-            const rim::ErrorCapability&)
-        {
-            called = true;
-        });
+    EXPECT_TRUE(
+        f.worker.ExecuteOnce());
+}
 
-    rim::ChangeNotifyManager
-        notifyManager(
-            mailbox,
-            callbackRegistry);
+TEST(
+    PublisherWorkerTest,
+    PublishesEveryChangedCapability)
+{
+    Fixture f;
 
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
+    int aCalls = 0;
+    int bCalls = 0;
 
-    publisherRegistry.Register(
-        "Error",
-        std::make_unique<
-            rim::GenericCapabilityPublisher>(
-            [&]
-            {
-                notifyManager.Notify(
-                    store.GetError());
-            }));
+    rim::GenericCapabilityPublisher publisherA(
+        [&] { ++aCalls; });
 
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
+    rim::GenericCapabilityPublisher publisherB(
+        [&] { ++bCalls; });
 
-    rim::PublisherInputQueue
-        queue;
+    f.publisherRegistry.Register(kSlotA, &publisherA);
+    f.publisherRegistry.Register(kSlotB, &publisherB);
 
-    rim::PublisherWorker
-        worker(
-            queue,
-            publishManager);
+    rim::CapabilityChangeList changes{};
 
-    rim::ErrorCapability
-        capability{};
+    changes.Add(kSlotA);
+    changes.Add(kSlotB);
 
-    capability.errors.push_back(
-        {
-            1001,
-            rim::ErrorState::kActive,
-            rim::ErrorSeverity::kError
-        });
-
-    store.Store(
-        capability);
-
-    rim::CapabilityChangeSet changes{};
-
-    changes.changedCapabilities.push_back(
-        "Error");
-
-    queue.Push(
+    f.queue.Push(
         changes);
 
     ASSERT_TRUE(
-        worker.ExecuteOnce());
+        f.worker.ExecuteOnce());
 
-    EXPECT_TRUE(
-        called);
+    EXPECT_EQ(aCalls, 1);
+    EXPECT_EQ(bCalls, 1);
 }

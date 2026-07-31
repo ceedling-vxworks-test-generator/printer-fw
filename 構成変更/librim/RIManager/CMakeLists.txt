@@ -92,6 +92,9 @@ target_include_directories(
         ${PROJECT_SOURCE_DIR}/core/publisher/include
 
         ${PROJECT_SOURCE_DIR}/products/printer_a
+
+        # PerformanceTestFixture.hpp / PerformanceStatistics.hpp
+        ${PROJECT_SOURCE_DIR}/test/performance
 )
 
 target_include_directories(
@@ -109,6 +112,9 @@ target_include_directories(
         ${PROJECT_SOURCE_DIR}/core/publisher/include
 
         ${PROJECT_SOURCE_DIR}/products/printer_a
+
+        # PerformanceTestFixture.hpp / PerformanceStatistics.hpp
+        ${PROJECT_SOURCE_DIR}/test/performance
 )
 
 target_link_libraries(

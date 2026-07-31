@@ -1,26 +1,26 @@
 #include <gtest/gtest.h>
 
-#include "NotificationReceiver.hpp"
-
-#include "MachineCapabilityStore.hpp"
-
-#include "PublishManager.hpp"
-#include "ChangeNotifyManager.hpp"
-#include "SubscriberMailbox.hpp"
-#include "SubscriptionRegistry.hpp"
 #include "CallbackSubscriptionRegistry.hpp"
-
 #include "CapabilityPublisherRegistry.hpp"
+#include "CapabilityStore.hpp"
+#include "ChangeNotifyManager.hpp"
 #include "GenericCapabilityPublisher.hpp"
+#include "NotificationReceiver.hpp"
+#include "PublishManager.hpp"
+#include "SubscriberMailbox.hpp"
+
+#include "CapabilityItem/PrinterACapabilityIds.hpp"
+#include "CapabilityItem/PrinterACapabilityTypes.hpp"
+
+//
+// 配信 -> 購読者の受け取りまで。
+//
 
 TEST(
     PublisherToReactiveInfoManagerTest,
     ReceiveEnvironmentNotification)
 {
-    rim::MachineCapabilityStore store;
-
-    rim::SubscriptionRegistry
-        subscriptionRegistry;
+    rim::CapabilityStore store;
 
     rim::SubscriberMailbox mailbox;
 
@@ -34,47 +34,120 @@ TEST(
     rim::CapabilityPublisherRegistry
         publisherRegistry;
 
-    publisherRegistry.Register(
-        "Environment",
-        std::make_unique<
-            rim::GenericCapabilityPublisher>(
-            [&]
+    rim::GenericCapabilityPublisher publisher(
+        [&]
+        {
+            rim::CapabilityPayload payload;
+
+            if (store.TryGet(
+                    rim::kCapEnvironment,
+                    payload))
             {
                 notifyManager.Notify(
-                    store.GetEnvironment());
-            }));
+                    rim::kCapEnvironment,
+                    payload);
+            }
+        });
 
-    rim::PublishManager
-        publishManager(
-            publisherRegistry);
+    publisherRegistry.Register(
+        rim::kCapEnvironment,
+        &publisher);
+
+    rim::PublishManager publishManager(
+        publisherRegistry);
 
     rim::EnvironmentCapability capability{};
 
     capability.temperature = 300.15;
-    capability.humidity = 60.0;
+    capability.humidity    = 60.0;
 
     store.Store(
-        capability);
+        rim::kCapEnvironment,
+        rim::CapabilityPayload::From(
+            capability));
 
     publishManager.Publish(
-        "Environment");
+        rim::kCapEnvironment);
 
-    rim::NotificationReceiver
-        receiver(
-            mailbox);
+    rim::NotificationReceiver receiver(
+        mailbox);
 
-    rim::EnvironmentCapability
-        received{};
+    rim::CapabilityPayload payload;
 
     ASSERT_TRUE(
-        receiver.TryGetEnvironment(
-            received));
+        receiver.TryGet(
+            rim::kCapEnvironment,
+            payload));
+
+    const auto* received =
+        payload.As<
+            rim::EnvironmentCapability>();
+
+    ASSERT_NE(
+        received,
+        nullptr);
 
     EXPECT_DOUBLE_EQ(
-        received.temperature,
+        received->temperature,
         300.15);
 
     EXPECT_DOUBLE_EQ(
-        received.humidity,
+        received->humidity,
         60.0);
+}
+
+TEST(
+    PublisherToReactiveInfoManagerTest,
+    CallbackSubscriberAlsoReceivesIt)
+{
+    // ポーリング購読とコールバック購読の両方に届くこと。
+    rim::CapabilityStore store;
+
+    rim::SubscriberMailbox mailbox;
+
+    rim::CallbackSubscriptionRegistry
+        callbackRegistry;
+
+    bool called = false;
+
+    callbackRegistry.Subscribe(
+        rim::kCapEnvironment,
+        [&](rim::SubscriptionId,
+            rim::CapabilityId,
+            const rim::CapabilityPayload&)
+        {
+            called = true;
+        });
+
+    rim::ChangeNotifyManager notifyManager(
+        mailbox,
+        callbackRegistry);
+
+    rim::EnvironmentCapability capability{};
+
+    store.Store(
+        rim::kCapEnvironment,
+        rim::CapabilityPayload::From(
+            capability));
+
+    rim::CapabilityPayload payload;
+
+    ASSERT_TRUE(
+        store.TryGet(
+            rim::kCapEnvironment,
+            payload));
+
+    notifyManager.Notify(
+        rim::kCapEnvironment,
+        payload);
+
+    EXPECT_TRUE(
+        called);
+
+    rim::NotificationReceiver receiver(
+        mailbox);
+
+    EXPECT_TRUE(
+        receiver.HasPending(
+            rim::kCapEnvironment));
 }

@@ -1,97 +1,188 @@
 #include <gtest/gtest.h>
 
-#include "CapabilityAccessor.hpp"
+#include <cstdint>
 
-#include "ErrorInfo.hpp"
+#include "CapabilityAccessor.hpp"
+#include "CapabilityStore.hpp"
+
+//
+// 「現在値」の読み出し経路。
+//
+// 旧実装は GetEnvironment() / GetError() / GetJob() と Capability ごとに関数を
+// 持っていた。現在は id を渡して、型消去のまま(TryGet)か、指定の型として
+// (TryGetAs<T>)取り出す。
+//
+
+namespace
+{
+
+struct SampleCapability
+{
+    double       temperature{};
+    std::int32_t level{};
+};
+
+// サイズの異なる別型(取り違え検知の確認用)
+struct OtherCapability
+{
+    bool flag{};
+};
+
+constexpr rim::CapabilityId kSlotA = 0;
+constexpr rim::CapabilityId kSlotB = 1;
+
+}
 
 TEST(
     CapabilityAccessorTest,
-    GetEnvironment)
+    TryGetAsReturnsStoredValue)
 {
-    rim::MachineCapabilityStore store;
+    rim::CapabilityStore store;
 
-    rim::EnvironmentCapability env{};
+    SampleCapability input{};
 
-    env.temperature = 35.0;
+    input.temperature = 35.0;
+    input.level       = 80;
 
     store.Store(
-        env);
+        kSlotA,
+        rim::CapabilityPayload::From(
+            input));
 
     rim::CapabilityAccessor accessor(
         store);
 
-    const auto result =
-        accessor.GetEnvironment();
+    SampleCapability output{};
+
+    ASSERT_TRUE(
+        accessor.TryGetAs(
+            kSlotA,
+            output));
 
     EXPECT_DOUBLE_EQ(
-        result.temperature,
+        output.temperature,
         35.0);
+
+    EXPECT_EQ(
+        output.level,
+        80);
 }
 
 TEST(
     CapabilityAccessorTest,
-    GetError)
+    TryGetReturnsRawPayload)
 {
-    rim::MachineCapabilityStore
-        store;
+    rim::CapabilityStore store;
 
-    rim::ErrorCapability
-        capability{};
+    SampleCapability input{};
 
-    capability.errors.push_back(
-        {
-            1001,
-            rim::ErrorState::kActive,
-            rim::ErrorSeverity::kError
-        });
+    input.level = 5;
 
     store.Store(
-        capability);
+        kSlotA,
+        rim::CapabilityPayload::From(
+            input));
 
-    rim::CapabilityAccessor
-        accessor(
-            store);
+    rim::CapabilityAccessor accessor(
+        store);
 
-    const auto result =
-        accessor.GetError();
+    rim::CapabilityPayload payload;
 
-    ASSERT_EQ(
-        result.errors.size(),
-        1U);
+    ASSERT_TRUE(
+        accessor.TryGet(
+            kSlotA,
+            payload));
 
     EXPECT_EQ(
-        result.errors.front()
-            .errorCode,
-        1001U);
+        payload.Size(),
+        sizeof(SampleCapability));
 }
 
 TEST(
     CapabilityAccessorTest,
-    GetJob)
+    UnstoredCapabilityReturnsFalse)
 {
-    rim::MachineCapabilityStore
-        store;
+    rim::CapabilityStore store;
 
-    rim::JobCapability
-        capability{};
+    rim::CapabilityAccessor accessor(
+        store);
 
-    capability.jobActive = true;
-    capability.jobId = 123;
+    SampleCapability output{};
+
+    EXPECT_FALSE(
+        accessor.Has(
+            kSlotB));
+
+    EXPECT_FALSE(
+        accessor.TryGetAs(
+            kSlotB,
+            output));
+}
+
+TEST(
+    CapabilityAccessorTest,
+    WrongSizeTypeIsRejected)
+{
+    // 型消去なのでサイズ違いは検知できる(同サイズの別型は検知できない)。
+    rim::CapabilityStore store;
+
+    SampleCapability input{};
 
     store.Store(
-        capability);
+        kSlotA,
+        rim::CapabilityPayload::From(
+            input));
 
-    rim::CapabilityAccessor
-        accessor(
-            store);
+    rim::CapabilityAccessor accessor(
+        store);
 
-    const auto result =
-        accessor.GetJob();
+    OtherCapability wrong{};
 
-    EXPECT_TRUE(
-        result.jobActive);
+    EXPECT_FALSE(
+        accessor.TryGetAs(
+            kSlotA,
+            wrong));
+}
 
-    EXPECT_EQ(
-        result.jobId,
-        123);
+TEST(
+    CapabilityAccessorTest,
+    ReadsTheLatestValue)
+{
+    // 通知と違い、こちらは何度読んでも「今の値」が返る(消費しない)。
+    rim::CapabilityStore store;
+
+    SampleCapability first{};
+    first.level = 1;
+
+    SampleCapability second{};
+    second.level = 2;
+
+    store.Store(
+        kSlotA,
+        rim::CapabilityPayload::From(first));
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    SampleCapability output{};
+
+    ASSERT_TRUE(
+        accessor.TryGetAs(kSlotA, output));
+
+    EXPECT_EQ(output.level, 1);
+
+    store.Store(
+        kSlotA,
+        rim::CapabilityPayload::From(second));
+
+    ASSERT_TRUE(
+        accessor.TryGetAs(kSlotA, output));
+
+    EXPECT_EQ(output.level, 2);
+
+    // 2回目も同じ値が読める(消費されない)
+    ASSERT_TRUE(
+        accessor.TryGetAs(kSlotA, output));
+
+    EXPECT_EQ(output.level, 2);
 }
