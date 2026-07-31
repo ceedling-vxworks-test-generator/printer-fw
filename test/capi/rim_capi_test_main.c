@@ -20,6 +20,7 @@ int main(void)
     RimCapiSmokeTests();
     RimCapiValueTests();
     RimCapiPerfTests();
+    RimCapiFaultSnapshotTests();
     printf("================================\n");
 
     if (g_rim_test_failures == 0) {

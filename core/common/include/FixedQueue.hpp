@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
@@ -68,6 +69,34 @@ public:
         cv_.wait(
             lock,
             [this] { return shutdown_ || count_ != 0; });
+
+        if (shutdown_ && count_ == 0) return false;
+
+        out   = slots_[head_];
+        head_ = Next(head_);
+        --count_;
+
+        return true;
+    }
+
+    // 要素が入るか、timeout が経過するか、Shutdown されるまで待つ。
+    // 戻り値 false は「timeout」と「Shutdown 済みで空」のどちらも意味する
+    // (呼出側は running フラグ等、別の手段で終了を判定すること)。
+    // 単一のキューを待つだけでは終了検知できない複数キュー監視のために使う。
+    template <typename Rep, typename Period>
+    bool WaitAndPopFor(
+        const std::chrono::duration<Rep, Period>& timeout,
+        T& out)
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+
+        if (!cv_.wait_for(
+                lock,
+                timeout,
+                [this] { return shutdown_ || count_ != 0; }))
+        {
+            return false;
+        }
 
         if (shutdown_ && count_ == 0) return false;
 

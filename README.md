@@ -41,6 +41,14 @@ Adapter(L1) → Datastore(L2) → Capability(L3) → Publisher(L4)
 
 `ValueStore` から作った `RIMSnapshot` を Capability 段のキューへ送る。
 
+異常の**全件スナップショット**(FaultInfoList 相当)を一括反映したい場合は、
+`RIManager_PushFaultSnapshot()` を使う。1件ずつの `Push`/`AddError` とは
+別経路として**併存**し、呼ぶたびに「今存在する異常の全件」を渡す(差分ではない)。
+一覧に無いコードは削除される(回復扱いにはしない)。反映は
+`FaultApplier::ApplySnapshot` が `ErrorRepository` を直接書き換える形で行い、
+`DataStoreWorker` の同じスレッドが処理するため、書き込みスレッドは単発の
+異常報告と変わらず1本のままである。
+
 ### L3 Capability — `core/capability/`
 
 Capability は **型消去**されている(`CapabilityId` + `CapabilityPayload` の

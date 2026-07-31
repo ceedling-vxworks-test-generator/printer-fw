@@ -66,3 +66,4 @@ extern const char* g_rim_test_current;
 void RimCapiSmokeTests(void);
 void RimCapiValueTests(void);
 void RimCapiPerfTests(void);
+void RimCapiFaultSnapshotTests(void);

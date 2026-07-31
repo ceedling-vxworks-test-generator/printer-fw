@@ -16,9 +16,11 @@
 //   どちらも取れなければ何もしない(0 番の異常を勝手に作らない)。
 //
 
+#include <cstddef>
 #include <cstdint>
 
 #include "ErrorRepository.hpp"
+#include "FaultSnapshotEntry.hpp"
 #include "IErrorDefinitionRegistry.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueAccessor.hpp"
@@ -113,7 +115,89 @@ public:
         }
     }
 
+    //
+    // FaultInfoList 相当(「今存在する異常の全件」スナップショット)を反映する。
+    //
+    // 単発の Apply とは別経路であり、既存の Push/Apply と併存する(置き換えない)。
+    // 渡された一覧を「今の全件」として ErrorRepository と突き合わせる:
+    //   - 一覧にあり、未登録のコード → 新規登録する(state は一覧の値をそのまま使う。
+    //     HEALED であっても新規登録する。回復済みとして扱いたい、という要件のため)
+    //   - 一覧にあり、登録済みのコード → state を更新する
+    //   - 一覧にない、登録済みのコード → 削除する(回復ではなく消える。
+    //     全件スナップショットに無い = もう存在しない異常、という前提のため)
+    //
+    // 反映して一覧が変化したら true。
+    //
+    bool ApplySnapshot(
+        const FaultSnapshotEntry* entries,
+        std::size_t count)
+    {
+        bool changed = false;
+
+        // 削除: 現在の登録のうち、新スナップショットに無いもの。
+        // Remove は詰めて添字がずれるため、後ろから見る。
+        const ErrorRepository::Container& current =
+            repository_.GetAll();
+
+        for (std::size_t i = current.Size(); i > 0; --i)
+        {
+            const std::uint32_t code =
+                current[i - 1].errorCode;
+
+            if (!Contains(
+                    entries,
+                    count,
+                    code))
+            {
+                repository_.Remove(
+                    code);
+
+                changed = true;
+            }
+        }
+
+        // 追加/更新
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const FaultSnapshotEntry& entry =
+                entries[i];
+
+            if (!repository_.SetState(
+                    entry.errorCode,
+                    entry.state))
+            {
+                // 未登録 → 新規登録(HEALED でもそのまま登録する)
+                repository_.Add(
+                    {
+                        entry.errorCode,
+                        entry.state,
+                        ResolveSeverity(entry.errorCode)
+                    });
+            }
+
+            changed = true;
+        }
+
+        return changed;
+    }
+
 private:
+
+    static bool Contains(
+        const FaultSnapshotEntry* entries,
+        std::size_t count,
+        std::uint32_t code)
+    {
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            if (entries[i].errorCode == code)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     static bool ExtractCode(
         const RIMDataItem& item,

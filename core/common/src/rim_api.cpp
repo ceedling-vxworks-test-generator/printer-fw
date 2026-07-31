@@ -13,6 +13,7 @@
 #include "ValueStore.hpp"
 #include "AggregateRIMSnapshotReader.hpp"
 #include "FaultApplier.hpp"
+#include "FaultSnapshotQueue.hpp"
 #include "DataStoreWorker.hpp"
 #include "RIMValueFactory.hpp"
 
@@ -63,6 +64,13 @@ static_assert(
 static_assert(
     static_cast<int>(rim::FaultState::kUpdatedActive) == RIM_FAULT_UPDATED_ACTIVE,
     "rim_fault_state_t と rim::FaultState がずれている");
+
+static_assert(
+    static_cast<int>(rim::ErrorState::kActive) == RIM_FAULT_SNAPSHOT_STATE_ACTIVE,
+    "rim_fault_snapshot_state_t と rim::ErrorState がずれている");
+static_assert(
+    static_cast<int>(rim::ErrorState::kRecovered) == RIM_FAULT_SNAPSHOT_STATE_HEALED,
+    "rim_fault_snapshot_state_t と rim::ErrorState がずれている");
 
 namespace
 {
@@ -184,6 +192,11 @@ struct RIManagerContext
     rim::PublisherInputQueue
         publisherQueue;
 
+    // FaultInfoList(スナップショット一括反映)の専用レーン。
+    // 単発の Push とは別経路として併存させる(置き換えない)。
+    rim::FaultSnapshotQueue
+        faultSnapshotQueue;
+
     //
     // Error
     //
@@ -302,7 +315,8 @@ struct RIManagerContext
             valueStore,
             snapshotReader,
             capabilityQueue,
-            &faultApplier)
+            &faultApplier,
+            &faultSnapshotQueue)
         , capabilityWorker(
             capabilityQueue,
             capabilityEvaluator,
@@ -853,6 +867,51 @@ int RIManager_SetErrorState(
             ? RIM_FAULT_UPDATED_ACTIVE
             : RIM_FAULT_UPDATED_HEAL,
         errorCode);
+}
+
+int RIManager_PushFaultSnapshot(
+    RIM_HANDLE handle,
+    const rim_fault_snapshot_entry_t* entries,
+    size_t count)
+{
+    if (handle == nullptr)
+    {
+        return RI_INVALID_HANDLE;
+    }
+
+    if (entries == nullptr &&
+        count != 0)
+    {
+        return RI_INVALID_PARAMETER;
+    }
+
+    if (count > rim::kMaxErrors)
+    {
+        // 黙って切り詰めると異常の取りこぼしになるため、呼出側に気付かせる。
+        return RI_INVALID_PARAMETER;
+    }
+
+    rim::FaultSnapshotBatch batch{};
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        batch.entries[i].errorCode =
+            entries[i].error_code;
+
+        batch.entries[i].state =
+            static_cast<rim::ErrorState>(
+                entries[i].state);
+    }
+
+    batch.count = count;
+
+    auto* context =
+        ToContext(handle);
+
+    context->faultSnapshotQueue.Push(
+        batch);
+
+    return RI_SUCCESS;
 }
 
 int RIManager_Push(

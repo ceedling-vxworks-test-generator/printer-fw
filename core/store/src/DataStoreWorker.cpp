@@ -28,6 +28,21 @@ void DataStoreWorker::ProcessItem(
         reader_.Read());
 }
 
+void DataStoreWorker::ProcessFaultSnapshot(
+    const FaultSnapshotBatch& batch)
+{
+    if (faultApplier_ != nullptr)
+    {
+        faultApplier_->ApplySnapshot(
+            batch.entries,
+            batch.count);
+    }
+
+    // ProcessItem と同様、変化の有無によらず Capability を作り直す。
+    capabilityQueue_.Push(
+        reader_.Read());
+}
+
 void DataStoreWorker::Run()
 {
     if (running_)
@@ -43,16 +58,33 @@ void DataStoreWorker::Run()
             {
                 while (running_)
                 {
-                    RIMDataItem item{};
-
-                    if (!queue_.WaitAndPop(
-                            item))
+                    // FaultInfoList 経路は別レーンなので先に見る(併存させるために
+                    // スレッドを増やさず、同じスレッドで両方さばく)。
+                    if (faultSnapshotQueue_ != nullptr)
                     {
-                        break;
+                        FaultSnapshotBatch batch{};
+
+                        if (faultSnapshotQueue_->TryPop(
+                                batch))
+                        {
+                            ProcessFaultSnapshot(
+                                batch);
+
+                            continue;
+                        }
                     }
 
-                    ProcessItem(
-                        item);
+                    RIMDataItem item{};
+
+                    // 無期限に待つと faultSnapshotQueue_ の検知が遅れるため、
+                    // 一定間隔で戻ってきて両方を見直す。
+                    if (queue_.WaitAndPopFor(
+                            kPollInterval,
+                            item))
+                    {
+                        ProcessItem(
+                            item);
+                    }
                 }
             });
 }
@@ -71,6 +103,20 @@ void DataStoreWorker::Stop()
 
 bool DataStoreWorker::ExecuteOnce()
 {
+    if (faultSnapshotQueue_ != nullptr)
+    {
+        FaultSnapshotBatch batch{};
+
+        if (faultSnapshotQueue_->TryPop(
+                batch))
+        {
+            ProcessFaultSnapshot(
+                batch);
+
+            return true;
+        }
+    }
+
     RIMDataItem item{};
 
     if (!queue_.TryPop(

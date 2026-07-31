@@ -144,3 +144,31 @@ static int RimPush(RIM_HANDLE h, uint16_t dataId, double value)
 {
     return RIManager_Push(h, dataId, value, NULL);
 }
+
+/*
+ * RIM_CAP_ERROR の count が expectedCount になるまで待つ(FaultInfoList の反映は
+ * DataStoreWorker が非同期に処理するため)。out には最後に読めた値が書かれる。
+ * 戻り値: 一致を確認できたら true。
+ */
+static int RimWaitErrorCount(RIM_HANDLE h, uint16_t expectedCount, rim_error_capability_t* out)
+{
+    int i;
+    for (i = 0; i < kRimSettleMaxChunks; ++i) {
+        if (RIManager_GetCurrentCapability(h, RIM_CAP_ERROR, out, sizeof *out, NULL) == RI_SUCCESS) {
+            if (out->count == expectedCount) return 1;
+        }
+        RimSettleChunk();
+    }
+    return RIManager_GetCurrentCapability(h, RIM_CAP_ERROR, out, sizeof *out, NULL) == RI_SUCCESS
+           && out->count == expectedCount;
+}
+
+/* rim_error_capability_t の中から errorCode 一致の要素を探す(順序に依存しないため)。 */
+static const rim_error_info_t* RimFindError(const rim_error_capability_t* cap, uint32_t errorCode)
+{
+    uint16_t i;
+    for (i = 0; i < cap->count; ++i) {
+        if (cap->errors[i].errorCode == errorCode) return &cap->errors[i];
+    }
+    return NULL;
+}

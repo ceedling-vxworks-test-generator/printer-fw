@@ -261,3 +261,161 @@ TEST(
     EXPECT_TRUE(
         repository.GetAll().Empty());
 }
+
+//
+// ApplySnapshot - FaultInfoList 相当(「今存在する異常の全件」)の反映。
+//
+// 単発の Apply とは別経路(併存)。渡した一覧を全件スナップショットとして扱い、
+// 一覧に無いコードは(回復ではなく)削除する。
+//
+
+TEST(
+    FaultApplierTest,
+    ApplySnapshotAddsUnknownCodes)
+{
+    rim::ErrorRepository repository;
+    rim::FaultApplier    applier(repository);
+
+    const rim::FaultSnapshotEntry entries[] = {
+        {1001, rim::ErrorState::kActive},
+        {1002, rim::ErrorState::kRecovered},
+    };
+
+    EXPECT_TRUE(
+        applier.ApplySnapshot(
+            entries,
+            2));
+
+    ASSERT_EQ(
+        repository.GetAll().Size(),
+        2U);
+
+    EXPECT_EQ(
+        repository.GetAll()[0].errorCode,
+        1001U);
+    EXPECT_EQ(
+        repository.GetAll()[0].state,
+        rim::ErrorState::kActive);
+
+    EXPECT_EQ(
+        repository.GetAll()[1].errorCode,
+        1002U);
+    EXPECT_EQ(
+        repository.GetAll()[1].state,
+        rim::ErrorState::kRecovered);
+}
+
+TEST(
+    FaultApplierTest,
+    ApplySnapshotRegistersHealedCodeThatWasNeverRaised)
+{
+    // 「HEALED だけが送られてきて未登録」の場合は、回復済みとして新規登録する
+    // (方針: 回復済みとして新規登録する)。
+    rim::ErrorRepository repository;
+    rim::FaultApplier    applier(repository);
+
+    const rim::FaultSnapshotEntry entries[] = {
+        {2001, rim::ErrorState::kRecovered},
+    };
+
+    EXPECT_TRUE(
+        applier.ApplySnapshot(
+            entries,
+            1));
+
+    ASSERT_EQ(
+        repository.GetAll().Size(),
+        1U);
+    EXPECT_EQ(
+        repository.GetAll()[0].errorCode,
+        2001U);
+    EXPECT_EQ(
+        repository.GetAll()[0].state,
+        rim::ErrorState::kRecovered);
+}
+
+TEST(
+    FaultApplierTest,
+    ApplySnapshotUpdatesStateOfExistingCode)
+{
+    rim::ErrorRepository repository;
+    rim::FaultApplier    applier(repository);
+
+    applier.Apply(
+        MakeFault(rim::FaultState::kRaised, 1001));
+
+    const rim::FaultSnapshotEntry entries[] = {
+        {1001, rim::ErrorState::kRecovered},
+    };
+
+    EXPECT_TRUE(
+        applier.ApplySnapshot(
+            entries,
+            1));
+
+    ASSERT_EQ(
+        repository.GetAll().Size(),
+        1U);
+    EXPECT_EQ(
+        repository.GetAll()[0].state,
+        rim::ErrorState::kRecovered);
+}
+
+TEST(
+    FaultApplierTest,
+    ApplySnapshotRemovesCodesMissingFromTheList)
+{
+    // 全件スナップショットに無いコードは、回復扱いではなく削除される。
+    rim::ErrorRepository repository;
+    rim::FaultApplier    applier(repository);
+
+    applier.Apply(MakeFault(rim::FaultState::kRaised, 1001));
+    applier.Apply(MakeFault(rim::FaultState::kRaised, 1002));
+
+    const rim::FaultSnapshotEntry entries[] = {
+        {1001, rim::ErrorState::kActive},
+    };
+
+    EXPECT_TRUE(
+        applier.ApplySnapshot(
+            entries,
+            1));
+
+    ASSERT_EQ(
+        repository.GetAll().Size(),
+        1U);
+    EXPECT_EQ(
+        repository.GetAll()[0].errorCode,
+        1001U);
+}
+
+TEST(
+    FaultApplierTest,
+    ApplySnapshotEmptyListClearsRepository)
+{
+    rim::ErrorRepository repository;
+    rim::FaultApplier    applier(repository);
+
+    applier.Apply(MakeFault(rim::FaultState::kRaised, 1001));
+
+    EXPECT_TRUE(
+        applier.ApplySnapshot(
+            nullptr,
+            0));
+
+    EXPECT_TRUE(
+        repository.GetAll().Empty());
+}
+
+TEST(
+    FaultApplierTest,
+    ApplySnapshotOfEmptyRepositoryWithEmptyListChangesNothing)
+{
+    rim::ErrorRepository repository;
+    rim::FaultApplier    applier(repository);
+
+    EXPECT_FALSE(
+        applier.ApplySnapshot(
+            nullptr,
+            0));
+}

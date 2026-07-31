@@ -30,4 +30,8 @@ inline constexpr std::size_t kStoreQueueDepth      = 64;
 inline constexpr std::size_t kCapabilityQueueDepth = 16;
 inline constexpr std::size_t kPublisherQueueDepth  = 16;
 
+// FaultInfoList(スナップショット一括反映)を保持できる件数。
+// 1件が kMaxErrors 件分の配列を丸ごと持つため、他のキューより浅くしてある。
+inline constexpr std::size_t kFaultSnapshotQueueDepth = 4;
+
 } // namespace rim

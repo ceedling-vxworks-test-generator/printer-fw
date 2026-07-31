@@ -52,6 +52,32 @@ typedef enum rim_fault_state_t
 } rim_fault_state_t;
 
 /*
+ * 異常の状態(FaultInfoList 相当のスナップショットで使う「今の状態」)。
+ *
+ * rim_fault_state_t(発生/解除/更新という**イベント**)とは別物であることに注意。
+ * こちらは ACTIVE/HEALED の2値で「今その異常コードがどちらか」を表す**現在値**。
+ * C++ 側 rim::ErrorState と値が一致していること(rim_api.cpp の static_assert)。
+ *
+ * 名前を rim_error_state_t としなかったのは、機種側
+ * (products/printer_a/CapabilityItem/rim_capability_types.h)に既に同名の型
+ * (Capability 読み出し用)があり、衝突するため。
+ */
+typedef enum rim_fault_snapshot_state_t
+{
+    RIM_FAULT_SNAPSHOT_STATE_ACTIVE = 0,   /* 発生中 */
+    RIM_FAULT_SNAPSHOT_STATE_HEALED = 1    /* 回復済み */
+} rim_fault_snapshot_state_t;
+
+/*
+ * FaultInfoList の1件(異常コード + その時点の状態)。
+ */
+typedef struct rim_fault_snapshot_entry_t
+{
+    uint32_t                    error_code;
+    rim_fault_snapshot_state_t  state;
+} rim_fault_snapshot_entry_t;
+
+/*
  * データに添える補足情報。has_xxx が false のフィールドは未指定として扱う。
  */
 typedef struct rim_context_t
@@ -188,6 +214,26 @@ int RIManager_SetErrorState(
     RIM_HANDLE handle,
     uint32_t errorCode,
     int state);
+
+/*
+ * 異常の一覧をスナップショットとして丸ごと反映する(FaultInfoList 相当)。
+ *
+ * RIManager_AddError 等(1件ずつのイベント通知)とは**別経路**であり、置き換えでは
+ * なく併存する。呼び出しのたびに「今存在する異常の全件」を渡すこと(差分ではない)。
+ *
+ *   - 一覧にあり、まだ登録されていないコード → 新規登録する
+ *     (state が RIM_FAULT_SNAPSHOT_STATE_HEALED であっても、回復済みとして新規登録する)
+ *   - 一覧にあり、登録済みのコード         → state を更新する
+ *   - 一覧に無い、登録済みのコード         → 削除する
+ *     (回復扱いにはしない。全件スナップショットに無い = もう存在しない異常、という前提)
+ *
+ * count が内部の保持上限を超える場合は何も反映せず RI_INVALID_PARAMETER を返す
+ * (黙って切り詰めると異常の取りこぼしになるため)。
+ */
+int RIManager_PushFaultSnapshot(
+    RIM_HANDLE handle,
+    const rim_fault_snapshot_entry_t* entries,
+    size_t count);
 
 /* ------------------------------------------------------------------ */
 /* データ投入                                                          */
