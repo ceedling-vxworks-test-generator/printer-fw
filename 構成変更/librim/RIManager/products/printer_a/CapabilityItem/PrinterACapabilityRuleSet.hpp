@@ -1,7 +1,11 @@
 #pragma once
 
+#include <cstddef>
+
 #include "CapabilityEvaluator.hpp"
 #include "ErrorRepository.hpp"
+#include "ICapabilityRuleProvider.hpp"
+#include "PrinterACapabilityIds.hpp"
 #include "PrinterACapabilityRules.hpp"
 
 namespace rim
@@ -14,7 +18,7 @@ namespace rim
 // 「どの Capability があるか」を知っているのはこのクラス(= Product)だけである。
 // Core はここから渡された ICapabilityRule* の配列を回すだけで、中身を知らない。
 //
-class PrinterACapabilityRuleSet
+class PrinterACapabilityRuleSet final : public ICapabilityRuleProvider
 {
 public:
 
@@ -25,13 +29,18 @@ public:
     }
 
     // Core の評価器へ自分の規則を登録する。
-    void RegisterTo(CapabilityEvaluator& evaluator) const
+    void RegisterTo(CapabilityEvaluator& evaluator) const override
     {
         evaluator.Register(&environment_);
         evaluator.Register(&error_);
         evaluator.Register(&printReady_);
         evaluator.Register(&consumable_);
         evaluator.Register(&job_);
+    }
+
+    std::size_t CapabilityCount() const override
+    {
+        return kPrinterACapabilityCount;
     }
 
 private:

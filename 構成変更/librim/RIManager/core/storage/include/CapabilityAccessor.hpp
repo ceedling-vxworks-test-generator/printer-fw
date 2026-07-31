@@ -1,84 +1,86 @@
 #pragma once
 
-#include "MachineCapabilityStore.hpp"
-#include "ConsumableCapability.hpp"
-#include "JobCapability.hpp"
+#include "CapabilityId.hpp"
+#include "CapabilityPayload.hpp"
+#include "CapabilityStore.hpp"
 
 namespace rim
 {
 
+//
+// CapabilityAccessor - Capability の「現在値」を読み出す窓口。
+//
+// 旧実装は GetEnvironment() / GetError() / … と Capability ごとに関数を持ち、
+// MachineCapabilityStore の具象ゲッタを叩いていた(= Core が製品の Capability
+// 一覧を知っている状態)。本実装は CapabilityId を引数で受け、中身は
+// CapabilityPayload のまま返す。何が入っているかを知るのは呼出側の責務。
+//
+// 通知(SubscriberMailbox 経由)が「変化したときだけ届く」のに対し、こちらは
+// 「今の値をいつでも読める」経路である。役割が違うので両方残してある。
+//
 class CapabilityAccessor
 {
 public:
 
     explicit CapabilityAccessor(
-        const MachineCapabilityStore& store)
+        const CapabilityStore& store)
         : store_(store)
     {
     }
 
-    EnvironmentCapability
-    GetEnvironment() const;
+    // 現在値を型消去のまま取り出す。未生成なら false。
+    bool TryGet(
+        CapabilityId id,
+        CapabilityPayload& payload) const
+    {
+        return store_.TryGet(
+            id,
+            payload);
+    }
 
-    ErrorCapability
-    GetError() const;
+    // 現在値を指定の型として取り出す。
+    // 未生成、またはサイズが T と一致しない場合は false。
+    //
+    // 注意: 検知できるのはサイズ違いだけである(型消去の代償)。
+    // CapabilityId と型の対応は Product 側の1箇所に集約すること。
+    template <typename T>
+    bool TryGetAs(
+        CapabilityId id,
+        T& out) const
+    {
+        CapabilityPayload payload;
 
-    PrintReadyCapability
-    GetPrintReady() const;
+        if (!store_.TryGet(
+                id,
+                payload))
+        {
+            return false;
+        }
 
-    ConsumableCapability
-    GetConsumable() const;
+        const T* typed =
+            payload.As<T>();
 
-    JobCapability
-    GetJob() const;
+        if (typed == nullptr)
+        {
+            return false;
+        }
+
+        out = *typed;
+
+        return true;
+    }
+
+    bool Has(
+        CapabilityId id) const
+    {
+        return store_.Has(
+            id);
+    }
 
 private:
 
-    template<typename T>
-    T GetImpl() const;
-
-    const MachineCapabilityStore&
+    const CapabilityStore&
         store_;
 };
-
-template<>
-inline EnvironmentCapability
-CapabilityAccessor::GetImpl<
-    EnvironmentCapability>() const
-{
-    return store_.GetEnvironment();
-}
-
-template<>
-inline ErrorCapability
-CapabilityAccessor::GetImpl<
-    ErrorCapability>() const
-{
-    return store_.GetError();
-}
-
-template<>
-inline PrintReadyCapability
-CapabilityAccessor::GetImpl<
-    PrintReadyCapability>() const
-{
-    return store_.GetPrintReady();
-}
-
-template<>
-inline ConsumableCapability
-CapabilityAccessor::GetImpl<
-    ConsumableCapability>() const
-{
-    return store_.GetConsumable();
-}
-
-template<>
-inline JobCapability
-CapabilityAccessor::GetImpl<
-    JobCapability>() const
-{
-    return store_.GetJob();
-}
 
 } // namespace rim

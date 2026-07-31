@@ -50,7 +50,16 @@ public:
     }
 
     std::size_t RuleCount() const { return count_; }
-    void        Clear() { count_ = 0; }
+
+    // 登録済み規則の参照(範囲外は nullptr)。
+    // 「登録された Capability の id 一覧」を組み立てる用途に使う。
+    const ICapabilityRule* RuleAt(std::size_t index) const
+    {
+        if (index >= count_) return nullptr;
+        return rules_[index];
+    }
+
+    void Clear() { count_ = 0; }
 
 private:
 

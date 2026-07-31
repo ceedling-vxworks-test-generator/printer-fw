@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <unordered_set>
 
-#include "SubscriptionType.hpp"
 #include "SubscriptionId.hpp"
 
 namespace rim

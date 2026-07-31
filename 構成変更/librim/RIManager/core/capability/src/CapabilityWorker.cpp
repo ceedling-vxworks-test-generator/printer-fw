@@ -3,6 +3,24 @@
 namespace rim
 {
 
+void CapabilityWorker::ProcessSnapshot(
+    const RIMSnapshot& snapshot)
+{
+    evaluator_.Evaluate(
+        snapshot,
+        store_);
+
+    const auto changes =
+        changeTracker_.Detect(
+            store_);
+
+    if (!changes.Empty())
+    {
+        publisherQueue_.Push(
+            changes);
+    }
+}
+
 void CapabilityWorker::Run()
 {
     if (running_)
@@ -26,18 +44,8 @@ void CapabilityWorker::Run()
                         break;
                     }
 
-                    manager_.Evaluate(
+                    ProcessSnapshot(
                         snapshot);
-
-                    const auto changes =
-                        changeDetector_.Detect(
-                            store_);
-
-                    if (!changes.Empty())
-                    {
-                        publisherQueue_.Push(
-                            changes);
-                    }
                 }
             });
 }
@@ -64,18 +72,8 @@ bool CapabilityWorker::ExecuteOnce()
         return false;
     }
 
-    manager_.Evaluate(
+    ProcessSnapshot(
         snapshot);
-
-    const auto changes =
-        changeDetector_.Detect(
-            store_);
-
-    if (!changes.Empty())
-    {
-        publisherQueue_.Push(
-            changes);
-    }
 
     return true;
 }

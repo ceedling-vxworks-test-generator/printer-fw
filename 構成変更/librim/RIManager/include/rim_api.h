@@ -3,34 +3,26 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "rim_types.h"
 #include "rim_capability.h"
 
-typedef void (*RIEnvironmentCallback)(
-    uint64_t subscriptionId,
-    const void* capability,
-    void* userData);
-typedef void (*RIErrorCallback)(
-    uint64_t subscriptionId,
-    const void* capability,
-    void* userData);
-typedef void (*RIPrintReadyCallback)(
-    uint64_t subscriptionId,
-    const void* capability,
-    void* userData);
-typedef void (*RIConsumableCallback)(
-    uint64_t subscriptionId,
-    const void* capability,
-    void* userData);
-typedef void (*RIJobCallback)(
-    uint64_t subscriptionId,
-    const void* capability,
-    void* userData);
-
+/*
+ * RIManager C API
+ *
+ * 旧 API は RIManager_GetEnvironment / _SubscribeError / _TestInjectTemperature …
+ * と **機種固有の Capability 名・データ名が関数名に焼き付いて**いた。
+ * その結果、Capability を1つ増やすたびに Core の公開 API に手が入っていた。
+ *
+ * 本 API は「どの Capability か(RICapabilityId)」「どのデータか(dataId)」を
+ * 引数で受ける形に統一してある。ID の意味を知っているのは Product と利用者だけで、
+ * Core は整数として素通しする。Capability やデータが増えても Core は無改修。
+ */
 
 typedef void *RIM_HANDLE;
+
 typedef enum RIStatus
 {
     RI_SUCCESS = 0,
@@ -47,16 +39,17 @@ typedef enum RIStatus
     /* データなし */
     RI_NO_DATA = -4,
 
-    // /* 購読なし */
-    // RI_NOT_SUBSCRIBED = -5,
-
-    // /* サポート外 */
-    // RI_NOT_SUPPORTED = -6,
+    /* 受け側のバッファが足りない */
+    RI_BUFFER_TOO_SMALL = -5,
 
     /* 内部エラー */
     RI_INTERNAL_ERROR = -100
 
 } RIStatus;
+
+/* ------------------------------------------------------------------ */
+/* ライフサイクル                                                       */
+/* ------------------------------------------------------------------ */
 
 int RIManager_Create(
     RIM_HANDLE* handle);
@@ -70,74 +63,58 @@ int RIManager_Start(
 int RIManager_Stop(
     RIM_HANDLE handle);
 
+/* ------------------------------------------------------------------ */
+/* Capability の取得                                                    */
+/* ------------------------------------------------------------------ */
 
-
-int RIManager_SubscribeEnvironment(
+/*
+ * 変化通知を1件取り出す(溜まっていなければ RI_NO_DATA)。
+ *
+ * buffer には capabilityId に対応する構造体を受け取れる大きさを渡すこと。
+ * 実際に書き込まれたバイト数は written に返る(不要なら NULL)。
+ * バッファが足りない場合は RI_BUFFER_TOO_SMALL を返し、**通知は消費しない**。
+ */
+int RIManager_GetCapability(
     RIM_HANDLE handle,
-    RIEnvironmentCallback callback,
+    RICapabilityId capabilityId,
+    void* buffer,
+    size_t bufferSize,
+    size_t* written);
+
+/*
+ * 現在値を読み出す(変化の有無によらず、今の値をいつでも読める)。
+ * まだ一度も生成されていない Capability は RI_NO_DATA。
+ */
+int RIManager_GetCurrentCapability(
+    RIM_HANDLE handle,
+    RICapabilityId capabilityId,
+    void* buffer,
+    size_t bufferSize,
+    size_t* written);
+
+/* 通知が溜まっているか(0/1)。handle 不正時は負値を返す。 */
+int RIManager_HasPendingCapability(
+    RIM_HANDLE handle,
+    RICapabilityId capabilityId);
+
+/* ------------------------------------------------------------------ */
+/* 購読                                                                */
+/* ------------------------------------------------------------------ */
+
+int RIManager_SubscribeCapability(
+    RIM_HANDLE handle,
+    RICapabilityId capabilityId,
+    RICapabilityCallback callback,
     void* userData,
     uint64_t* subscriptionId);
-
-int RIManager_GetEnvironment(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_GetCurrentEnvironment(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_SubscribeError(
-    RIM_HANDLE handle,
-    RIErrorCallback callback,
-    void* userData,
-    uint64_t* subscriptionId);
-
-int RIManager_GetError(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_GetCurrentError(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_SubscribePrintReady(
-    RIM_HANDLE handle,
-    RIPrintReadyCallback callback,
-    void* userData,
-    uint64_t* subscriptionId);
-
-int RIManager_GetPrintReady(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_GetCurrentPrintReady(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_SubscribeConsumable(
-    RIM_HANDLE handle,
-    RIConsumableCallback callback,
-    void* userData,
-    uint64_t* subscriptionId);
-
-int RIManager_GetCurrentConsumable(
-    RIM_HANDLE handle,
-    void* capability);
-
-int RIManager_SubscribeJob(
-    RIM_HANDLE handle,
-    RIJobCallback callback,
-    void* userData,
-    uint64_t* subscriptionId);
-
-int RIManager_GetCurrentJob(
-    RIM_HANDLE handle,
-    void* capability);
 
 int RIManager_Unsubscribe(
     RIM_HANDLE handle,
     uint64_t subscriptionId);
 
+/* ------------------------------------------------------------------ */
+/* 異常                                                                */
+/* ------------------------------------------------------------------ */
 
 int RIManager_AddError(
     RIM_HANDLE handle,
@@ -152,46 +129,30 @@ int RIManager_SetErrorState(
     uint32_t errorCode,
     int state);
 
+/* ------------------------------------------------------------------ */
+/* データ投入(試験用)                                                  */
+/* ------------------------------------------------------------------ */
 
+/*
+ * 旧 API の _TestInjectTemperature / _TestInjectUpperDoorOpen … を、
+ * データ ID を引数で受ける3本(型ごと)に置き換えたもの。
+ * dataId の意味を知っているのは Product と利用者だけである。
+ */
 
-
-int RIManager_TestInjectJobActive(
+int RIManager_TestInjectDouble(
     RIM_HANDLE handle,
-    int active);
+    uint16_t dataId,
+    double value);
 
-int RIManager_TestInjectJobId(
+int RIManager_TestInjectInt32(
     RIM_HANDLE handle,
-    int jobId);
+    uint16_t dataId,
+    int32_t value);
 
-int RIManager_TestInjectTemperature(
+int RIManager_TestInjectBool(
     RIM_HANDLE handle,
-    double temperature);
-
-int RIManager_TestInjectUpperDoorOpen(
-    RIM_HANDLE handle,
-    int opened);
-
- int RIManager_TestInjectRightDoorOpen(
-    RIM_HANDLE handle,
-    int opened);   
-
-int RIManager_TestInjectLeftDoorOpen(
-    RIM_HANDLE handle,
-    int opened);
-
-int RIManager_TestInjectStapleLevel(
-    RIM_HANDLE handle,
-    int32_t level);
-
-int RIManager_TestInjectJobActive(
-    RIM_HANDLE handle,
-    int active);
-
-int RIManager_TestInjectJobId(
-    RIM_HANDLE handle,
-    int jobId);
-
-
+    uint16_t dataId,
+    int value);
 
 #ifdef __cplusplus
 }

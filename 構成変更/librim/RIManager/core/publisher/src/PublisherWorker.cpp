@@ -1,5 +1,7 @@
 #include "PublisherWorker.hpp"
 
+#include <cstddef>
+
 namespace rim
 {
 
@@ -18,7 +20,7 @@ void PublisherWorker::Run()
             {
                 while (running_)
                 {
-                    CapabilityChangeSet input{};
+                    CapabilityChangeList input{};
 
                     if (!queue_.WaitAndPop(
                             input))
@@ -26,11 +28,12 @@ void PublisherWorker::Run()
                         break;
                     }
 
-                    for (const auto& capability :
-                        input.changedCapabilities)
+                    for (std::size_t i = 0;
+                        i < input.Size();
+                        ++i)
                     {
                         manager_.Publish(
-                            capability);
+                            input.At(i));
                     }
 
                 }
@@ -51,7 +54,7 @@ void PublisherWorker::Stop()
 
 bool PublisherWorker::ExecuteOnce()
 {
-    CapabilityChangeSet input{};
+    CapabilityChangeList input{};
 
     if (!queue_.TryPop(
             input))
@@ -59,11 +62,12 @@ bool PublisherWorker::ExecuteOnce()
         return false;
     }
 
-    for (const auto& capability :
-        input.changedCapabilities)
+    for (std::size_t i = 0;
+        i < input.Size();
+        ++i)
     {
         manager_.Publish(
-            capability);
+            input.At(i));
     }
 
     return true;

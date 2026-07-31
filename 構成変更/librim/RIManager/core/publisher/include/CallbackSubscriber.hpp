@@ -2,43 +2,28 @@
 
 #include <functional>
 
+#include "CapabilityId.hpp"
+#include "CapabilityPayload.hpp"
 #include "SubscriptionId.hpp"
-
-#include "EnvironmentCapability.hpp"
-#include "ErrorCapability.hpp"
-#include "PrintReadyCapability.hpp"
-#include "ConsumableCapability.hpp"
-#include "JobCapability.hpp"
 
 namespace rim
 {
 
-using EnvironmentCallback =
+//
+// Capability 通知コールバック。
+//
+// 旧実装は EnvironmentCallback / ErrorCallback / … と Capability ごとに別名を
+// 定義していたため、Capability を1つ増やすたびに Core の改修が必要だった。
+// 本実装は「どの Capability か(CapabilityId)」と「中身(型消去バイト列)」だけを
+// 渡す1本の型にまとめてある。
+//
+// 受け取り側は自分が購読した CapabilityId に対応する型で payload.As<T>() して
+// 解釈する。Core はその型を知らない。
+//
+using CapabilityCallback =
     std::function<void(
         SubscriptionId,
-        const EnvironmentCapability&)>;
+        CapabilityId,
+        const CapabilityPayload&)>;
 
-using ErrorCallback =
-    std::function<
-        void(
-            SubscriptionId,
-            const ErrorCapability&)>;
-            
-using PrintReadyCallback =
-    std::function<
-        void(
-            SubscriptionId,
-            const PrintReadyCapability&)>;            
-
-using ConsumableCallback =
-    std::function<
-        void(
-            SubscriptionId,
-            const ConsumableCapability&)>;
-
-using JobCallback =
-    std::function<
-        void(
-            SubscriptionId,
-            const JobCapability&)>;
-}
+} // namespace rim

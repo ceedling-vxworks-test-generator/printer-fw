@@ -4,7 +4,7 @@
 #include <queue>
 #include <condition_variable>
 
-#include "CapabilityChangeSet.hpp"
+#include "CapabilityChangeList.hpp"
 
 namespace rim
 {
@@ -14,7 +14,7 @@ class PublisherInputQueue
 public:
 
     void Push(
-        const CapabilityChangeSet& input)
+        const CapabilityChangeList& input)
     {
         std::lock_guard<std::mutex>
             lock(mutex_);
@@ -26,7 +26,7 @@ public:
     }
 
     bool TryPop(
-        CapabilityChangeSet& input)
+        CapabilityChangeList& input)
     {
         std::lock_guard<std::mutex>
             lock(mutex_);
@@ -45,7 +45,7 @@ public:
     }
 
     bool WaitAndPop(
-        CapabilityChangeSet& input)
+        CapabilityChangeList& input)
     {
         std::unique_lock<std::mutex>
             lock(mutex_);
@@ -92,7 +92,7 @@ private:
 
     bool shutdown_{false};
 
-    std::queue<CapabilityChangeSet>
+    std::queue<CapabilityChangeList>
         queue_;
 };
 

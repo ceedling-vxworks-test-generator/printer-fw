@@ -4,7 +4,7 @@ namespace rim
 {
 
 void PublishManager::Publish(
-    const std::string& capabilityId)
+    CapabilityId capabilityId)
 {
     auto* publisher =
         registry_.Find(

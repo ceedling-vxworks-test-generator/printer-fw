@@ -1,296 +1,110 @@
 #pragma once
 
-#include <vector>
-#include <algorithm>
+#include <cstddef>
+#include <utility>
 
 #include "CallbackSubscriber.hpp"
+#include "CapabilityConfig.hpp"
+#include "CapabilityId.hpp"
+#include "CapabilityPayload.hpp"
 
 namespace rim
 {
 
-struct EnvironmentSubscription
-{
-    SubscriptionId id;
-
-    EnvironmentCallback callback;
-};
-
-struct ErrorSubscription
-{
-    SubscriptionId id;
-
-    ErrorCallback callback;
-};
-
-struct PrintReadySubscription
-{
-    SubscriptionId id;
-
-    PrintReadyCallback callback;
-};
-
-struct ConsumableSubscription
-{
-    SubscriptionId id;
-
-    ConsumableCallback callback;
-};
-
-struct JobSubscription
-{
-    SubscriptionId id;
-
-    JobCallback callback;
-};
-
+//
+// CallbackSubscriptionRegistry - Capability 通知のコールバック購読を管理する。
+//
+// 旧実装は SubscribeEnvironment / SubscribeError / … と Capability ごとに
+// 購読関数と std::vector を持っていた(= Core が製品の Capability 一覧を知って
+// いる状態)。本実装は「購読したい CapabilityId」を引数で受けるだけなので、
+// Capability の増減で Core は無改修になる。
+//
+// 全静的確保(固定長配列)。上限は kCapabilitySubscriptionMaxCount。
+// ※ std::function は実装によっては動的確保しうる。組込み向けの完全な静的化は
+//    別途 IF ポインタ方式への置換で対応する(非機能要件の項目)。
+//
 class CallbackSubscriptionRegistry
 {
 public:
 
-    SubscriptionId
-    SubscribeEnvironment(
-        EnvironmentCallback callback)
+    // 指定 Capability の通知を購読する。満杯なら kInvalidSubscriptionId。
+    SubscriptionId Subscribe(CapabilityId id, CapabilityCallback callback)
     {
-        const auto id =
-            nextId_++;
+        if (id >= kCapabilityMaxCount)              return kInvalidSubscriptionId;
+        if (!callback)                              return kInvalidSubscriptionId;
+        if (count_ >= kCapabilitySubscriptionMaxCount) return kInvalidSubscriptionId;
 
-        environments_.push_back(
-            {
-                id,
-                std::move(callback)
-            });
+        const SubscriptionId subscriptionId = nextId_++;
 
-        return id;
+        entries_[count_].subscriptionId = subscriptionId;
+        entries_[count_].capabilityId   = id;
+        entries_[count_].callback       = std::move(callback);
+        ++count_;
+
+        return subscriptionId;
     }
- 
-    void NotifyEnvironment(
-        const EnvironmentCapability& capability)
+
+    // 指定 Capability を購読している全コールバックを呼ぶ。
+    // 戻り値は呼び出した件数。
+    std::size_t Notify(CapabilityId id, const CapabilityPayload& payload) const
     {
-        for (const auto& entry
-            : environments_)
-        {
-            entry.callback(
-                entry.id,
-                capability);
+        std::size_t notified = 0;
+
+        for (std::size_t i = 0; i < count_; ++i) {
+            if (entries_[i].capabilityId != id) continue;
+            entries_[i].callback(entries_[i].subscriptionId, id, payload);
+            ++notified;
         }
+
+        return notified;
     }
 
-    SubscriptionId
-    SubscribeError(
-        ErrorCallback callback)
+    bool Unsubscribe(SubscriptionId id)
     {
-        const auto id =
-            nextId_++;
+        for (std::size_t i = 0; i < count_; ++i) {
+            if (entries_[i].subscriptionId != id) continue;
 
-        errors_.push_back(
-            {
-                id,
-                std::move(callback)
-            });
-
-        return id;
-    }
-
-    void NotifyError(
-        const ErrorCapability& capability)
-    {
-        for (const auto& entry
-            : errors_)
-        {
-            entry.callback(
-                entry.id,
-                capability);
+            // 末尾を詰める(順序は保証しない)
+            entries_[i] = std::move(entries_[count_ - 1]);
+            entries_[count_ - 1] = Entry{};
+            --count_;
+            return true;
         }
+
+        return false;
     }
 
-    SubscriptionId
-    SubscribePrintReady(
-        PrintReadyCallback callback)
+    std::size_t Count() const { return count_; }
+
+    // 指定 Capability の購読数。誰も購読していない Capability の配信を
+    // 省くといった最適化の判断に使える。
+    std::size_t CountFor(CapabilityId id) const
     {
-        const auto id =
-            nextId_++;
-
-        printReadies_.push_back(
-            {
-                id,
-                std::move(callback)
-            });
-
-        return id;
-    }
-
-    void NotifyPrintReady(
-        const PrintReadyCapability& capability)
-    {
-        for (const auto& entry
-            : printReadies_)
-        {
-            entry.callback(
-                entry.id,
-                capability);
+        std::size_t n = 0;
+        for (std::size_t i = 0; i < count_; ++i) {
+            if (entries_[i].capabilityId == id) ++n;
         }
+        return n;
     }
 
-    SubscriptionId
-    SubscribeConsumable(
-        ConsumableCallback callback)
+    void Clear()
     {
-        const auto id =
-            nextId_++;
-
-        consumables_.push_back(
-            {
-                id,
-                std::move(callback)
-            });
-
-        return id;
-    }
-
-    void NotifyConsumable(
-        const ConsumableCapability& capability)
-    {
-        for (const auto& entry
-            : consumables_)
-        {
-            entry.callback(
-                entry.id,
-                capability);
-        }
-    }
-
-    SubscriptionId
-    SubscribeJob(
-        JobCallback callback)
-    {
-        const auto id =
-            nextId_++;
-
-        jobs_.push_back(
-            {
-                id,
-                std::move(callback)
-            });
-
-        return id;
-    }
-
-    void NotifyJob(
-        const JobCapability& capability)
-    {
-        for (const auto& entry
-            : jobs_)
-        {
-            entry.callback(
-                entry.id,
-                capability);
-        }
-    }   
-
-
-
-    bool Unsubscribe(
-        SubscriptionId id)
-    {
-        const auto environmentOldSize =
-            environments_.size();
-
-        environments_.erase(
-            std::remove_if(
-                environments_.begin(),
-                environments_.end(),
-                [&](const auto& entry)
-                {
-                    return entry.id == id;
-                }),
-            environments_.end());
-
-        const auto errorOldSize =
-            errors_.size();
-
-        errors_.erase(
-            std::remove_if(
-                errors_.begin(),
-                errors_.end(),
-                [&](const auto& entry)
-                {
-                    return entry.id == id;
-                }),
-            errors_.end());
-
-        const auto printReadyOldSize =
-            printReadies_.size();
-
-        printReadies_.erase(
-            std::remove_if(
-                printReadies_.begin(),
-                printReadies_.end(),
-                [&](const auto& entry)
-                {
-                    return entry.id == id;
-                }),
-            printReadies_.end());
-
-        const auto consumableOldSize =
-            consumables_.size();
-
-        consumables_.erase(
-            std::remove_if(
-                consumables_.begin(),
-                consumables_.end(),
-                [&](const auto& entry)
-                {
-                    return entry.id == id;
-                }),
-            consumables_.end());
-
-        const auto jobOldSize =
-            jobs_.size();
-
-        jobs_.erase(
-            std::remove_if(
-                jobs_.begin(),
-                jobs_.end(),
-                [&](const auto& entry)
-                {
-                    return entry.id == id;
-                }),
-            jobs_.end());
-
-
-        return
-            environmentOldSize != environments_.size()
-            || errorOldSize != errors_.size()
-            || printReadyOldSize != printReadies_.size()
-            || consumableOldSize != consumables_.size()
-            || jobOldSize != jobs_.size();
+        for (std::size_t i = 0; i < count_; ++i) entries_[i] = Entry{};
+        count_ = 0;
     }
 
 private:
 
-    SubscriptionId
-        nextId_{1};
+    struct Entry
+    {
+        SubscriptionId     subscriptionId{kInvalidSubscriptionId};
+        CapabilityId       capabilityId{kInvalidCapabilityId};
+        CapabilityCallback callback{};
+    };
 
-    std::vector<
-        EnvironmentSubscription>
-        environments_;
-
-    std::vector<
-        ErrorSubscription>
-        errors_;
-
-    std::vector<
-        PrintReadySubscription>
-        printReadies_;
-
-    std::vector<
-        ConsumableSubscription>
-        consumables_;    
-        
-    std::vector<
-        JobSubscription>
-        jobs_;       
-
+    SubscriptionId nextId_{1};
+    Entry          entries_[kCapabilitySubscriptionMaxCount]{};
+    std::size_t    count_{0};
 };
 
-}
+} // namespace rim
