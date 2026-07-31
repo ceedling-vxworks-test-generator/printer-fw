@@ -33,6 +33,25 @@ typedef enum rim_source_unit_t
 } rim_source_unit_t;
 
 /*
+ * 異常報告の状態。
+ *
+ * fault_state を指定した投入は「現在値」ではなく **異常報告** として扱われ、
+ * 値の格納先ではなく異常一覧へ反映される(判別は Datastore 層が行う)。
+ * 異常コードは key で渡す。
+ *
+ * C++ 側 rim::FaultState と値が一致していること(rim_api.cpp の static_assert)。
+ */
+typedef enum rim_fault_state_t
+{
+    RIM_FAULT_NONE           = 0,
+    RIM_FAULT_RAISED         = 1,  /* 発生。異常一覧へ登録する */
+    RIM_FAULT_CLEARED        = 2,  /* 解除。異常一覧から取り除く */
+    RIM_FAULT_ALL_CLEARED    = 3,  /* 全解除。key は不要 */
+    RIM_FAULT_UPDATED_HEAL   = 4,  /* 回復状態へ更新 */
+    RIM_FAULT_UPDATED_ACTIVE = 5   /* 発生状態へ更新 */
+} rim_fault_state_t;
+
+/*
  * データに添える補足情報。has_xxx が false のフィールドは未指定として扱う。
  */
 typedef struct rim_context_t
@@ -40,8 +59,14 @@ typedef struct rim_context_t
     bool              has_unit;
     rim_source_unit_t unit;
 
+    bool              has_fault_state;
+    rim_fault_state_t fault_state;
+
     bool              has_scale_x1000;
     int32_t           scale_x1000;   /* スケール係数 x1000 */
+
+    bool              has_key;
+    uint32_t          key;           /* 異常コード等のキー */
 } rim_context_t;
 
 /*

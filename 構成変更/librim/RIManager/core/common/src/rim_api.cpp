@@ -12,6 +12,7 @@
 #include "RawDataInput.hpp"
 #include "ValueStore.hpp"
 #include "AggregateRIMSnapshotReader.hpp"
+#include "FaultApplier.hpp"
 #include "DataStoreWorker.hpp"
 #include "RIMValueFactory.hpp"
 
@@ -43,6 +44,25 @@ static_assert(
 static_assert(
     static_cast<int>(rim::SourceUnit::kFahrenheit) == RIM_UNIT_FAHRENHEIT,
     "rim_source_unit_t と rim::SourceUnit がずれている");
+
+static_assert(
+    static_cast<int>(rim::FaultState::kNone) == RIM_FAULT_NONE,
+    "rim_fault_state_t と rim::FaultState がずれている");
+static_assert(
+    static_cast<int>(rim::FaultState::kRaised) == RIM_FAULT_RAISED,
+    "rim_fault_state_t と rim::FaultState がずれている");
+static_assert(
+    static_cast<int>(rim::FaultState::kCleared) == RIM_FAULT_CLEARED,
+    "rim_fault_state_t と rim::FaultState がずれている");
+static_assert(
+    static_cast<int>(rim::FaultState::kAllCleared) == RIM_FAULT_ALL_CLEARED,
+    "rim_fault_state_t と rim::FaultState がずれている");
+static_assert(
+    static_cast<int>(rim::FaultState::kUpdatedHeal) == RIM_FAULT_UPDATED_HEAL,
+    "rim_fault_state_t と rim::FaultState がずれている");
+static_assert(
+    static_cast<int>(rim::FaultState::kUpdatedActive) == RIM_FAULT_UPDATED_ACTIVE,
+    "rim_fault_state_t と rim::FaultState がずれている");
 
 namespace
 {
@@ -171,6 +191,10 @@ struct RIManagerContext
     rim::ErrorRepository
         errorRepository;
 
+    // 異常報告(context.faultState 付き)を ErrorRepository へ反映する
+    rim::FaultApplier
+        faultApplier;
+
     //
     // Datastore
     //
@@ -263,6 +287,8 @@ struct RIManagerContext
         , adapter(
             inputPort,
             *ruleResolver)
+        , faultApplier(
+            errorRepository)
         , snapshotReader(
             valueStore)
         , notifyManager(
@@ -275,7 +301,8 @@ struct RIManagerContext
             storeQueue,
             valueStore,
             snapshotReader,
-            capabilityQueue)
+            capabilityQueue,
+            &faultApplier)
         , capabilityWorker(
             capabilityQueue,
             capabilityEvaluator,
@@ -388,34 +415,11 @@ void StorePublisher::Publish()
         payload);
 }
 
-void ReevaluateCapabilities(
-    RIManagerContext& context)
-{
-    const auto snapshot =
-        context.snapshotReader.Read();
-
-    context.capabilityQueue.Push(
-        snapshot);
-}
-
-rim::ErrorSeverity
-ResolveErrorSeverity(
-    const RIManagerContext& context,
-    std::uint32_t errorCode)
-{
-    rim::ErrorSeverity severity =
-        rim::ErrorSeverity::kError;
-
-    if (context.errorRegistry != nullptr)
-    {
-        context.errorRegistry
-            ->TryGetSeverity(
-                errorCode,
-                severity);
-    }
-
-    return severity;
-}
+// 異常報告を1件流す(異常系 API の共通処理)。
+int PushFault(
+    RIM_HANDLE handle,
+    rim_fault_state_t state,
+    std::uint32_t errorCode);
 
 RIManagerContext* ToContext(
     RIM_HANDLE handle)
@@ -482,10 +486,23 @@ int InjectRaw(
                     ctx->unit);
         }
 
+        if (ctx->has_fault_state)
+        {
+            dataContext.faultState =
+                static_cast<rim::FaultState>(
+                    ctx->fault_state);
+        }
+
         if (ctx->has_scale_x1000)
         {
             dataContext.scaleX1000 =
                 ctx->scale_x1000;
+        }
+
+        if (ctx->has_key)
+        {
+            dataContext.key =
+                ctx->key;
         }
     }
 
@@ -500,6 +517,25 @@ int InjectRaw(
     return result == rim::RIMResult::kOk
            ? RI_SUCCESS
            : RI_INVALID_PARAMETER;
+}
+
+int PushFault(
+    RIM_HANDLE handle,
+    rim_fault_state_t state,
+    std::uint32_t errorCode)
+{
+    rim_context_t ctx{};
+
+    ctx.has_fault_state = true;
+    ctx.fault_state     = state;
+    ctx.has_key         = true;
+    ctx.key             = errorCode;
+
+    return InjectRaw(
+        handle,
+        0,          // 異常報告なので id は使われない
+        0.0,
+        &ctx);
 }
 
 }
@@ -768,53 +804,29 @@ int RIManager_Unsubscribe(
            : RI_NO_DATA;
 }
 
+//
+// 以下の異常系 API は、いずれも Push に fault_state を添えた場合の短縮形である。
+// 別実装にすると重大度の解決などが二重化するため、同じ経路へ寄せてある。
+//
+
 int RIManager_AddError(
     RIM_HANDLE handle,
     uint32_t errorCode)
 {
-    if (handle == nullptr)
-    {
-        return RI_INVALID_HANDLE;
-    }
-
-    auto* context =
-        ToContext(handle);
-
-    if (context->errorRepository.Add(
-        {
-            errorCode,
-            rim::ErrorState::kActive,
-            ResolveErrorSeverity(
-                *context,
-                errorCode)
-        }))
-    {
-        ReevaluateCapabilities(
-            *context);
-    }
-
-    return RI_SUCCESS;
+    return PushFault(
+        handle,
+        RIM_FAULT_RAISED,
+        errorCode);
 }
 
 int RIManager_RemoveError(
     RIM_HANDLE handle,
     uint32_t errorCode)
 {
-    if (handle == nullptr)
-    {
-        return RI_INVALID_HANDLE;
-    }
-
-    auto* context =
-        ToContext(handle);
-
-    context->errorRepository.Remove(
+    return PushFault(
+        handle,
+        RIM_FAULT_CLEARED,
         errorCode);
-
-    ReevaluateCapabilities(
-        *context);
-
-    return RI_SUCCESS;
 }
 
 int RIManager_SetErrorState(
@@ -822,23 +834,13 @@ int RIManager_SetErrorState(
     uint32_t errorCode,
     int state)
 {
-    if (handle == nullptr)
-    {
-        return RI_INVALID_HANDLE;
-    }
-
-    auto* context =
-        ToContext(handle);
-
-    context->errorRepository.SetState(
-        errorCode,
-        static_cast<rim::ErrorState>(
-            state));
-
-    ReevaluateCapabilities(
-        *context);
-
-    return RI_SUCCESS;
+    // 0 = 発生中 / それ以外 = 回復済み(rim::ErrorState と同じ並び)
+    return PushFault(
+        handle,
+        state == static_cast<int>(rim::ErrorState::kActive)
+            ? RIM_FAULT_UPDATED_ACTIVE
+            : RIM_FAULT_UPDATED_HEAL,
+        errorCode);
 }
 
 int RIManager_Push(
