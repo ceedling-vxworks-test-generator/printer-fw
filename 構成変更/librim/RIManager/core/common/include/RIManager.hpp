@@ -70,6 +70,17 @@ public:
             id);
     }
 
+    // 取り出さずに覗くだけ(先頭の通知は残る)。バッファ不足で消費してしまう
+    // 事故を避けるため、サイズを確認してから TryGet するのに使う。
+    bool Peek(
+        CapabilityId id,
+        CapabilityPayload& payload) const
+    {
+        return receiver_.Peek(
+            id,
+            payload);
+    }
+
 private:
 
     NotificationReceiver& receiver_;

@@ -197,8 +197,7 @@ if(RIMANAGER_IS_TOP_LEVEL)
         target_include_directories(rim_capi_smoke PRIVATE
             ${PROJECT_SOURCE_DIR}/include
             ${PROJECT_SOURCE_DIR}/test/capi
-            ${PROJECT_SOURCE_DIR}/products/printer_a/CapabilityItem
-            ${PROJECT_SOURCE_DIR}/products/printer_a/DataItem)
+            ${PROJECT_SOURCE_DIR}/products/printer_a)
 
         target_link_libraries(rim_capi_smoke PRIVATE rimanager)
 

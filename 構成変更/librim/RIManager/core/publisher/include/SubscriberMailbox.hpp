@@ -64,6 +64,21 @@ public:
         return true;
     }
 
+    // Pop と違い、取り出さずに覗くだけ(先頭は残る)。
+    // 呼出側のバッファがペイロードを受け切れるか事前に確認してから Pop したい
+    // 場合に使う(バッファ不足のときに通知を消費しないため)。
+    bool Peek(CapabilityId id, CapabilityPayload& payload) const
+    {
+        if (id >= kCapabilityMaxCount) return false;
+
+        const Ring& ring = rings_[id];
+        if (ring.count == 0) return false;
+
+        payload = ring.slots[ring.head];
+
+        return true;
+    }
+
     std::size_t Count(CapabilityId id) const
     {
         if (id >= kCapabilityMaxCount) return 0;

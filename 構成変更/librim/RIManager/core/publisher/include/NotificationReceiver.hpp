@@ -34,6 +34,12 @@ public:
         return mailbox_.Pop(id, payload);
     }
 
+    // 取り出さずに覗くだけ(先頭の通知は残る)。
+    bool Peek(CapabilityId id, CapabilityPayload& payload) const
+    {
+        return mailbox_.Peek(id, payload);
+    }
+
     // 溜まっている通知の件数。
     std::size_t Pending(CapabilityId id) const { return mailbox_.Count(id); }
 

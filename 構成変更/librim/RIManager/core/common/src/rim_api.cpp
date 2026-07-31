@@ -637,11 +637,23 @@ int RIManager_GetCapability(
     auto* context =
         ToContext(handle);
 
-    // バッファ不足で捨てないよう、まず覗いてから消費する。
-    if (!context->facade.HasPending(
-            capabilityId))
+    // バッファ不足で捨てないよう、まず覗いてサイズを確認してから消費する。
+    // (以前は HasPending で存在だけ確認し、その後 TryGet で無条件に消費して
+    // いたため、バッファ不足を返すケースでも通知を捨ててしまっていた。
+    // Peek はキューの先頭を残したままサイズを確認できるので、ここで
+    // bufferSize と比較し、収まる場合だけ実際に取り出す)
+    rim::CapabilityPayload peeked;
+
+    if (!context->facade.Peek(
+            capabilityId,
+            peeked))
     {
         return RI_NO_DATA;
+    }
+
+    if (peeked.Size() > bufferSize)
+    {
+        return RI_BUFFER_TOO_SMALL;
     }
 
     rim::CapabilityPayload payload;
