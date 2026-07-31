@@ -1,20 +1,11 @@
 #pragma once
 
+#include "DataDomain.hpp"
 #include "RIMDataId.hpp"
 #include "ValueType.hpp"
 
 namespace rim
 {
-
-enum class DataDomain
-{
-    kDevice,
-    kJob,
-    kError,
-    kConsumable,
-    kMaintenance,
-    kNetwork
-};
 
 struct RIMDataDefinition
 {
