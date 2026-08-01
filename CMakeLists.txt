@@ -206,6 +206,26 @@ if(RIMANAGER_IS_TOP_LEVEL)
 
         add_test(NAME rim_capi_smoke COMMAND rim_capi_smoke)
     endif()
+
+    # ========================================================
+    # rim_adapter_nfr_test — RIM_AdapterLayer の非機能要件試験
+    # (old/ex/Adapter/AdapterLayer仕様設計書.md §12)。gtest 不使用・
+    # ネットワーク不要のため rim_capi_smoke と同じ方針で単独実行ファイルにする。
+    # ========================================================
+    file(GLOB NFR_TEST_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/test/nonfunctional/*.cpp)
+
+    if(NFR_TEST_SOURCES)
+        add_executable(rim_adapter_nfr_test ${NFR_TEST_SOURCES})
+
+        target_include_directories(rim_adapter_nfr_test PRIVATE
+            ${PROJECT_SOURCE_DIR}/test/performance)
+
+        target_link_libraries(rim_adapter_nfr_test PRIVATE
+            rim-core
+            rim-product-printer-a)
+
+        add_test(NAME rim_adapter_nfr_test COMMAND rim_adapter_nfr_test)
+    endif()
 endif()
 
 # ============================================================
