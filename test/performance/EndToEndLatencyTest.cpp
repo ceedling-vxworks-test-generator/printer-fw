@@ -65,7 +65,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_SubscribeCapability(
-            handle_,
             rim::kCapEnvironment,
             OnEnvironment,
             nullptr,
@@ -83,7 +82,6 @@ TEST_F(
 
         ASSERT_EQ(
             RIManager_TestInjectDouble(
-                handle_,
                 rim::ToDataId(
                     rim::RIMDataId::kTemperatureSensorA),
                 static_cast<double>(i)),
@@ -141,7 +139,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_Unsubscribe(
-            handle_,
             subscriptionId),
         RI_SUCCESS);
 }

@@ -4,9 +4,6 @@
 
 TEST(EndToEndCapiFlowTest, CreateDestroy)
 {
-    RIM_HANDLE handle = nullptr;
-
-    EXPECT_EQ(RI_SUCCESS, RIManager_Create(&handle));
-    EXPECT_NE(nullptr, handle);
-    EXPECT_EQ(RI_SUCCESS, RIManager_Destroy(handle));
+    EXPECT_EQ(RI_SUCCESS, RIManager_Create());
+    EXPECT_EQ(RI_SUCCESS, RIManager_Destroy());
 }

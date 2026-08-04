@@ -17,14 +17,14 @@
 
 TEST(
     RIManagerEnvironmentApiTest,
-    InvalidHandle)
+    NotInitializedReturnsError)
 {
     rim::EnvironmentCapability cap{};
 
+    // Create していない(または Destroy 済み)状態で呼ぶと RI_NOT_INITIALIZED。
     EXPECT_EQ(
-        RI_INVALID_PARAMETER,
+        RI_NOT_INITIALIZED,
         RIManager_GetCurrentCapability(
-            nullptr,
             rim::kCapEnvironment,
             &cap,
             sizeof cap,
@@ -35,12 +35,9 @@ TEST(
     RIManagerEnvironmentApiTest,
     UngeneratedCapabilityReturnsNoData)
 {
-    RIM_HANDLE handle = nullptr;
-
     ASSERT_EQ(
         RI_SUCCESS,
-        RIManager_Create(
-            &handle));
+        RIManager_Create());
 
     rim::EnvironmentCapability cap{};
 
@@ -48,33 +45,26 @@ TEST(
     EXPECT_EQ(
         RI_NO_DATA,
         RIManager_GetCurrentCapability(
-            handle,
             rim::kCapEnvironment,
             &cap,
             sizeof cap,
             nullptr));
 
-    RIManager_Destroy(
-        handle);
+    RIManager_Destroy();
 }
 
 TEST(
     RIManagerEnvironmentApiTest,
     NoPendingNotificationInitially)
 {
-    RIM_HANDLE handle = nullptr;
-
     ASSERT_EQ(
         RI_SUCCESS,
-        RIManager_Create(
-            &handle));
+        RIManager_Create());
 
     EXPECT_EQ(
         0,
         RIManager_HasPendingCapability(
-            handle,
             rim::kCapEnvironment));
 
-    RIManager_Destroy(
-        handle);
+    RIManager_Destroy();
 }

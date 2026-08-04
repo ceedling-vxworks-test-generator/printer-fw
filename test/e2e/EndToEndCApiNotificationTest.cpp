@@ -20,21 +20,16 @@ TEST(
     EndToEndCApiNotificationTest,
     StartStopAndReceiveCapability)
 {
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -52,7 +47,6 @@ TEST(
            < timeout)
     {
         if (RIManager_GetCapability(
-                handle,
                 rim::kCapEnvironment,
                 &capability,
                 sizeof capability,
@@ -79,13 +73,11 @@ TEST(
     }
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }
 
@@ -95,21 +87,16 @@ TEST(
 {
     // バッファ不足のときは通知を消費しない、という約束の確認。
     // (消費してしまうと、受け側が作り直しても取り返しがつかない)
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -120,7 +107,6 @@ TEST(
         + std::chrono::seconds(1);
 
     while (RIManager_HasPendingCapability(
-               handle,
                rim::kCapEnvironment) != 1
            && std::chrono::steady_clock::now()
                   < timeout)
@@ -132,7 +118,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_HasPendingCapability(
-            handle,
             rim::kCapEnvironment),
         1);
 
@@ -140,7 +125,6 @@ TEST(
 
     EXPECT_EQ(
         RIManager_GetCapability(
-            handle,
             rim::kCapEnvironment,
             tiny,
             sizeof tiny,
@@ -150,7 +134,6 @@ TEST(
     // 通知はまだ残っている
     EXPECT_EQ(
         RIManager_HasPendingCapability(
-            handle,
             rim::kCapEnvironment),
         1);
 
@@ -158,7 +141,6 @@ TEST(
 
     EXPECT_EQ(
         RIManager_GetCapability(
-            handle,
             rim::kCapEnvironment,
             &capability,
             sizeof capability,
@@ -166,12 +148,10 @@ TEST(
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }

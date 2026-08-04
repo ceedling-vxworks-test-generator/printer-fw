@@ -12,19 +12,21 @@
 //
 // 旧試験は RIManager_GetEnvironment / _GetError / _GetPrintReady と
 // Capability ごとの関数を1本ずつ叩いていた。関数が id 引数方式に統合されたので、
-// 検証すべきは「ハンドル不正」「バッファ不正」「バッファ不足」の3種になる。
+// 検証すべきは「未初期化」「バッファ不正」「バッファ不足」の3種になる。
+//
+// RIManager はプロセス内に常に1つのシングルトンのため、各試験は
+// Create/Destroy を対で呼び、グローバル状態を次の試験へ持ち越さない。
 //
 
 TEST(
     RIManagerApiValidationTest,
-    GetCapabilityWithNullHandle)
+    GetCapabilityWhenNotInitialized)
 {
     rim::EnvironmentCapability cap{};
 
     EXPECT_EQ(
-        RI_INVALID_PARAMETER,
+        RI_NOT_INITIALIZED,
         RIManager_GetCapability(
-            nullptr,
             rim::kCapEnvironment,
             &cap,
             sizeof cap,
@@ -33,14 +35,13 @@ TEST(
 
 TEST(
     RIManagerApiValidationTest,
-    GetCurrentCapabilityWithNullHandle)
+    GetCurrentCapabilityWhenNotInitialized)
 {
     rim::EnvironmentCapability cap{};
 
     EXPECT_EQ(
-        RI_INVALID_PARAMETER,
+        RI_NOT_INITIALIZED,
         RIManager_GetCurrentCapability(
-            nullptr,
             rim::kCapEnvironment,
             &cap,
             sizeof cap,
@@ -51,79 +52,73 @@ TEST(
     RIManagerApiValidationTest,
     GetCapabilityWithNullBuffer)
 {
-    RIM_HANDLE handle = nullptr;
-
     ASSERT_EQ(
         RI_SUCCESS,
-        RIManager_Create(
-            &handle));
+        RIManager_Create());
 
     EXPECT_EQ(
         RI_INVALID_PARAMETER,
         RIManager_GetCapability(
-            handle,
             rim::kCapEnvironment,
             nullptr,
             16,
             nullptr));
 
-    RIManager_Destroy(
-        handle);
+    RIManager_Destroy();
 }
 
 TEST(
     RIManagerApiValidationTest,
     SubscribeWithNullCallback)
 {
-    RIM_HANDLE handle = nullptr;
-
     ASSERT_EQ(
         RI_SUCCESS,
-        RIManager_Create(
-            &handle));
+        RIManager_Create());
 
     std::uint64_t subscriptionId = 0;
 
     EXPECT_EQ(
         RI_INVALID_PARAMETER,
         RIManager_SubscribeCapability(
-            handle,
             rim::kCapEnvironment,
             nullptr,
             nullptr,
             &subscriptionId));
 
-    RIManager_Destroy(
-        handle);
+    RIManager_Destroy();
 }
 
 TEST(
     RIManagerApiValidationTest,
-    UnsubscribeWithNullHandle)
+    UnsubscribeWhenNotInitialized)
 {
     EXPECT_EQ(
-        RI_INVALID_HANDLE,
+        RI_NOT_INITIALIZED,
         RIManager_Unsubscribe(
-            nullptr,
             1));
 }
 
 TEST(
     RIManagerApiValidationTest,
-    CreateWithNullOutParameter)
+    CreateTwiceIsIdempotent)
 {
+    ASSERT_EQ(
+        RI_SUCCESS,
+        RIManager_Create());
+
+    // 二重生成しても古いインスタンスを孤立させず、成功を返す。
     EXPECT_EQ(
-        RI_INVALID_PARAMETER,
-        RIManager_Create(
-            nullptr));
+        RI_SUCCESS,
+        RIManager_Create());
+
+    RIManager_Destroy();
 }
 
 TEST(
     RIManagerApiValidationTest,
-    DestroyWithNullHandle)
+    DestroyWhenNotInitialized)
 {
     EXPECT_EQ(
-        RI_INVALID_HANDLE,
-        RIManager_Destroy(
-            nullptr));
+        RI_NOT_INITIALIZED,
+        RIManager_Destroy());
 }

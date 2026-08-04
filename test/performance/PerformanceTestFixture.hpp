@@ -12,29 +12,22 @@ protected:
     void SetUp() override
     {
         ASSERT_EQ(
-            RIManager_Create(
-                &handle_),
+            RIManager_Create(),
             RI_SUCCESS);
 
         ASSERT_EQ(
-            RIManager_Start(
-                handle_),
+            RIManager_Start(),
             RI_SUCCESS);
     }
 
     void TearDown() override
     {
         ASSERT_EQ(
-            RIManager_Stop(
-                handle_),
+            RIManager_Stop(),
             RI_SUCCESS);
 
         ASSERT_EQ(
-            RIManager_Destroy(
-                handle_),
+            RIManager_Destroy(),
             RI_SUCCESS);
     }
-
-    RIM_HANDLE
-        handle_{};
 };

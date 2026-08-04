@@ -431,17 +431,15 @@ void StorePublisher::Publish()
 
 // 異常報告を1件流す(異常系 API の共通処理)。
 int PushFault(
-    RIM_HANDLE handle,
     rim_fault_state_t state,
     std::uint32_t errorCode);
 
-RIManagerContext* ToContext(
-    RIM_HANDLE handle)
-{
-    return static_cast<
-        RIManagerContext*>(
-            handle);
-}
+//
+// プロセス内に常に1つという前提(1プロセス=1台のプリンタ)のため、
+// ハンドルは持たずここで単一インスタンスを保持する。
+// RIManager_Create()/_Destroy() が生成・破棄する。
+//
+RIManagerContext* g_context {nullptr};
 
 // Capability の中身を利用者バッファへ写す。
 // 足りない場合は書かずに RI_BUFFER_TOO_SMALL(呼出側が通知を消費しないで済む)。
@@ -476,18 +474,17 @@ int CopyOut(
 // いたため、規則による正規化(単位換算・クランプ)を素通りしていた。
 //
 int InjectRaw(
-    RIM_HANDLE handle,
     std::uint16_t dataId,
     double value,
     const rim_context_t* ctx)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
     auto* context =
-        ToContext(handle);
+        g_context;
 
     rim::DataContext dataContext{};
 
@@ -534,7 +531,6 @@ int InjectRaw(
 }
 
 int PushFault(
-    RIM_HANDLE handle,
     rim_fault_state_t state,
     std::uint32_t errorCode)
 {
@@ -546,7 +542,6 @@ int PushFault(
     ctx.key             = errorCode;
 
     return InjectRaw(
-        handle,
         0,          // 異常報告なので id は使われない
         0.0,
         &ctx);
@@ -559,97 +554,90 @@ extern "C"
 {
 
 
-int RIManager_Create(
-    RIM_HANDLE* handle)
+int RIManager_Create(void)
 {
-    if (handle == nullptr)
+    if (g_context != nullptr)
     {
-        return RI_INVALID_PARAMETER;
+        // 既に生成済み。二重生成で古いインスタンスを孤立させない(冪等)。
+        return RI_SUCCESS;
     }
 
-    *handle =
+    g_context =
         new RIManagerContext();
 
     return RI_SUCCESS;
 }
 
-int RIManager_Destroy(
-    RIM_HANDLE handle)
+int RIManager_Destroy(void)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
-    auto* context =
-        ToContext(handle);
+    g_context->publisherWorker.Stop();
 
-    context->publisherWorker.Stop();
+    g_context->capabilityWorker.Stop();
 
-    context->capabilityWorker.Stop();
+    g_context->dataStoreWorker.Stop();
 
-    context->dataStoreWorker.Stop();
+    delete g_context;
 
-    delete context;
+    g_context = nullptr;
 
     return RI_SUCCESS;
 }
 
-int RIManager_Start(
-    RIM_HANDLE handle)
+int RIManager_Start(void)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
-    auto* context =
-        ToContext(handle);
+    g_context->dataStoreWorker.Run();
 
-    context->dataStoreWorker.Run();
+    g_context->capabilityWorker.Run();
 
-    context->capabilityWorker.Run();
-
-    context->publisherWorker.Run();
+    g_context->publisherWorker.Run();
 
     return RI_SUCCESS;
 }
 
-int RIManager_Stop(
-    RIM_HANDLE handle)
+int RIManager_Stop(void)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
-    auto* context =
-        ToContext(handle);
+    g_context->publisherWorker.Stop();
 
-    context->publisherWorker.Stop();
+    g_context->capabilityWorker.Stop();
 
-    context->capabilityWorker.Stop();
-
-    context->dataStoreWorker.Stop();
+    g_context->dataStoreWorker.Stop();
 
     return RI_SUCCESS;
 }
 
 int RIManager_GetCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId,
     void* buffer,
     size_t bufferSize,
     size_t* written)
 {
-    if (handle == nullptr ||
-        buffer == nullptr)
+    if (g_context == nullptr)
+    {
+        return RI_NOT_INITIALIZED;
+    }
+
+    if (buffer == nullptr)
     {
         return RI_INVALID_PARAMETER;
     }
 
     auto* context =
-        ToContext(handle);
+        g_context;
 
     // バッファ不足で捨てないよう、まず覗いてサイズを確認してから消費する。
     // (以前は HasPending で存在だけ確認し、その後 TryGet で無条件に消費して
@@ -687,20 +675,23 @@ int RIManager_GetCapability(
 }
 
 int RIManager_GetCurrentCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId,
     void* buffer,
     size_t bufferSize,
     size_t* written)
 {
-    if (handle == nullptr ||
-        buffer == nullptr)
+    if (g_context == nullptr)
+    {
+        return RI_NOT_INITIALIZED;
+    }
+
+    if (buffer == nullptr)
     {
         return RI_INVALID_PARAMETER;
     }
 
     auto* context =
-        ToContext(handle);
+        g_context;
 
     rim::CapabilityPayload payload;
 
@@ -719,16 +710,15 @@ int RIManager_GetCurrentCapability(
 }
 
 int RIManager_HasPendingCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
     auto* context =
-        ToContext(handle);
+        g_context;
 
     return context->facade.HasPending(
                capabilityId)
@@ -737,21 +727,24 @@ int RIManager_HasPendingCapability(
 }
 
 int RIManager_SubscribeCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId,
     RICapabilityCallback callback,
     void* userData,
     uint64_t* subscriptionId)
 {
-    if (handle == nullptr ||
-        callback == nullptr ||
+    if (g_context == nullptr)
+    {
+        return RI_NOT_INITIALIZED;
+    }
+
+    if (callback == nullptr ||
         subscriptionId == nullptr)
     {
         return RI_INVALID_PARAMETER;
     }
 
     auto* context =
-        ToContext(handle);
+        g_context;
 
     // 空き枠を探す
     CallbackSlot* slot = nullptr;
@@ -796,16 +789,15 @@ int RIManager_SubscribeCapability(
 }
 
 int RIManager_Unsubscribe(
-    RIM_HANDLE handle,
     uint64_t subscriptionId)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
     auto* context =
-        ToContext(handle);
+        g_context;
 
     const bool removed =
         context->callbackRegistry.Unsubscribe(
@@ -836,33 +828,27 @@ int RIManager_Unsubscribe(
 //
 
 int RIManager_AddError(
-    RIM_HANDLE handle,
     uint32_t errorCode)
 {
     return PushFault(
-        handle,
         RIM_FAULT_RAISED,
         errorCode);
 }
 
 int RIManager_RemoveError(
-    RIM_HANDLE handle,
     uint32_t errorCode)
 {
     return PushFault(
-        handle,
         RIM_FAULT_CLEARED,
         errorCode);
 }
 
 int RIManager_SetErrorState(
-    RIM_HANDLE handle,
     uint32_t errorCode,
     int state)
 {
     // 0 = 発生中 / それ以外 = 回復済み(rim::ErrorState と同じ並び)
     return PushFault(
-        handle,
         state == static_cast<int>(rim::ErrorState::kActive)
             ? RIM_FAULT_UPDATED_ACTIVE
             : RIM_FAULT_UPDATED_HEAL,
@@ -870,13 +856,12 @@ int RIManager_SetErrorState(
 }
 
 int RIManager_PushFaultSnapshot(
-    RIM_HANDLE handle,
     const rim_fault_snapshot_entry_t* entries,
     size_t count)
 {
-    if (handle == nullptr)
+    if (g_context == nullptr)
     {
-        return RI_INVALID_HANDLE;
+        return RI_NOT_INITIALIZED;
     }
 
     if (entries == nullptr &&
@@ -905,47 +890,38 @@ int RIManager_PushFaultSnapshot(
 
     batch.count = count;
 
-    auto* context =
-        ToContext(handle);
-
-    context->faultSnapshotQueue.Push(
+    g_context->faultSnapshotQueue.Push(
         batch);
 
     return RI_SUCCESS;
 }
 
 int RIManager_Push(
-    RIM_HANDLE handle,
     uint16_t dataId,
     double value,
     const rim_context_t* ctx)
 {
     return InjectRaw(
-        handle,
         dataId,
         value,
         ctx);
 }
 
 int RIManager_TestInjectDouble(
-    RIM_HANDLE handle,
     uint16_t dataId,
     double value)
 {
     return InjectRaw(
-        handle,
         dataId,
         value,
         nullptr);
 }
 
 int RIManager_TestInjectInt32(
-    RIM_HANDLE handle,
     uint16_t dataId,
     int32_t value)
 {
     return InjectRaw(
-        handle,
         dataId,
         static_cast<double>(
             value),
@@ -953,12 +929,10 @@ int RIManager_TestInjectInt32(
 }
 
 int RIManager_TestInjectBool(
-    RIM_HANDLE handle,
     uint16_t dataId,
     int value)
 {
     return InjectRaw(
-        handle,
         dataId,
         value != 0 ? 1.0 : 0.0,
         nullptr);

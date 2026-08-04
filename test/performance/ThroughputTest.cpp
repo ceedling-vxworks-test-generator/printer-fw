@@ -14,16 +14,12 @@ TEST(
     constexpr int kCount =
         10000;
 
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     const auto start =
@@ -35,7 +31,6 @@ TEST(
     {
         ASSERT_EQ(
             RIManager_TestInjectDouble(
-                handle,
                 rim::ToDataId(
                     rim::RIMDataId::kTemperatureSensorA),
                 static_cast<double>(i)),
@@ -59,12 +54,10 @@ TEST(
         << std::endl;
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }

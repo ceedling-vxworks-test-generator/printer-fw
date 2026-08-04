@@ -33,26 +33,22 @@ protected:
     void SetUp() override
     {
         ASSERT_EQ(
-            RIManager_Create(
-                &handle_),
+            RIManager_Create(),
             RI_SUCCESS);
 
         ASSERT_EQ(
-            RIManager_Start(
-                handle_),
+            RIManager_Start(),
             RI_SUCCESS);
     }
 
     void TearDown() override
     {
         ASSERT_EQ(
-            RIManager_Stop(
-                handle_),
+            RIManager_Stop(),
             RI_SUCCESS);
 
         ASSERT_EQ(
-            RIManager_Destroy(
-                handle_),
+            RIManager_Destroy(),
             RI_SUCCESS);
     }
 
@@ -69,7 +65,6 @@ protected:
         T& out)
     {
         return RIManager_GetCurrentCapability(
-            handle_,
             id,
             &out,
             sizeof out,
@@ -82,14 +77,12 @@ protected:
         T& out)
     {
         return RIManager_GetCapability(
-            handle_,
             id,
             &out,
             sizeof out,
             nullptr);
     }
 
-    RIM_HANDLE handle_{};
 };
 
 } // namespace
@@ -101,7 +94,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -128,7 +120,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -163,7 +154,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -206,7 +196,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_AddError(
-            handle_,
             1001),
         RI_SUCCESS);
 
@@ -235,7 +224,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_AddError(
-            handle_,
             1001),
         RI_SUCCESS);
 
@@ -243,7 +231,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_RemoveError(
-            handle_,
             1001),
         RI_SUCCESS);
 
@@ -268,7 +255,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kUpperDoorOpen),
             0),
@@ -276,7 +262,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kRightDoorOpen),
             0),
@@ -284,7 +269,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kLeftDoorOpen),
             0),
@@ -310,7 +294,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kUpperDoorOpen),
             1),
@@ -336,7 +319,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectInt32(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kStapleLevel),
             80),
@@ -363,7 +345,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kJobActive),
             1),
@@ -371,7 +352,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_TestInjectInt32(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kJobId),
             123),
@@ -401,7 +381,6 @@ TEST_F(
 {
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle_,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -415,7 +394,6 @@ TEST_F(
 
     ASSERT_EQ(
         RIManager_GetCurrentCapability(
-            handle_,
             rim::kCapEnvironment,
             &capability,
             sizeof capability,

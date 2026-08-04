@@ -29,44 +29,44 @@
 
 /* --- 読み出しヘルパ --- */
 
-static double PushTemperatureAs(RIM_HANDLE h, double v, int unit)
+static double PushTemperatureAs(double v, int unit)
 {
     rim_environment_capability_t env;
 
     if (unit < 0) {
         RIM_EXPECT(RimPushAndWaitCurrentNoContext(
-            h, RIM_ID_TEMPERATURE_SENSOR_A, v, RIM_CAP_ENVIRONMENT, &env, sizeof env));
+            RIM_ID_TEMPERATURE_SENSOR_A, v, RIM_CAP_ENVIRONMENT, &env, sizeof env));
     } else {
         RIM_EXPECT(RimPushAndWaitCurrentWithUnit(
-            h, RIM_ID_TEMPERATURE_SENSOR_A, v, (rim_source_unit_t)unit,
+            RIM_ID_TEMPERATURE_SENSOR_A, v, (rim_source_unit_t)unit,
             RIM_CAP_ENVIRONMENT, &env, sizeof env));
     }
 
     return env.temperature;
 }
 
-static double PushTemperature(RIM_HANDLE h, double v) { return PushTemperatureAs(h, v, -1); }
+static double PushTemperature(double v) { return PushTemperatureAs(v, -1); }
 
-static int32_t PushJobId(RIM_HANDLE h, double v)
+static int32_t PushJobId(double v)
 {
     rim_job_capability_t job;
-    RIM_EXPECT(RimPushAndWaitCurrentNoContext(h, RIM_ID_JOB_ID, v, RIM_CAP_JOB, &job, sizeof job));
+    RIM_EXPECT(RimPushAndWaitCurrentNoContext(RIM_ID_JOB_ID, v, RIM_CAP_JOB, &job, sizeof job));
     return job.jobId;
 }
 
-static int32_t PushStapleLevel(RIM_HANDLE h, double v)
+static int32_t PushStapleLevel(double v)
 {
     rim_consumable_capability_t cap;
     RIM_EXPECT(RimPushAndWaitCurrentNoContext(
-        h, RIM_ID_STAPLE_LEVEL, v, RIM_CAP_CONSUMABLE, &cap, sizeof cap));
+        RIM_ID_STAPLE_LEVEL, v, RIM_CAP_CONSUMABLE, &cap, sizeof cap));
     return cap.stapleLevel;
 }
 
-static int PushJobActive(RIM_HANDLE h, double v)
+static int PushJobActive(double v)
 {
     rim_job_capability_t job;
     RIM_EXPECT(RimPushAndWaitCurrentNoContext(
-        h, RIM_ID_JOB_ACTIVE, v, RIM_CAP_JOB, &job, sizeof job));
+        RIM_ID_JOB_ACTIVE, v, RIM_CAP_JOB, &job, sizeof job));
     return job.jobActive ? 1 : 0;
 }
 
@@ -75,9 +75,8 @@ static int PushJobActive(RIM_HANDLE h, double v)
  * ============================================================ */
 RIM_TEST(ValueInt32IsExactThroughDouble)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
     /* 境界・および float なら壊れる値を含む代表値。すべて完全一致すること。 */
     static const int32_t kCases[] = {
@@ -92,11 +91,11 @@ RIM_TEST(ValueInt32IsExactThroughDouble)
         -2147483647,        /* -(INT32_MAX) : INT32_MIN は §6 の飽和値と紛らわしいので避ける */
     };
     for (unsigned i = 0; i < sizeof kCases / sizeof kCases[0]; ++i) {
-        RIM_EXPECT_EQ_I(PushJobId(h, (double)kCases[i]), kCases[i]);
+        RIM_EXPECT_EQ_I(PushJobId((double)kCases[i]), kCases[i]);
     }
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 /* ============================================================
@@ -104,48 +103,46 @@ RIM_TEST(ValueInt32IsExactThroughDouble)
  * ============================================================ */
 RIM_TEST(ValueKelvinExactForRepresentableInputs)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
     /* context なし = 既に正規化済み(ケルビン)としてそのまま採用される。 */
-    RIM_EXPECT_NEAR(PushTemperature(h, 298.15), 298.15, 1e-9);
-    RIM_EXPECT_NEAR(PushTemperature(h, 0.0),      0.0,   1e-9);
-    RIM_EXPECT_NEAR(PushTemperature(h, 273.15), 273.15, 1e-9);
-    RIM_EXPECT_NEAR(PushTemperature(h, 373.15), 373.15, 1e-9);
+    RIM_EXPECT_NEAR(PushTemperature(298.15), 298.15, 1e-9);
+    RIM_EXPECT_NEAR(PushTemperature(0.0),      0.0,   1e-9);
+    RIM_EXPECT_NEAR(PushTemperature(273.15), 273.15, 1e-9);
+    RIM_EXPECT_NEAR(PushTemperature(373.15), 373.15, 1e-9);
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 /* C から単位を指定して、摂氏/華氏がケルビンへ正規化されること(本件の主眼)。 */
 RIM_TEST(ValueTemperatureUnitIsNormalizedFromC)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
-    RIM_EXPECT_NEAR(PushTemperatureAs(h, 0.0,   RIM_UNIT_CELSIUS),    273.15, 1e-9);  /* 0degC   = 273.15K */
-    RIM_EXPECT_NEAR(PushTemperatureAs(h, 25.0,  RIM_UNIT_CELSIUS),    298.15, 1e-9);  /* 25degC  = 298.15K */
-    RIM_EXPECT_NEAR(PushTemperatureAs(h, 32.0,  RIM_UNIT_FAHRENHEIT), 273.15, 1e-9);  /* 32degF = 0degC */
-    RIM_EXPECT_NEAR(PushTemperatureAs(h, 212.0, RIM_UNIT_FAHRENHEIT), 373.15, 1e-9);  /* 212degF = 100degC */
+    RIM_EXPECT_NEAR(PushTemperatureAs(0.0,   RIM_UNIT_CELSIUS),    273.15, 1e-9);  /* 0degC   = 273.15K */
+    RIM_EXPECT_NEAR(PushTemperatureAs(25.0,  RIM_UNIT_CELSIUS),    298.15, 1e-9);  /* 25degC  = 298.15K */
+    RIM_EXPECT_NEAR(PushTemperatureAs(32.0,  RIM_UNIT_FAHRENHEIT), 273.15, 1e-9);  /* 32degF = 0degC */
+    RIM_EXPECT_NEAR(PushTemperatureAs(212.0, RIM_UNIT_FAHRENHEIT), 373.15, 1e-9);  /* 212degF = 100degC */
 
     /* 同じ温度は単位が違っても正規化後に一致する。 */
     RIM_EXPECT_NEAR(
-        PushTemperatureAs(h, -40.0, RIM_UNIT_CELSIUS),
-        PushTemperatureAs(h, -40.0, RIM_UNIT_FAHRENHEIT),
+        PushTemperatureAs(-40.0, RIM_UNIT_CELSIUS),
+        PushTemperatureAs(-40.0, RIM_UNIT_FAHRENHEIT),
         1e-9);
 
     /* 明示的な kNormalized は換算しない。 */
-    RIM_EXPECT_NEAR(PushTemperatureAs(h, 298.15, RIM_UNIT_NORMALIZED), 298.15, 1e-9);
+    RIM_EXPECT_NEAR(PushTemperatureAs(298.15, RIM_UNIT_NORMALIZED), 298.15, 1e-9);
 
     /* 温度は double のまま保持されるため、旧実装(x100固定小数)にあった
      * 四捨五入/切り捨ての違いは今は存在しない。華氏 100degF はちょうど
      * 310.927777...K になる。 */
-    RIM_EXPECT_NEAR(PushTemperatureAs(h, 100.0, RIM_UNIT_FAHRENHEIT), 310.9277777778, 1e-9);
+    RIM_EXPECT_NEAR(PushTemperatureAs(100.0, RIM_UNIT_FAHRENHEIT), 310.9277777778, 1e-9);
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 /* ============================================================
@@ -153,16 +150,15 @@ RIM_TEST(ValueTemperatureUnitIsNormalizedFromC)
  * ============================================================ */
 RIM_TEST(ValueTruncatesTowardZeroBeyondResolution)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
     /* Percent 系は整数の分解能を超える桁を 0方向へ切り捨てる。 */
-    RIM_EXPECT_EQ_I(PushStapleLevel(h, 50.9), 50);
-    RIM_EXPECT_EQ_I(PushStapleLevel(h, 99.99), 99);
+    RIM_EXPECT_EQ_I(PushStapleLevel(50.9), 50);
+    RIM_EXPECT_EQ_I(PushStapleLevel(99.99), 99);
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 /* ============================================================
@@ -170,17 +166,16 @@ RIM_TEST(ValueTruncatesTowardZeroBeyondResolution)
  * ============================================================ */
 RIM_TEST(ValuePercentIsClamped)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
-    RIM_EXPECT_EQ_I(PushStapleLevel(h, 0.0),     0);
-    RIM_EXPECT_EQ_I(PushStapleLevel(h, 100.0), 100);
-    RIM_EXPECT_EQ_I(PushStapleLevel(h, -5.0),    0);   /* 下限クランプ */
-    RIM_EXPECT_EQ_I(PushStapleLevel(h, 150.0), 100);   /* 上限クランプ */
+    RIM_EXPECT_EQ_I(PushStapleLevel(0.0),     0);
+    RIM_EXPECT_EQ_I(PushStapleLevel(100.0), 100);
+    RIM_EXPECT_EQ_I(PushStapleLevel(-5.0),    0);   /* 下限クランプ */
+    RIM_EXPECT_EQ_I(PushStapleLevel(150.0), 100);   /* 上限クランプ */
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 /* ============================================================
@@ -188,17 +183,16 @@ RIM_TEST(ValuePercentIsClamped)
  * ============================================================ */
 RIM_TEST(ValueBoolIsNonZeroTest)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
-    RIM_EXPECT_EQ_I(PushJobActive(h, 0.0), 0);
-    RIM_EXPECT_EQ_I(PushJobActive(h, 1.0), 1);
-    RIM_EXPECT_EQ_I(PushJobActive(h, 0.5), 1);   /* 0でなければ true */
-    RIM_EXPECT_EQ_I(PushJobActive(h, -1.0), 1);
+    RIM_EXPECT_EQ_I(PushJobActive(0.0), 0);
+    RIM_EXPECT_EQ_I(PushJobActive(1.0), 1);
+    RIM_EXPECT_EQ_I(PushJobActive(0.5), 1);   /* 0でなければ true */
+    RIM_EXPECT_EQ_I(PushJobActive(-1.0), 1);
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 /* ============================================================
@@ -211,20 +205,19 @@ RIM_TEST(ValueBoolIsNonZeroTest)
  * ============================================================ */
 RIM_TEST(ValueOutOfRangeIsUncheckedKnownGap)
 {
-    RIM_HANDLE h = NULL;
-    RIM_EXPECT_EQ_I(RIManager_Create(&h), RI_SUCCESS);
-    RIM_EXPECT_EQ_I(RIManager_Start(h), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Create(), RI_SUCCESS);
+    RIM_EXPECT_EQ_I(RIManager_Start(), RI_SUCCESS);
 
     /* 本環境(x86-64/GCC)では cvttsd2si の「不正な整数」表現である
      * INT32_MIN (-2147483648) へ飽和する。範囲外なら符号すら関係ない。 */
-    RIM_EXPECT_EQ_I(PushJobId(h, 1e20), -2147483648);
-    RIM_EXPECT_EQ_I(PushJobId(h, -1e20), -2147483648);
+    RIM_EXPECT_EQ_I(PushJobId(1e20), -2147483648);
+    RIM_EXPECT_EQ_I(PushJobId(-1e20), -2147483648);
 
     /* 注意: NaN / Inf も同様に UB。Rule が弾いていないため本テストでは投入しない
      *       (環境によりクラッシュしうる)。範囲チェック実装時に併せて対応する。 */
 
-    RIManager_Stop(h);
-    RIManager_Destroy(h);
+    RIManager_Stop();
+    RIManager_Destroy();
 }
 
 void RimCapiValueTests(void)

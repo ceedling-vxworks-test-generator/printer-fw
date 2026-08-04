@@ -54,14 +54,14 @@ static void RimSettle(void)
 }
 
 /* capabilityId の通知が溜まるまで、上限まで待つ。溜まったら true。 */
-static int RimWaitPending(RIM_HANDLE h, RICapabilityId capabilityId)
+static int RimWaitPending(RICapabilityId capabilityId)
 {
     int i;
     for (i = 0; i < kRimSettleMaxChunks; ++i) {
-        if (RIManager_HasPendingCapability(h, capabilityId) == 1) return 1;
+        if (RIManager_HasPendingCapability(capabilityId) == 1) return 1;
         RimSettleChunk();
     }
-    return RIManager_HasPendingCapability(h, capabilityId) == 1;
+    return RIManager_HasPendingCapability(capabilityId) == 1;
 }
 
 /*
@@ -80,7 +80,7 @@ static int RimWaitPending(RIM_HANDLE h, RICapabilityId capabilityId)
  * ctx は NULL 可。out には最終的に読めた現在値が書かれる(失敗時は不定)。
  * 戻り値: 反映を確認できたら true(値が変わらなかった場合も、上限まで待てば true)。
  */
-static int RimPushAndWaitCurrent(RIM_HANDLE h, uint16_t dataId, double value,
+static int RimPushAndWaitCurrent(uint16_t dataId, double value,
                                   const rim_context_t* ctx,
                                   RICapabilityId capabilityId, void* out, size_t size)
 {
@@ -90,12 +90,12 @@ static int RimPushAndWaitCurrent(RIM_HANDLE h, uint16_t dataId, double value,
 
     if (size > sizeof before) return 0;   /* テスト側の呼び方が誤り */
 
-    hadBefore = (RIManager_GetCurrentCapability(h, capabilityId, before, size, NULL) == RI_SUCCESS);
+    hadBefore = (RIManager_GetCurrentCapability(capabilityId, before, size, NULL) == RI_SUCCESS);
 
-    if (RIManager_Push(h, dataId, value, ctx) != RI_SUCCESS) return 0;
+    if (RIManager_Push(dataId, value, ctx) != RI_SUCCESS) return 0;
 
     for (i = 0; i < kRimSettleMaxChunks; ++i) {
-        if (RIManager_GetCurrentCapability(h, capabilityId, out, size, NULL) == RI_SUCCESS) {
+        if (RIManager_GetCurrentCapability(capabilityId, out, size, NULL) == RI_SUCCESS) {
             if (!hadBefore || memcmp(out, before, size) != 0) return 1;
         }
         RimSettleChunk();
@@ -103,18 +103,18 @@ static int RimPushAndWaitCurrent(RIM_HANDLE h, uint16_t dataId, double value,
 
     /* 変化を検知できなかった(偶然同値だった可能性を含む)。最後にもう一度読み、
      * 何かしら読めていれば成功扱いにする(正しく反映されたかは値の比較に委ねる)。 */
-    return RIManager_GetCurrentCapability(h, capabilityId, out, size, NULL) == RI_SUCCESS;
+    return RIManager_GetCurrentCapability(capabilityId, out, size, NULL) == RI_SUCCESS;
 }
 
 /* 単位なしの短縮形。 */
-static int RimPushAndWaitCurrentNoContext(RIM_HANDLE h, uint16_t dataId, double value,
+static int RimPushAndWaitCurrentNoContext(uint16_t dataId, double value,
                                            RICapabilityId capabilityId, void* out, size_t size)
 {
-    return RimPushAndWaitCurrent(h, dataId, value, NULL, capabilityId, out, size);
+    return RimPushAndWaitCurrent(dataId, value, NULL, capabilityId, out, size);
 }
 
 /* 単位付きの短縮形。 */
-static int RimPushAndWaitCurrentWithUnit(RIM_HANDLE h, uint16_t dataId, double value,
+static int RimPushAndWaitCurrentWithUnit(uint16_t dataId, double value,
                                           rim_source_unit_t unit,
                                           RICapabilityId capabilityId, void* out, size_t size)
 {
@@ -124,11 +124,11 @@ static int RimPushAndWaitCurrentWithUnit(RIM_HANDLE h, uint16_t dataId, double v
     ctx.has_fault_state = false;
     ctx.has_scale_x1000 = false;
     ctx.has_key         = false;
-    return RimPushAndWaitCurrent(h, dataId, value, &ctx, capabilityId, out, size);
+    return RimPushAndWaitCurrent(dataId, value, &ctx, capabilityId, out, size);
 }
 
 /* 単位付きで push する(反映は待たない)短縮形。 */
-static int RimPushWithUnit(RIM_HANDLE h, uint16_t dataId, double value, rim_source_unit_t unit)
+static int RimPushWithUnit(uint16_t dataId, double value, rim_source_unit_t unit)
 {
     rim_context_t ctx;
     ctx.has_unit = true;
@@ -136,13 +136,13 @@ static int RimPushWithUnit(RIM_HANDLE h, uint16_t dataId, double value, rim_sour
     ctx.has_fault_state = false;
     ctx.has_scale_x1000 = false;
     ctx.has_key         = false;
-    return RIManager_Push(h, dataId, value, &ctx);
+    return RIManager_Push(dataId, value, &ctx);
 }
 
 /* context なし(=正規化済み扱い)で push する(反映は待たない)短縮形。 */
-static int RimPush(RIM_HANDLE h, uint16_t dataId, double value)
+static int RimPush(uint16_t dataId, double value)
 {
-    return RIManager_Push(h, dataId, value, NULL);
+    return RIManager_Push(dataId, value, NULL);
 }
 
 /*
@@ -150,16 +150,16 @@ static int RimPush(RIM_HANDLE h, uint16_t dataId, double value)
  * DataStoreWorker が非同期に処理するため)。out には最後に読めた値が書かれる。
  * 戻り値: 一致を確認できたら true。
  */
-static int RimWaitErrorCount(RIM_HANDLE h, uint16_t expectedCount, rim_error_capability_t* out)
+static int RimWaitErrorCount(uint16_t expectedCount, rim_error_capability_t* out)
 {
     int i;
     for (i = 0; i < kRimSettleMaxChunks; ++i) {
-        if (RIManager_GetCurrentCapability(h, RIM_CAP_ERROR, out, sizeof *out, NULL) == RI_SUCCESS) {
+        if (RIManager_GetCurrentCapability(RIM_CAP_ERROR, out, sizeof *out, NULL) == RI_SUCCESS) {
             if (out->count == expectedCount) return 1;
         }
         RimSettleChunk();
     }
-    return RIManager_GetCurrentCapability(h, RIM_CAP_ERROR, out, sizeof *out, NULL) == RI_SUCCESS
+    return RIManager_GetCurrentCapability(RIM_CAP_ERROR, out, sizeof *out, NULL) == RI_SUCCESS
            && out->count == expectedCount;
 }
 

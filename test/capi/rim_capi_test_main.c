@@ -1,10 +1,10 @@
 /*
  * rim_capi_test_main.c - capi テストのランナー。
  *
- * 各テストが自分で RIManager_Create/Start/Stop/Destroy を行う(旧実装は
- * rim_init/rim_shutdown をここで1回だけ行っていたが、こちらの実装は
- * ハンドル単位で状態を持つため、テストごとに独立したハンドルを使うほうが
- * 他のテストの残存状態に依存せず安全)。
+ * 各テストが自分で RIManager_Create/Start/Stop/Destroy を行う。RIManager は
+ * プロセス内に常に1つのシングルトンだが、各テストが末尾で必ず Destroy する
+ * ため、次のテストの Create は新しい状態から始まる(テスト間で状態が
+ * 残存しない)。
  *
  * 終了コード: 失敗0件なら 0、1件以上なら 1(ctest がそのまま合否判定に使う)。
  */

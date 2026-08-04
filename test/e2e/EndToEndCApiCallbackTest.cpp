@@ -82,16 +82,12 @@ TEST(
     EndToEndCApiCallbackTest,
     SubscribeReceiveAndUnsubscribe)
 {
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     Received received;
@@ -100,7 +96,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_SubscribeCapability(
-            handle,
             rim::kCapEnvironment,
             OnCapability,
             &received,
@@ -113,7 +108,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             30.0),
@@ -138,7 +132,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_Unsubscribe(
-            handle,
             id),
         RI_SUCCESS);
 
@@ -147,7 +140,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectDouble(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kTemperatureSensorA),
             35.0),
@@ -161,13 +153,11 @@ TEST(
         received.called);
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }
 
@@ -175,16 +165,12 @@ TEST(
     EndToEndCApiCallbackTest,
     ReceiveErrorCapability)
 {
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     Received received;
@@ -193,7 +179,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_SubscribeCapability(
-            handle,
             rim::kCapError,
             OnCapability,
             &received,
@@ -202,7 +187,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_AddError(
-            handle,
             1001),
         RI_SUCCESS);
 
@@ -216,18 +200,15 @@ TEST(
 
     ASSERT_EQ(
         RIManager_Unsubscribe(
-            handle,
             id),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }
 
@@ -235,16 +216,12 @@ TEST(
     EndToEndCApiCallbackTest,
     ReceivePrintReadyCapability)
 {
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     Received received;
@@ -253,7 +230,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_SubscribeCapability(
-            handle,
             rim::kCapPrintReady,
             OnCapability,
             &received,
@@ -262,7 +238,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kUpperDoorOpen),
             0),
@@ -270,7 +245,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kRightDoorOpen),
             0),
@@ -278,7 +252,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kLeftDoorOpen),
             0),
@@ -294,18 +267,15 @@ TEST(
 
     ASSERT_EQ(
         RIManager_Unsubscribe(
-            handle,
             id),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }
 
@@ -313,16 +283,12 @@ TEST(
     EndToEndCApiCallbackTest,
     ReceiveConsumableCapability)
 {
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     Received received;
@@ -331,7 +297,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_SubscribeCapability(
-            handle,
             rim::kCapConsumable,
             OnCapability,
             &received,
@@ -340,7 +305,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectInt32(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kStapleLevel),
             80),
@@ -356,18 +320,15 @@ TEST(
 
     ASSERT_EQ(
         RIManager_Unsubscribe(
-            handle,
             id),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }
 
@@ -375,16 +336,12 @@ TEST(
     EndToEndCApiCallbackTest,
     ReceiveJobCapability)
 {
-    RIM_HANDLE handle{};
-
     ASSERT_EQ(
-        RIManager_Create(
-            &handle),
+        RIManager_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(
-            handle),
+        RIManager_Start(),
         RI_SUCCESS);
 
     Received received;
@@ -393,7 +350,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_SubscribeCapability(
-            handle,
             rim::kCapJob,
             OnCapability,
             &received,
@@ -402,7 +358,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectBool(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kJobActive),
             1),
@@ -410,7 +365,6 @@ TEST(
 
     ASSERT_EQ(
         RIManager_TestInjectInt32(
-            handle,
             rim::ToDataId(
                 rim::RIMDataId::kJobId),
             123),
@@ -426,17 +380,14 @@ TEST(
 
     ASSERT_EQ(
         RIManager_Unsubscribe(
-            handle,
             id),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Stop(
-            handle),
+        RIManager_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(
-            handle),
+        RIManager_Destroy(),
         RI_SUCCESS);
 }

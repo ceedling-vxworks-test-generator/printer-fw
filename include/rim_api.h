@@ -105,9 +105,12 @@ typedef struct rim_context_t
  * 本 API は「どの Capability か(RICapabilityId)」「どのデータか(dataId)」を
  * 引数で受ける形に統一してある。ID の意味を知っているのは Product と利用者だけで、
  * Core は整数として素通しする。Capability やデータが増えても Core は無改修。
+ *
+ * インスタンスはプロセス内に**常に1つ**という前提(1プロセス=1台のプリンタ)。
+ * そのためハンドルは持たず、内部で単一インスタンスを保持する。
+ * RIManager_Create() で生成し、RIManager_Destroy() で破棄する
+ * (Destroy 後に再度 Create すれば新しい状態で作り直せる)。
  */
-
-typedef void *RIM_HANDLE;
 
 typedef enum RIStatus
 {
@@ -116,10 +119,7 @@ typedef enum RIStatus
     /* 引数不正 */
     RI_INVALID_PARAMETER = -1,
 
-    /* ハンドル不正 */
-    RI_INVALID_HANDLE = -2,
-
-    /* 未初期化 */
+    /* 未初期化(Create 前、または Destroy 後に呼ばれた) */
     RI_NOT_INITIALIZED = -3,
 
     /* データなし */
@@ -137,17 +137,15 @@ typedef enum RIStatus
 /* ライフサイクル                                                       */
 /* ------------------------------------------------------------------ */
 
-int RIManager_Create(
-    RIM_HANDLE* handle);
+/* 既に生成済みの場合は何もせず RI_SUCCESS を返す(冪等)。 */
+int RIManager_Create(void);
 
-int RIManager_Destroy(
-    RIM_HANDLE handle);
+/* 未生成の場合は RI_NOT_INITIALIZED。 */
+int RIManager_Destroy(void);
 
-int RIManager_Start(
-    RIM_HANDLE handle);
+int RIManager_Start(void);
 
-int RIManager_Stop(
-    RIM_HANDLE handle);
+int RIManager_Stop(void);
 
 /* ------------------------------------------------------------------ */
 /* Capability の取得                                                    */
@@ -161,7 +159,6 @@ int RIManager_Stop(
  * バッファが足りない場合は RI_BUFFER_TOO_SMALL を返し、**通知は消費しない**。
  */
 int RIManager_GetCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId,
     void* buffer,
     size_t bufferSize,
@@ -172,15 +169,13 @@ int RIManager_GetCapability(
  * まだ一度も生成されていない Capability は RI_NO_DATA。
  */
 int RIManager_GetCurrentCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId,
     void* buffer,
     size_t bufferSize,
     size_t* written);
 
-/* 通知が溜まっているか(0/1)。handle 不正時は負値を返す。 */
+/* 通知が溜まっているか(0/1)。未初期化時は負値を返す。 */
 int RIManager_HasPendingCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId);
 
 /* ------------------------------------------------------------------ */
@@ -188,14 +183,12 @@ int RIManager_HasPendingCapability(
 /* ------------------------------------------------------------------ */
 
 int RIManager_SubscribeCapability(
-    RIM_HANDLE handle,
     RICapabilityId capabilityId,
     RICapabilityCallback callback,
     void* userData,
     uint64_t* subscriptionId);
 
 int RIManager_Unsubscribe(
-    RIM_HANDLE handle,
     uint64_t subscriptionId);
 
 /* ------------------------------------------------------------------ */
@@ -203,15 +196,12 @@ int RIManager_Unsubscribe(
 /* ------------------------------------------------------------------ */
 
 int RIManager_AddError(
-    RIM_HANDLE handle,
     uint32_t errorCode);
 
 int RIManager_RemoveError(
-    RIM_HANDLE handle,
     uint32_t errorCode);
 
 int RIManager_SetErrorState(
-    RIM_HANDLE handle,
     uint32_t errorCode,
     int state);
 
@@ -231,7 +221,6 @@ int RIManager_SetErrorState(
  * (黙って切り詰めると異常の取りこぼしになるため)。
  */
 int RIManager_PushFaultSnapshot(
-    RIM_HANDLE handle,
     const rim_fault_snapshot_entry_t* entries,
     size_t count);
 
@@ -250,7 +239,6 @@ int RIManager_PushFaultSnapshot(
  * 精度が落ちるのは 2^53 を超える整数を渡した場合だけである。
  */
 int RIManager_Push(
-    RIM_HANDLE handle,
     uint16_t dataId,
     double value,
     const rim_context_t* ctx);
@@ -266,17 +254,14 @@ int RIManager_Push(
  */
 
 int RIManager_TestInjectDouble(
-    RIM_HANDLE handle,
     uint16_t dataId,
     double value);
 
 int RIManager_TestInjectInt32(
-    RIM_HANDLE handle,
     uint16_t dataId,
     int32_t value);
 
 int RIManager_TestInjectBool(
-    RIM_HANDLE handle,
     uint16_t dataId,
     int value);
 
