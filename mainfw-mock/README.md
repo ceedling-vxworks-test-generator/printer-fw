@@ -4,16 +4,24 @@
 **共有ライブラリとして正しくロードできるか**・**ステップ実行でデバッグできるか**を
 先に確認するための、最小限のモックCプロジェクト。
 
-本物のmainFWとは独立したCMakeプロジェクトとして、printer-fwを
-`find_package(rimanager)` 経由で見つけてリンクする(本番の結合方法と同じ経路)。
+## 運用方針: ライブラリは自動生成せず、人が手で配置する
 
-ライブラリ本体はこのディレクトリ直下の **`lib/`**(`.so`)と **`include/`**(ヘッダ)に
-置く。mainFW側リポジトリが同梱ベンダーライブラリを`lib/`・`include/`で持つ、
-という一般的な構成を模している。
+`mainfw-mock`自身のconfigure/buildは、printer-fwを一切ビルドしない。
+`lib/librimanager.so`・`include/`以下のヘッダは**人が手で配置**する運用にしている
+(mainFW側リポジトリがベンダーライブラリを`lib/`・`include/`で同梱する、
+一般的な構成を模している)。
+
+- `lib/librimanager.so` が**無ければ**、`cmake --build`は**リンクエラー**で失敗する
+  (`cannot find -lrimanager`)
+- `include/rim_api.h` 等が**無ければ**、**コンパイルエラー**で失敗する
+- 両方**置いてあれば**、そのままリンクして動く
+
+configure時点では存在チェックのみ行い、無くても警告を出すだけでconfigure自体は
+通る(実際に失敗するのはビルド時)。
 
 ## セットアップ
 
-### 1. printer-fw を共有ライブラリとしてビルドし、mainfw-mock直下へinstallする
+### 1. printer-fw をビルドし、lib/・include/ へ手で配置する
 
 ```sh
 cd ..
@@ -25,8 +33,12 @@ cmake --install build-shared --prefix "$(pwd)/mainfw-mock"
 `RIMANAGER_BUILD_TESTS=OFF`は、gtestをFetchContentで取得しようとしてネットワーク制限に
 引っかかるのを避けるため(`rimanager`ターゲット自体のビルドには不要)。
 
-`--prefix`をmainfw-mock自身にすることで、`mainfw-mock/lib/librimanager.so`
-`mainfw-mock/include/*.hpp`(CMakeのGNUInstallDirs標準レイアウト)が生成される。
+`--prefix`をmainfw-mock自身にすることで、`mainfw-mock/lib/librimanager.so`と
+`mainfw-mock/include/*`(CMakeのGNUInstallDirs標準レイアウト)が生成される。
+**この手順はmainfw-mock自身のビルドからは呼ばれない**。VSCodeでも
+`.vscode/tasks.json`に「printer-fw: build & vendor into lib/ include/(手動・任意)」
+という**独立したタスク**として用意してあり、ライブラリを更新したいときだけ
+コマンドパレットから明示的に実行する(F5やデフォルトビルドでは自動実行されない)。
 
 ### 2. mainfw-mock をビルドする
 
@@ -36,14 +48,15 @@ cmake --build build
 ./build/mainfw_mock
 ```
 
-`CMAKE_PREFIX_PATH`は既定でこのディレクトリ自身(`lib/`・`include/`が直下にある
-前提)。`mainfw-mock/lib`がビルド木のRPATHに埋め込まれるため、`LD_LIBRARY_PATH`を
-手で通さなくても`librimanager.so`を見つけて実行できる。
+`lib/`・`include/`が置かれていれば、`mainfw-mock/lib`がビルド木のRPATHに
+埋め込まれるため、`LD_LIBRARY_PATH`を手で通さなくても`librimanager.so`を
+見つけて実行できる。置かれていなければ、上記の通りビルド自体が失敗する。
 
 ### VSCodeで開く場合
 
-`mainfw-mock/`をワークスペースルートとして開き、`.vscode/tasks.json`の
-デフォルトビルドタスク(F5前に自動実行)が上記1・2をまとめて行う。
+`mainfw-mock/`をワークスペースルートとして開き、デフォルトビルドタスク
+(F5前に自動実行)は`cmake --build`のみを行う。ライブラリの配置は
+別タスクとして手動で呼び出す(上記参照)。
 
 ## デバッグ
 
@@ -68,6 +81,8 @@ cmake --build build
 
 - `build-shared/`(printer-fw側)・`mainfw-mock/lib/`・`mainfw-mock/include/`・
   `mainfw-mock/build/`はいずれもビルド/install生成物のため`.gitignore`対象
-  (コミットしない)。クローン後は毎回上記手順でビルド・installし直すこと。
+  (コミットしない)。クローン後は毎回§1の手順で手動配置し直すこと。
+- `find_package(rimanager)`は使っていない(CMakeパッケージ設定一式が無くても
+  `lib/`・`include/`さえあれば動く、より素朴な「ベンダーライブラリ同梱」形式)。
 - ここでの結合確認はあくまで**ローカル開発機(host, Linux/x86-64)向け**。
   実機(VxWorks等)へのクロスビルド・実配布時のRPATH/リンク方式は別途検討が必要。

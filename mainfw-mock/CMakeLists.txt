@@ -1,19 +1,24 @@
 #
 # mainfw-mock - printer-fw(librimanager.so)を外部から消費する最小のCプロジェクト。
 #
-# 本物のmainFWとは独立したプロジェクトとして、printer-fwを
-# find_package(rimanager) 経由で見つけてリンクする(本番の結合方法と同じ経路)。
+# 運用方針: printer-fwを自動ビルド・自動installしない。
+# 人がビルド済みの成果物を、このディレクトリ直下へ手で配置する運用にする
+# (mainFW側リポジトリがベンダーライブラリを同梱する一般的な構成を模している)。
 #
-# ライブラリ本体はこのディレクトリ直下の lib/ (.so) と include/ (ヘッダ) に
-# 置く(mainFW側リポジトリが同梱ベンダーライブラリを持つ想定を模している)。
-# 事前に printer-fw 側を共有ライブラリとしてビルドし、ここへ install しておくこと:
+#   lib/librimanager.so   <- 配置必須。無ければ「リンクエラー」でビルドが失敗する
+#   include/*             <- 配置必須。無ければ「コンパイルエラー」でビルドが失敗する
+#
+# 配置手順(printer-fw側をビルドし、ここへコピーする):
 #
 #   cd ..
 #   cmake -S . -B build-shared -DCMAKE_BUILD_TYPE=Debug -DRIMANAGER_BUILD_TESTS=OFF
 #   cmake --build build-shared --target rimanager
 #   cmake --install build-shared --prefix "$(pwd)/mainfw-mock"
 #
-# その後、このディレクトリで:
+# ↑ この手順は「lib/・include/を用意する側の作業」であり、mainfw-mock自身の
+#   configure/buildからは一切呼び出さない(意図的に自動化しない)。
+#
+# 配置後、このディレクトリで:
 #
 #   cmake -S . -B build
 #   cmake --build build
@@ -32,24 +37,41 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-# printer-fw の install prefix を指す。CMAKE_PREFIX_PATH で上書き可能
-# (既定はこのディレクトリ自身。lib/・include/ を直下に持つ)。
-if(NOT CMAKE_PREFIX_PATH)
-    set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
+# configure時点では存在チェックだけ行い、警告に留める(configureは通す)。
+# 実際に「置いていなければ動かない」を体現するのはコンパイル/リンクの段階。
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/include/rim_api.h")
+    message(WARNING
+        "include/rim_api.h が見つかりません。"
+        "printer-fwをビルドし、include/ へヘッダ一式を配置してください"
+        "(配置手順はCMakeLists.txt冒頭のコメント参照)。"
+        "このままビルドするとコンパイルエラーになります。")
 endif()
-
-find_package(rimanager REQUIRED)
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib/librimanager.so")
+    message(WARNING
+        "lib/librimanager.so が見つかりません。"
+        "printer-fwをビルドし、lib/ へ配置してください"
+        "(配置手順はCMakeLists.txt冒頭のコメント参照)。"
+        "このままビルドするとリンクエラーになります。")
+endif()
 
 add_executable(mainfw_mock src/main.c)
 
-target_link_libraries(mainfw_mock PRIVATE rimanager::rimanager)
+target_include_directories(mainfw_mock PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# find_package は使わない(=CMake設定一式が無くてもよい)。
+# lib/ をリンク検索パスに追加し、名前(-lrimanager)でリンクする。
+# lib/librimanager.so が無ければ、この時点でリンカが
+# 「cannot find -lrimanager」というリンクエラーを出す(意図した挙動)。
+target_link_directories(mainfw_mock PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+
+target_link_libraries(mainfw_mock PRIVATE rimanager)
 
 #
-# 実行時にlibrimanager.soを見つけられるよう、ビルド木のRPATHにinstall先の
-# libディレクトリを埋め込む(LD_LIBRARY_PATHを手で通さなくても動かせるように)。
-# インストールせずビルドディレクトリからそのまま実行するための開発時設定であり、
-# 本番配布(mainFW側)のRPATH方針とは別に考えること。
+# 実行時にlibrimanager.soを見つけられるよう、ビルド木のRPATHへlib/を埋め込む
+# (LD_LIBRARY_PATHを手で通さなくても動かせるように)。
 #
 set_target_properties(mainfw_mock PROPERTIES
-    BUILD_RPATH "${CMAKE_PREFIX_PATH}/lib"
+    BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/lib"
 )
