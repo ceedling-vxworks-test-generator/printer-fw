@@ -9,8 +9,8 @@ credentials*.json
 # 依存・ビルド成果物
 node_modules/
 dist/
-build/
-build-debug/
+build*/
+/_install/
 __pycache__/
 *.pyc
 .venv/
@@ -38,9 +38,10 @@ compile_commands.json
 .DS_Store
 Thumbs.db
 # .vscode/ はチーム共有のデバッグ設定(launch.json/tasks.json)だけ追跡し、それ以外(個人設定等)は無視する
-.vscode/*
-!.vscode/launch.json
-!.vscode/tasks.json
+# (サブプロジェクト配下の .vscode/ にも同じ扱いを適用する)
+**/.vscode/*
+!**/.vscode/launch.json
+!**/.vscode/tasks.json
 .idea/
 
 # ログ・一時ファイル

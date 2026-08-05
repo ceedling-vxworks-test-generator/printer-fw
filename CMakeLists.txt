@@ -67,7 +67,7 @@ target_include_directories(rim-core
 
 #
 # rimanager - core と products/printer_a のオブジェクトを1つにまとめた実体の
-# STATIC ライブラリ。消費側(mainFW)は find_package(rimanager) して
+# ライブラリ。消費側(mainFW)は find_package(rimanager) して
 # rimanager::rimanager にリンクすればよい。
 #
 # rim-core と rim-product-printer-a は互いのシンボルを参照し合う
@@ -77,11 +77,25 @@ target_include_directories(rim-core
 # (実際に発生することを確認済み)。
 #
 # core/CMakeLists.txt と products/printer_a/CMakeLists.txt を OBJECT ライブラリに
-# しておき、ここで1つの実アーカイブへまとめることで、アーカイブ間の解決順という
-# 問題自体を無くしている(1つのアーカイブ内の相互参照はインデックス経由で解決
-# できるため、複数アーカイブの時のような1パス制限を受けない)。
+# しておき、ここで1つの実体へまとめることで、アーカイブ間の解決順という
+# 問題自体を無くしている(1つの実体内の相互参照はインデックス経由で解決
+# できるため、複数アーカイブの時のような1パス制限を受けない)。この理由は
+# STATIC/SHARED のどちらでも同じなので、両方を後からでも選べるようにしておく。
 #
-add_library(rimanager STATIC)
+# mainFW への実配布形態は共有ライブラリ(.so)の想定のため、既定を SHARED に
+# している。BUILD_SHARED_LIBS=OFF を明示すれば STATIC でビルドできる
+# (CMake 標準変数。既定は ON)。
+#
+option(BUILD_SHARED_LIBS "rimanager を共有ライブラリ(.so)としてビルドする" ON)
+
+if(BUILD_SHARED_LIBS)
+    # OBJECT ライブラリも最終的に共有ライブラリへ取り込まれるため、
+    # 位置独立コード(-fPIC相当)が要る。
+    set_target_properties(rim-core rim-product-printer-a PROPERTIES
+        POSITION_INDEPENDENT_CODE ON)
+endif()
+
+add_library(rimanager)
 add_library(rimanager::rimanager ALIAS rimanager)
 
 target_link_libraries(rimanager
@@ -145,7 +159,7 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/core/publisher/include/
 )
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/products/printer_a/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.hpp"
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
 
 install(EXPORT rimanagerTargets

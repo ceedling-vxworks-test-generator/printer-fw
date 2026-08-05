@@ -1,0 +1,59 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cmake: configure printer-fw (Debug, shared)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S", "${workspaceFolder}/..",
+                "-B", "${workspaceFolder}/../build-shared",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DRIMANAGER_BUILD_TESTS=OFF"
+            ],
+            "problemMatcher": [],
+            "detail": "printer-fw本体をDebug情報付きの共有ライブラリとして構成する。librimanager.soにも-gが乗るため、mainfw_mockから呼び出したライブラリ関数の中までステップインできる。"
+        },
+        {
+            "label": "cmake: build & install printer-fw",
+            "type": "shell",
+            "command": "sh",
+            "args": [
+                "-c",
+                "cmake --build ${workspaceFolder}/../build-shared --target rimanager && cmake --install ${workspaceFolder}/../build-shared --prefix ${workspaceFolder}/../_install"
+            ],
+            "dependsOn": "cmake: configure printer-fw (Debug, shared)",
+            "problemMatcher": ["$gcc"],
+            "detail": "librimanager.soをビルドし、mainfw-mockが参照するinstall先(printer-fw/_install)へ配置する。"
+        },
+        {
+            "label": "cmake: configure mainfw-mock",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S", "${workspaceFolder}",
+                "-B", "${workspaceFolder}/build",
+                "-DCMAKE_PREFIX_PATH=${workspaceFolder}/../_install",
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "dependsOn": "cmake: build & install printer-fw",
+            "problemMatcher": []
+        },
+        {
+            "label": "cmake: build mainfw_mock",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "${workspaceFolder}/build",
+                "--target", "mainfw_mock"
+            ],
+            "dependsOn": "cmake: configure mainfw-mock",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "printer-fwのビルド・install込みで、mainfw_mock実行ファイルをDebug情報付きでビルドする。"
+        }
+    ]
+}
