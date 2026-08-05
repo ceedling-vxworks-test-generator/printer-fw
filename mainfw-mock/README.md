@@ -7,30 +7,38 @@
 本物のmainFWとは独立したCMakeプロジェクトとして、printer-fwを
 `find_package(rimanager)` 経由で見つけてリンクする(本番の結合方法と同じ経路)。
 
+ライブラリ本体はこのディレクトリ直下の **`lib/`**(`.so`)と **`include/`**(ヘッダ)に
+置く。mainFW側リポジトリが同梱ベンダーライブラリを`lib/`・`include/`で持つ、
+という一般的な構成を模している。
+
 ## セットアップ
 
-### 1. printer-fw を共有ライブラリとしてビルド・install する
+### 1. printer-fw を共有ライブラリとしてビルドし、mainfw-mock直下へinstallする
 
 ```sh
 cd ..
 cmake -S . -B build-shared -DCMAKE_BUILD_TYPE=Debug -DRIMANAGER_BUILD_TESTS=OFF
 cmake --build build-shared --target rimanager
-cmake --install build-shared --prefix "$(pwd)/_install"
+cmake --install build-shared --prefix "$(pwd)/mainfw-mock"
 ```
 
 `RIMANAGER_BUILD_TESTS=OFF`は、gtestをFetchContentで取得しようとしてネットワーク制限に
 引っかかるのを避けるため(`rimanager`ターゲット自体のビルドには不要)。
 
+`--prefix`をmainfw-mock自身にすることで、`mainfw-mock/lib/librimanager.so`
+`mainfw-mock/include/*.hpp`(CMakeのGNUInstallDirs標準レイアウト)が生成される。
+
 ### 2. mainfw-mock をビルドする
 
 ```sh
-cmake -S . -B build -DCMAKE_PREFIX_PATH="$(pwd)/../_install"
+cmake -S . -B build
 cmake --build build
 ./build/mainfw_mock
 ```
 
-`_install/lib`がビルド木のRPATHに埋め込まれるため、`LD_LIBRARY_PATH`を手で
-通さなくても`librimanager.so`を見つけて実行できる。
+`CMAKE_PREFIX_PATH`は既定でこのディレクトリ自身(`lib/`・`include/`が直下にある
+前提)。`mainfw-mock/lib`がビルド木のRPATHに埋め込まれるため、`LD_LIBRARY_PATH`を
+手で通さなくても`librimanager.so`を見つけて実行できる。
 
 ### VSCodeで開く場合
 
@@ -58,7 +66,8 @@ cmake --build build
 
 ## 注意
 
-- `build-shared/`・`_install/`・`mainfw-mock/build/`はいずれもビルド生成物のため
-  `.gitignore`対象(コミットしない)。クローン後は毎回上記手順でビルドし直すこと。
+- `build-shared/`(printer-fw側)・`mainfw-mock/lib/`・`mainfw-mock/include/`・
+  `mainfw-mock/build/`はいずれもビルド/install生成物のため`.gitignore`対象
+  (コミットしない)。クローン後は毎回上記手順でビルド・installし直すこと。
 - ここでの結合確認はあくまで**ローカル開発機(host, Linux/x86-64)向け**。
   実機(VxWorks等)へのクロスビルド・実配布時のRPATH/リンク方式は別途検討が必要。

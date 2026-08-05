@@ -4,16 +4,18 @@
 # 本物のmainFWとは独立したプロジェクトとして、printer-fwを
 # find_package(rimanager) 経由で見つけてリンクする(本番の結合方法と同じ経路)。
 #
-# 事前に printer-fw 側を共有ライブラリとしてビルド・installしておくこと:
+# ライブラリ本体はこのディレクトリ直下の lib/ (.so) と include/ (ヘッダ) に
+# 置く(mainFW側リポジトリが同梱ベンダーライブラリを持つ想定を模している)。
+# 事前に printer-fw 側を共有ライブラリとしてビルドし、ここへ install しておくこと:
 #
 #   cd ..
 #   cmake -S . -B build-shared -DCMAKE_BUILD_TYPE=Debug -DRIMANAGER_BUILD_TESTS=OFF
 #   cmake --build build-shared --target rimanager
-#   cmake --install build-shared --prefix "$(pwd)/_install"
+#   cmake --install build-shared --prefix "$(pwd)/mainfw-mock"
 #
 # その後、このディレクトリで:
 #
-#   cmake -S . -B build -DCMAKE_PREFIX_PATH="$(pwd)/../_install"
+#   cmake -S . -B build
 #   cmake --build build
 #   ./build/mainfw_mock
 #
@@ -31,9 +33,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # printer-fw の install prefix を指す。CMAKE_PREFIX_PATH で上書き可能
-# (既定は隣の printer-fw/_install を見る)。
+# (既定はこのディレクトリ自身。lib/・include/ を直下に持つ)。
 if(NOT CMAKE_PREFIX_PATH)
-    set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../_install")
+    set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 find_package(rimanager REQUIRED)

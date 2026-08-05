@@ -20,11 +20,11 @@
             "command": "sh",
             "args": [
                 "-c",
-                "cmake --build ${workspaceFolder}/../build-shared --target rimanager && cmake --install ${workspaceFolder}/../build-shared --prefix ${workspaceFolder}/../_install"
+                "cmake --build ${workspaceFolder}/../build-shared --target rimanager && cmake --install ${workspaceFolder}/../build-shared --prefix ${workspaceFolder}"
             ],
             "dependsOn": "cmake: configure printer-fw (Debug, shared)",
             "problemMatcher": ["$gcc"],
-            "detail": "librimanager.soをビルドし、mainfw-mockが参照するinstall先(printer-fw/_install)へ配置する。"
+            "detail": "librimanager.soをビルドし、mainfw-mock直下のlib/・include/へ配置する。"
         },
         {
             "label": "cmake: configure mainfw-mock",
@@ -33,7 +33,6 @@
             "args": [
                 "-S", "${workspaceFolder}",
                 "-B", "${workspaceFolder}/build",
-                "-DCMAKE_PREFIX_PATH=${workspaceFolder}/../_install",
                 "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "dependsOn": "cmake: build & install printer-fw",
