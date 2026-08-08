@@ -1,0 +1,1 @@
+// Store->Snapshot->Capability integration
