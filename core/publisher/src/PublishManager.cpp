@@ -3,19 +3,36 @@
 namespace rim
 {
 
-void PublishManager::Publish(
-    CapabilityId capabilityId)
+void PublishManager::
+    ProcessPeriodicNotifications()
 {
-    auto* publisher =
-        registry_.Find(
-            capabilityId);
+    std::vector<PeriodicCondition>
+        due;
 
-    if (publisher == nullptr)
-    {
-        return;
-    }
+    periodicNotifyManager_.
+        GetDueConditions(
+            due);
+    
+            for (const auto& condition : due)
+            {
+                SubscriptionInfo info{};
+                if (!subscriptionStore_.Find(
+                    condition.subscriptionId,info)){
+                        continue;
+                    }
 
-    publisher->Publish();
+                Publish(info.target,NotificationTrigger::Periodic);
+                periodicNotifyManager_.UpdateNextTime(condition.subscriptionId);
+            }
+}
+
+void PublishManager::Publish(
+    const NotificationTarget& target,
+    NotificationTrigger trigger)
+{
+    notifyManager_.Notify(
+        target,
+        trigger);
 }
 
 } // namespace rim

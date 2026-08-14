@@ -1,111 +1,100 @@
 #include <gtest/gtest.h>
 
-#include "CallbackSubscriptionRegistry.hpp"
-#include "CapabilityPublisherRegistry.hpp"
-#include "CapabilityStore.hpp"
-#include "ChangeNotifyManager.hpp"
-#include "GenericCapabilityPublisher.hpp"
-
-#include "test/support/CallbackTestHelper.hpp"
 #include "PublishManager.hpp"
-#include "SubscriberMailbox.hpp"
+#include "ChangeNotifyManager.hpp"
+#include "PeriodicNotifyManager.hpp"
 
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "CapabilityItem/PrinterACapabilityTypes.hpp"
+#include "SubscriptionStore.hpp"
+#include "SubscriberMailboxManager.hpp"
+#include "CallbackSubscriptionRegistry.hpp"
 
-//
-// Capability 保持 -> 配信 -> Mailbox、のつなぎ。
-//
-// 旧試験は "Environment" という文字列で配信器を登録していた。
-// 現在は CapabilityId(整数)で引くので、綴り間違いが起きようがない。
-//
+#include "NotificationReceiver.hpp"
+#include "NotificationMessage.hpp"
+#include "NotificationTarget.hpp"
+#include "NotificationTargetType.hpp"
+#include "NotificationTrigger.hpp"
+#include "SubscriptionInfo.hpp"
+#include "DeliveryMethod.hpp"
+
+#include "rim_capability_id.h"
 
 TEST(
     CapabilityToPublisherTest,
     NotifyEnvironmentChanged)
 {
-    rim::CapabilityStore store;
+    rim::SubscriptionStore
+        subscriptionStore;
 
-    rim::SubscriberMailbox mailbox;
+    rim::SubscriberMailboxManager
+        mailboxManager;
 
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
     rim::ChangeNotifyManager notifyManager(
-        mailbox,
+        subscriptionStore,
+        mailboxManager,
         callbackRegistry);
 
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
+    rim::PeriodicNotifyManager
+        periodicNotifyManager;
 
-    rim::StorePublishBinding binding
+    rim::PublishManager publishManager(
+        notifyManager,
+        periodicNotifyManager,
+        subscriptionStore);
+
+    const rim::SubscriptionId
+        subscriptionId =
+            subscriptionStore.CreateSubscriptionId();
+
+    rim::SubscriptionInfo info{};
+
+    info.id =
+        subscriptionId;
+
+    info.target =
     {
-        &store,
-        &notifyManager,
-        rim::kCapEnvironment
+        rim::NotificationTargetType::Capability,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT)
     };
 
-    rim::GenericCapabilityPublisher publisher(
-        rim::StorePublishBinding::Publish,
-        &binding);
+    info.method =
+        rim::DeliveryMethod::Mailbox;
 
-    publisherRegistry.Register(
-        rim::kCapEnvironment,
-        &publisher);
+    info.trigger =
+        rim::NotificationTrigger::OnChange;
 
-    rim::PublishManager publishManager(
-        publisherRegistry);
-
-    rim::EnvironmentCapability capability{};
-
-    capability.temperature = 300.15;
-    capability.humidity    = 60.0;
-
-    store.Store(
-        rim::kCapEnvironment,
-        rim::CapabilityPayload::From(
-            capability));
+    subscriptionStore.Register(
+        info);
 
     publishManager.Publish(
-        rim::kCapEnvironment);
+        info.target,
+        rim::NotificationTrigger::OnChange);
 
-    rim::CapabilityPayload payload;
+    rim::NotificationReceiver
+        receiver(
+            mailboxManager);
+
+    rim::NotificationMessage
+        message{};
 
     ASSERT_TRUE(
-        mailbox.Pop(
-            rim::kCapEnvironment,
-            payload));
+        receiver.TryGetNotification(
+            subscriptionId,
+            message));
 
-    const auto* out =
-        payload.As<
-            rim::EnvironmentCapability>();
+    EXPECT_EQ(
+        message.target.type,
+        rim::NotificationTargetType::Capability);
 
-    ASSERT_NE(
-        out,
-        nullptr);
+    EXPECT_EQ(
+        message.target.id,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT));
 
-    EXPECT_DOUBLE_EQ(
-        out->temperature,
-        300.15);
-
-    EXPECT_DOUBLE_EQ(
-        out->humidity,
-        60.0);
-}
-
-TEST(
-    CapabilityToPublisherTest,
-    PublishUnknownCapabilityIsIgnored)
-{
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
-
-    rim::PublishManager publishManager(
-        publisherRegistry);
-
-    // 配信器が無い id を叩いても落ちない
-    publishManager.Publish(
-        rim::kCapJob);
-
-    SUCCEED();
+    EXPECT_EQ(
+        message.trigger,
+        rim::NotificationTrigger::OnChange);
 }

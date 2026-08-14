@@ -1,147 +1,101 @@
 #include <gtest/gtest.h>
 
-#include "CallbackSubscriptionRegistry.hpp"
-#include "CapabilityPublisherRegistry.hpp"
-#include "CapabilityStore.hpp"
-#include "ChangeNotifyManager.hpp"
-#include "GenericCapabilityPublisher.hpp"
-
-#include "test/support/CallbackTestHelper.hpp"
 #include "NotificationReceiver.hpp"
+
 #include "PublishManager.hpp"
-#include "SubscriberMailbox.hpp"
+#include "ChangeNotifyManager.hpp"
+#include "PeriodicNotifyManager.hpp"
 
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "CapabilityItem/PrinterACapabilityTypes.hpp"
+#include "SubscriptionStore.hpp"
+#include "SubscriberMailboxManager.hpp"
+#include "CallbackSubscriptionRegistry.hpp"
 
-//
-// 配信 -> 購読者の受け取りまで。
-//
+#include "NotificationMessage.hpp"
+#include "NotificationTarget.hpp"
+#include "NotificationTargetType.hpp"
+#include "NotificationTrigger.hpp"
+#include "SubscriptionInfo.hpp"
+#include "DeliveryMethod.hpp"
+
+#include "rim_capability_id.h"
 
 TEST(
     PublisherToReactiveInfoManagerTest,
     ReceiveEnvironmentNotification)
 {
-    rim::CapabilityStore store;
+    rim::SubscriptionStore
+        subscriptionStore;
 
-    rim::SubscriberMailbox mailbox;
+    rim::SubscriberMailboxManager
+        mailboxManager;
 
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
     rim::ChangeNotifyManager notifyManager(
-        mailbox,
+        subscriptionStore,
+        mailboxManager,
         callbackRegistry);
 
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
-
-    rim::StorePublishBinding binding
-    {
-        &store,
-        &notifyManager,
-        rim::kCapEnvironment
-    };
-
-    rim::GenericCapabilityPublisher publisher(
-        rim::StorePublishBinding::Publish,
-        &binding);
-
-    publisherRegistry.Register(
-        rim::kCapEnvironment,
-        &publisher);
+    rim::PeriodicNotifyManager
+        periodicNotifyManager;
 
     rim::PublishManager publishManager(
-        publisherRegistry);
+        notifyManager,
+        periodicNotifyManager,
+        subscriptionStore);
 
-    rim::EnvironmentCapability capability{};
+    const rim::SubscriptionId
+        subscriptionId =
+            subscriptionStore.CreateSubscriptionId();
 
-    capability.temperature = 300.15;
-    capability.humidity    = 60.0;
+    rim::SubscriptionInfo info{};
 
-    store.Store(
-        rim::kCapEnvironment,
-        rim::CapabilityPayload::From(
-            capability));
+    info.id =
+        subscriptionId;
+
+    info.target =
+    {
+        rim::NotificationTargetType::Capability,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT)
+    };
+
+    info.method =
+        rim::DeliveryMethod::Mailbox;
+
+    info.trigger =
+        rim::NotificationTrigger::OnChange;
+
+    subscriptionStore.Register(
+        info);
 
     publishManager.Publish(
-        rim::kCapEnvironment);
+        info.target,
+        rim::NotificationTrigger::OnChange);
 
-    rim::NotificationReceiver receiver(
-        mailbox);
+    rim::NotificationReceiver
+        receiver(
+            mailboxManager);
 
-    rim::CapabilityPayload payload;
-
-    ASSERT_TRUE(
-        receiver.TryGet(
-            rim::kCapEnvironment,
-            payload));
-
-    const auto* received =
-        payload.As<
-            rim::EnvironmentCapability>();
-
-    ASSERT_NE(
-        received,
-        nullptr);
-
-    EXPECT_DOUBLE_EQ(
-        received->temperature,
-        300.15);
-
-    EXPECT_DOUBLE_EQ(
-        received->humidity,
-        60.0);
-}
-
-TEST(
-    PublisherToReactiveInfoManagerTest,
-    CallbackSubscriberAlsoReceivesIt)
-{
-    // ポーリング購読とコールバック購読の両方に届くこと。
-    rim::CapabilityStore store;
-
-    rim::SubscriberMailbox mailbox;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::CapabilityRecorder recorder;
-
-    callbackRegistry.Subscribe(
-        rim::kCapEnvironment,
-        rim::CapabilityRecorder::Callback,
-        &recorder);
-
-    rim::ChangeNotifyManager notifyManager(
-        mailbox,
-        callbackRegistry);
-
-    rim::EnvironmentCapability capability{};
-
-    store.Store(
-        rim::kCapEnvironment,
-        rim::CapabilityPayload::From(
-            capability));
-
-    rim::CapabilityPayload payload;
+    rim::NotificationMessage
+        message{};
 
     ASSERT_TRUE(
-        store.TryGet(
-            rim::kCapEnvironment,
-            payload));
+        receiver.TryGetNotification(
+            subscriptionId,
+            message));
 
-    notifyManager.Notify(
-        rim::kCapEnvironment,
-        payload);
+    EXPECT_EQ(
+        message.target.type,
+        rim::NotificationTargetType::Capability);
 
-    EXPECT_TRUE(
-        recorder.Called());
+    EXPECT_EQ(
+        message.target.id,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT));
 
-    rim::NotificationReceiver receiver(
-        mailbox);
-
-    EXPECT_TRUE(
-        receiver.HasPending(
-            rim::kCapEnvironment));
+    EXPECT_EQ(
+        message.trigger,
+        rim::NotificationTrigger::OnChange);
 }

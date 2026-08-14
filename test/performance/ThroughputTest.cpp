@@ -5,8 +5,6 @@
 
 #include "rim_api.h"
 
-#include "DataItem/PrinterADataIds.hpp"
-
 TEST(
     ThroughputTest,
     Environment10000Messages)
@@ -15,11 +13,11 @@ TEST(
         10000;
 
     ASSERT_EQ(
-        RIManager_Create(),
+        RIM_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(),
+        RIM_Start(),
         RI_SUCCESS);
 
     const auto start =
@@ -30,9 +28,7 @@ TEST(
          ++i)
     {
         ASSERT_EQ(
-            RIManager_TestInjectDouble(
-                rim::ToDataId(
-                    rim::RIMDataId::kTemperatureSensorA),
+            RIM_TestInjectTemperature(
                 static_cast<double>(i)),
             RI_SUCCESS);
     }
@@ -54,10 +50,10 @@ TEST(
         << std::endl;
 
     ASSERT_EQ(
-        RIManager_Stop(),
+        RIM_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(),
+        RIM_Destroy(),
         RI_SUCCESS);
 }

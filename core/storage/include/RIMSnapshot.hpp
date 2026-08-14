@@ -1,26 +1,21 @@
 #pragma once
 
-#include "FixedVector.hpp"
-#include "RIMConfig.hpp"
+#include <cstdint>
+#include <vector>
+
+#include "BinaryStoreValue.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueAccessor.hpp"
 
 namespace rim
 {
 
-//
-// ある瞬間の全データ項目。Capability 生成の入力になる。
-//
-// items は以前 std::vector だったため、**キューへ積むたびに動的確保**が起きていた
-// (定常運転中にヒープを触る)。固定容量にしたことで確保はゼロになる。
-// 容量は kMaxDataItems。機種が定義する RIMDataId の総数以上にしておくこと。
-//
 struct RIMSnapshot
 {
-    FixedVector<RIMDataItem, kMaxDataItems> items;
+    std::vector<RIMDataItem> items;
 
     bool Find(
-        RIMDataId id,
+        RIDataId id,
         RIMDataItem& item) const
     {
         for (const auto& current : items)
@@ -36,7 +31,7 @@ struct RIMSnapshot
     }
 
     bool TryGetDouble(
-        RIMDataId id,
+        RIDataId id,
         double& value) const
     {
         RIMDataItem item{};
@@ -52,7 +47,7 @@ struct RIMSnapshot
     }
 
     bool TryGetBool(
-        RIMDataId id,
+        RIDataId id,
         bool& value) const
     {
         RIMDataItem item{};
@@ -69,7 +64,7 @@ struct RIMSnapshot
 
 
     bool TryGetInt32(
-        RIMDataId id,
+        RIDataId id,
         std::int32_t& value) const
     {
         RIMDataItem item{};
@@ -84,8 +79,40 @@ struct RIMSnapshot
             value);
     }
 
+    bool TryGetBinary(
+        RIDataId id,
+        const BinaryStoreValue*& value) const
+    {
+        RIMDataItem item{};
 
+        if (!Find(
+                id,
+                item))
+        {
+            return false;
+        }
 
-};
+        return RIMValueAccessor::GetBinary(
+            item.value,
+            value);
+    }
+
+    bool TryGetBinaryStore(
+        RIDataId id,
+        BinaryStoreValue*& value) const
+    {
+        RIMDataItem item{};
+
+        if (!Find(id, item))
+        {
+            return false;
+        }
+
+        return RIMValueAccessor::GetBinaryStore(
+            item.value,
+            value);
+    }
+
+    };
 
 } // namespace rim

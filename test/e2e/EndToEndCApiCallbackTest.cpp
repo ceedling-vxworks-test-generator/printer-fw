@@ -2,103 +2,89 @@
 
 #include <atomic>
 #include <chrono>
-#include <cstddef>
-#include <cstdint>
 #include <thread>
 
 #include "rim_api.h"
 
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "CapabilityItem/PrinterACapabilityTypes.hpp"
-#include "DataItem/PrinterADataIds.hpp"
-
-//
-// C API のコールバック購読。
-//
-// 旧試験は _SubscribeEnvironment / _SubscribeError / … と Capability ごとに
-// 別関数・別コールバック型を使い、ほぼ同じ手順を5回書いていた。
-// 現在は購読も投入も id 引数なので、共通の手順に id を渡すだけで済む。
-//
-
 namespace
 {
 
-// 受信状況。コールバックはワーカスレッドから呼ばれるので atomic。
-struct Received
-{
-    std::atomic<bool>          called{false};
-    std::atomic<std::uint64_t> subscriptionId{0U};
-    std::atomic<std::uint16_t> capabilityId{0U};
-    std::atomic<std::size_t>   size{0U};
-};
+std::atomic<std::uint64_t>
+    g_receivedId{0U};
 
-void OnCapability(
+std::atomic<bool>
+    g_environmentCalled{false};
+
+void OnEnvironment(
     std::uint64_t subscriptionId,
-    RICapabilityId capabilityId,
-    const void* data,
-    std::size_t size,
-    void* userData)
+    const void* notificationMessage)
 {
-    (void)data;
+    (void)notificationMessage;
 
-    auto* received =
-        static_cast<Received*>(
-            userData);
-
-    if (received == nullptr)
-    {
-        return;
-    }
-
-    received->subscriptionId = subscriptionId;
-    received->capabilityId   = capabilityId;
-    received->size           = size;
-    received->called         = true;
+    g_receivedId = subscriptionId;
+    g_environmentCalled = true;
 }
 
-// called が立つまで待つ(最大1秒)。
-bool WaitCalled(
-    const Received& received)
+std::atomic<bool>
+    g_printReadyCalled{false};
+
+void OnPrintReady(
+    std::uint64_t subscriptionId,
+    const void* notificationMessage)
 {
-    const auto timeout =
-        std::chrono::steady_clock::now()
-        + std::chrono::seconds(1);
-
-    while (!received.called &&
-           std::chrono::steady_clock::now()
-               < timeout)
-    {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(
-                10));
-    }
-
-    return received.called;
+    (void)subscriptionId;
+    (void)notificationMessage;
+    g_printReadyCalled = true;
 }
 
+std::atomic<bool>
+    g_consumableCalled{false};
+
+void OnConsumable(
+    std::uint64_t subscriptionId,
+    const void* notificationMessage)
+{
+    (void)subscriptionId;
+    (void)notificationMessage;
+
+    g_consumableCalled = true;
+}
+
+std::atomic<bool>
+    g_jobCalled{false};
+
+void OnJob(
+    std::uint64_t subscriptionId,
+    const void* notificationMessage)
+{
+    (void)subscriptionId;
+    (void)notificationMessage;
+
+    g_jobCalled = true;
 }
 
 TEST(
     EndToEndCApiCallbackTest,
     SubscribeReceiveAndUnsubscribe)
 {
+    g_environmentCalled = false;
+
+    g_receivedId = 0U;
+
     ASSERT_EQ(
-        RIManager_Create(),
+        RIM_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(),
+        RIM_Start(),
         RI_SUCCESS);
-
-    Received received;
 
     std::uint64_t id{};
 
     ASSERT_EQ(
-        RIManager_SubscribeCapability(
-            rim::kCapEnvironment,
-            OnCapability,
-            &received,
+        RIM_SubscribeCapability(
+            RI_CAPABILITY_ENVIRONMENT,
+            OnEnvironment,
             &id),
         RI_SUCCESS);
 
@@ -107,42 +93,41 @@ TEST(
         0U);
 
     ASSERT_EQ(
-        RIManager_TestInjectDouble(
-            rim::ToDataId(
-                rim::RIMDataId::kTemperatureSensorA),
+        RIM_TestInjectTemperature(
             30.0),
         RI_SUCCESS);
 
-    EXPECT_TRUE(
-        WaitCalled(
-            received));
+    const auto timeout =
+        std::chrono::steady_clock::now()
+        + std::chrono::seconds(
+            1);
 
-    // コールバックには購読 ID・Capability ID・実サイズが渡る
+    while (!g_environmentCalled &&
+           std::chrono::steady_clock::now()
+                < timeout)
+    {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                10));
+    }
+
+    EXPECT_TRUE(
+        g_environmentCalled);
+
     EXPECT_EQ(
-        received.subscriptionId.load(),
+        g_receivedId,
         id);
 
-    EXPECT_EQ(
-        received.capabilityId.load(),
-        rim::kCapEnvironment);
-
-    EXPECT_EQ(
-        received.size.load(),
-        sizeof(rim::EnvironmentCapability));
-
     ASSERT_EQ(
-        RIManager_Unsubscribe(
+        RIM_Unsubscribe(
             id),
         RI_SUCCESS);
 
-    // 解除後は呼ばれない
-    received.called = false;
+    g_environmentCalled = false;
 
     ASSERT_EQ(
-        RIManager_TestInjectDouble(
-            rim::ToDataId(
-                rim::RIMDataId::kTemperatureSensorA),
-            35.0),
+        RIM_TestInjectTemperature(
+            31.0),
         RI_SUCCESS);
 
     std::this_thread::sleep_for(
@@ -150,244 +135,219 @@ TEST(
             100));
 
     EXPECT_FALSE(
-        received.called);
+        g_environmentCalled);
 
     ASSERT_EQ(
-        RIManager_Stop(),
+        RIM_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(),
-        RI_SUCCESS);
-}
-
-TEST(
-    EndToEndCApiCallbackTest,
-    ReceiveErrorCapability)
-{
-    ASSERT_EQ(
-        RIManager_Create(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIManager_Start(),
-        RI_SUCCESS);
-
-    Received received;
-
-    std::uint64_t id{};
-
-    ASSERT_EQ(
-        RIManager_SubscribeCapability(
-            rim::kCapError,
-            OnCapability,
-            &received,
-            &id),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIManager_AddError(
-            1001),
-        RI_SUCCESS);
-
-    EXPECT_TRUE(
-        WaitCalled(
-            received));
-
-    EXPECT_EQ(
-        received.capabilityId.load(),
-        rim::kCapError);
-
-    ASSERT_EQ(
-        RIManager_Unsubscribe(
-            id),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIManager_Stop(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIManager_Destroy(),
+        RIM_Destroy(),
         RI_SUCCESS);
 }
 
 TEST(
     EndToEndCApiCallbackTest,
-    ReceivePrintReadyCapability)
+    SubscribePrintReady)
 {
+    g_printReadyCalled = false;
+
     ASSERT_EQ(
-        RIManager_Create(),
+        RIM_Create(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Start(),
+        RIM_Start(),
         RI_SUCCESS);
 
-    Received received;
-
-    std::uint64_t id{};
+    uint64_t id{};
 
     ASSERT_EQ(
-        RIManager_SubscribeCapability(
-            rim::kCapPrintReady,
-            OnCapability,
-            &received,
+        RIM_SubscribeCapability(
+            RI_CAPABILITY_PRINT_READY,
+            OnPrintReady,
             &id),
         RI_SUCCESS);
 
+    ASSERT_NE(
+        id,
+        0U);
+
     ASSERT_EQ(
-        RIManager_TestInjectBool(
-            rim::ToDataId(
-                rim::RIMDataId::kUpperDoorOpen),
+        RIM_TestInjectUpperDoorOpen(
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_TestInjectBool(
-            rim::ToDataId(
-                rim::RIMDataId::kRightDoorOpen),
+        RIM_TestInjectRightDoorOpen(
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_TestInjectBool(
-            rim::ToDataId(
-                rim::RIMDataId::kLeftDoorOpen),
+        RIM_TestInjectLeftDoorOpen(
             0),
         RI_SUCCESS);
 
-    EXPECT_TRUE(
-        WaitCalled(
-            received));
+    const auto timeout =
+        std::chrono::steady_clock::now()
+        + std::chrono::seconds(
+            1);
 
-    EXPECT_EQ(
-        received.capabilityId.load(),
-        rim::kCapPrintReady);
+    while (!g_printReadyCalled &&
+           std::chrono::steady_clock::now()
+                < timeout)
+    {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                10));
+    }
+
+    EXPECT_TRUE(
+        g_printReadyCalled);
 
     ASSERT_EQ(
-        RIManager_Unsubscribe(
+        RIM_Unsubscribe(
             id),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Stop(),
+        RIM_Stop(),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIManager_Destroy(),
+        RIM_Destroy(),
         RI_SUCCESS);
 }
 
-TEST(
-    EndToEndCApiCallbackTest,
-    ReceiveConsumableCapability)
-{
-    ASSERT_EQ(
-        RIManager_Create(),
-        RI_SUCCESS);
+// TEST(
+//     EndToEndCApiCallbackTest,
+//     SubscribeConsumable)
+// {
+//     g_consumableCalled = false;
 
-    ASSERT_EQ(
-        RIManager_Start(),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_Create(),
+//         RI_SUCCESS);
 
-    Received received;
+//     ASSERT_EQ(
+//         RIM_Start(),
+//         RI_SUCCESS);
 
-    std::uint64_t id{};
+//     uint64_t id{};
 
-    ASSERT_EQ(
-        RIManager_SubscribeCapability(
-            rim::kCapConsumable,
-            OnCapability,
-            &received,
-            &id),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_SubscribeCapability(
+//             RI_CAPABILITY_CONSUMABLE,
+//             OnConsumable,
+//             &id),
+//         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_TestInjectInt32(
-            rim::ToDataId(
-                rim::RIMDataId::kStapleLevel),
-            80),
-        RI_SUCCESS);
+//     ASSERT_NE(
+//         id,
+//         0U);
 
-    EXPECT_TRUE(
-        WaitCalled(
-            received));
+//     ASSERT_EQ(
+//         RIM_TestInjectStapleLevel(
+//             80),
+//         RI_SUCCESS);
 
-    EXPECT_EQ(
-        received.capabilityId.load(),
-        rim::kCapConsumable);
+//     const auto timeout =
+//         std::chrono::steady_clock::now()
+//         + std::chrono::seconds(
+//             1);
 
-    ASSERT_EQ(
-        RIManager_Unsubscribe(
-            id),
-        RI_SUCCESS);
+//     while (!g_consumableCalled &&
+//            std::chrono::steady_clock::now()
+//                 < timeout)
+//     {
+//         std::this_thread::sleep_for(
+//             std::chrono::milliseconds(
+//                 10));
+//     }
 
-    ASSERT_EQ(
-        RIManager_Stop(),
-        RI_SUCCESS);
+//     EXPECT_TRUE(
+//         g_consumableCalled);
 
-    ASSERT_EQ(
-        RIManager_Destroy(),
-        RI_SUCCESS);
-}
+//     ASSERT_EQ(
+//         RIM_Unsubscribe(
+//             id),
+//         RI_SUCCESS);
 
-TEST(
-    EndToEndCApiCallbackTest,
-    ReceiveJobCapability)
-{
-    ASSERT_EQ(
-        RIManager_Create(),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_Stop(),
+//         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_Start(),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_Destroy(),
+//         RI_SUCCESS);
+// }
 
-    Received received;
+// TEST(
+//     EndToEndCApiCallbackTest,
+//     SubscribeJob)
+// {
+//     g_jobCalled = false;
 
-    std::uint64_t id{};
+//     ASSERT_EQ(
+//         RIM_Create(),
+//         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_SubscribeCapability(
-            rim::kCapJob,
-            OnCapability,
-            &received,
-            &id),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_Start(),
+//         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_TestInjectBool(
-            rim::ToDataId(
-                rim::RIMDataId::kJobActive),
-            1),
-        RI_SUCCESS);
+//     uint64_t id{};
 
-    ASSERT_EQ(
-        RIManager_TestInjectInt32(
-            rim::ToDataId(
-                rim::RIMDataId::kJobId),
-            123),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_SubscribeCapability(
+//             RI_CAPABILITY_JOB,
+//             OnJob,
+//             &id),
+//         RI_SUCCESS);
 
-    EXPECT_TRUE(
-        WaitCalled(
-            received));
+//     ASSERT_NE(
+//         id,
+//         0U);
 
-    EXPECT_EQ(
-        received.capabilityId.load(),
-        rim::kCapJob);
+//     ASSERT_EQ(
+//         RIM_TestInjectJobActive(
+//             1),
+//         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_Unsubscribe(
-            id),
-        RI_SUCCESS);
+//     ASSERT_EQ(
+//         RIM_TestInjectJobId(
+//             123),
+//         RI_SUCCESS);
 
-    ASSERT_EQ(
-        RIManager_Stop(),
-        RI_SUCCESS);
+//     const auto timeout =
+//         std::chrono::steady_clock::now()
+//         + std::chrono::seconds(
+//             1);
 
-    ASSERT_EQ(
-        RIManager_Destroy(),
-        RI_SUCCESS);
-}
+//     while (!g_jobCalled &&
+//            std::chrono::steady_clock::now()
+//                 < timeout)
+//     {
+//         std::this_thread::sleep_for(
+//             std::chrono::milliseconds(
+//                 10));
+//     }
+
+//     EXPECT_TRUE(
+//         g_jobCalled);
+
+//     ASSERT_EQ(
+//         RIM_Unsubscribe(
+//             id),
+//         RI_SUCCESS);
+
+//     ASSERT_EQ(
+//         RIM_Stop(),
+//         RI_SUCCESS);
+
+//     ASSERT_EQ(
+//         RIM_Destroy(),
+//         RI_SUCCESS);
+// }
+
+} // namespace

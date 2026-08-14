@@ -1,6 +1,8 @@
 #pragma once
 
 #include "RIMValue.hpp"
+#include "BinaryStoreValue.hpp"
+#include "BinaryInput.hpp"
 
 namespace rim
 {
@@ -91,6 +93,31 @@ public:
             value,
             &RIMValueStorage::str);
     }
+
+    static RIMValue CreateBinary(
+        BinaryStoreValue* value)
+    {
+        return detail::CreateValue(
+            ValueType::kBinary,
+            static_cast<void*>(value),
+            &RIMValueStorage::ptr);
+    }
+
+    static RIMValue CreateBinaryInput(
+        const BinaryInput* value)
+    {
+        RIMValue result{};
+
+        result.type =
+            ValueType::kBinary;
+
+        result.value.ptr =
+            const_cast<BinaryInput*>(value);
+
+        return result;
+    }
+
+
 };
 
 } // namespace rim

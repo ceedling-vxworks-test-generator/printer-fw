@@ -2,8 +2,7 @@
 
 #include "IProductProvider.hpp"
 
-#include "../definitions/SkeletonDataDefinitionProvider.hpp"
-#include "../definitions/SkeletonErrorRegistry.hpp"
+#include "../SkeletonProductProfile.hpp"
 
 namespace rim
 {
@@ -13,25 +12,11 @@ class SkeletonProvider final
 {
 public:
 
-    const IErrorDefinitionRegistry&
-    GetErrorRegistry() const override
+    const ProductProfile&
+    GetProfile() const override
     {
-        return errorRegistry_;
+        return kSkeletonProductProfile;
     }
-
-    const IDataDefinitionProvider&
-    GetDataDefinitionProvider() const override
-    {
-        return dataDefinitionProvider_;
-    }
-
-private:
-
-    SkeletonErrorRegistry
-        errorRegistry_;
-
-    SkeletonDataDefinitionProvider
-        dataDefinitionProvider_;
 };
 
 } // namespace rim

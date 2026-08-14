@@ -1,5 +1,8 @@
 #pragma once
 
+#include "DataAccessor.hpp"
+
+#include "DataItemDefinition.hpp"
 #include "DomainDefinition.hpp"
 
 namespace rim

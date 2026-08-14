@@ -10,9 +10,11 @@ credentials*.json
 node_modules/
 dist/
 build*/
-# mainfw-mock 直下へ install される printer-fw のライブラリ本体(生成物)
+# mainfw-mock / mainfw_mock 直下へ手動配置される printer-fw のライブラリ本体(生成物)
 /mainfw-mock/lib/
 /mainfw-mock/include/
+/mainfw_mock/lib/
+/mainfw_mock/include/
 __pycache__/
 *.pyc
 .venv/

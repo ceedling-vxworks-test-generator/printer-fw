@@ -1,238 +1,172 @@
 #include <gtest/gtest.h>
 
-#include "CallbackSubscriptionRegistry.hpp"
-#include "CapabilityPublisherRegistry.hpp"
-#include "CapabilityStore.hpp"
-#include "ChangeNotifyManager.hpp"
-#include "GenericCapabilityPublisher.hpp"
 #include "NotificationReceiver.hpp"
+
 #include "PublishManager.hpp"
-#include "SubscriberMailbox.hpp"
+#include "ChangeNotifyManager.hpp"
+#include "PeriodicNotifyManager.hpp"
 
-#include "test/support/CallbackTestHelper.hpp"
+#include "SubscriptionStore.hpp"
+#include "SubscriberMailboxManager.hpp"
+#include "CallbackSubscriptionRegistry.hpp"
 
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "CapabilityItem/PrinterACapabilityTypes.hpp"
-
-//
-// Capability を格納してから購読者が受け取るまでの一連。
-//
-// 旧試験は Capability ごとにほぼ同じコードを3回書いていた(文字列キーの登録と
-// TryGetXxx の呼び分けが型ごとに違ったため)。id 引数方式になったので、
-// 組み立てを共通化して中身の型だけを変えれば済むようになった。
-//
-
-namespace
-{
-
-// 配信段一式。
-struct Fixture
-{
-    rim::CapabilityStore              store;
-    rim::SubscriberMailbox            mailbox;
-    rim::CallbackSubscriptionRegistry callbackRegistry;
-    rim::ChangeNotifyManager          notifyManager{mailbox, callbackRegistry};
-    rim::CapabilityPublisherRegistry  publisherRegistry;
-    rim::PublishManager               publishManager{publisherRegistry};
-
-    // 指定 id の現在値を通知経路へ流す配信器を登録する。
-    void RegisterPublisher(
-        rim::CapabilityId id,
-        rim::GenericCapabilityPublisher& publisher)
-    {
-        publisherRegistry.Register(
-            id,
-            &publisher);
-    }
-};
-
-}
+#include "NotificationMessage.hpp"
+#include "NotificationTarget.hpp"
+#include "NotificationTrigger.hpp"
+#include "NotificationTargetType.hpp"
+#include "SubscriptionInfo.hpp"
+#include "DeliveryMethod.hpp"
 
 TEST(
     EndToEndNotificationFlowTest,
     EnvironmentNotification)
 {
-    Fixture f;
+    rim::SubscriptionStore
+        subscriptionStore;
 
-    rim::StorePublishBinding binding
+    rim::SubscriberMailboxManager
+        mailboxManager;
+
+    rim::CallbackSubscriptionRegistry
+        callbackRegistry;
+
+    rim::ChangeNotifyManager notifyManager(
+        subscriptionStore,
+        mailboxManager,
+        callbackRegistry);
+
+    rim::PeriodicNotifyManager
+        periodicNotifyManager;
+
+    rim::PublishManager publishManager(
+        notifyManager,
+        periodicNotifyManager,
+        subscriptionStore);
+
+    const auto subscriptionId =
+        subscriptionStore.CreateSubscriptionId();
+
+    rim::SubscriptionInfo info{};
+
+    info.id = subscriptionId;
+
+    info.target =
     {
-        &f.store,
-        &f.notifyManager,
-        rim::kCapEnvironment
+        rim::NotificationTargetType::Capability,
+        RI_CAPABILITY_ENVIRONMENT
     };
 
-    rim::GenericCapabilityPublisher publisher(
-        rim::StorePublishBinding::Publish,
-        &binding);
+    info.method =
+        rim::DeliveryMethod::Mailbox;
 
-    f.RegisterPublisher(
-        rim::kCapEnvironment,
-        publisher);
+    info.trigger =
+        rim::NotificationTrigger::OnChange;
 
-    rim::EnvironmentCapability input{};
+    subscriptionStore.Register(
+        info);
 
-    input.temperature = 300.15;
-    input.humidity    = 60.0;
+    publishManager.Publish(
+        info.target,
+        rim::NotificationTrigger::OnChange);
 
-    f.store.Store(
-        rim::kCapEnvironment,
-        rim::CapabilityPayload::From(
-            input));
+    rim::NotificationReceiver
+        receiver(
+            mailboxManager);
 
-    f.publishManager.Publish(
-        rim::kCapEnvironment);
-
-    rim::NotificationReceiver receiver(
-        f.mailbox);
-
-    rim::CapabilityPayload payload;
+    rim::NotificationMessage
+        message{};
 
     ASSERT_TRUE(
-        receiver.TryGet(
-            rim::kCapEnvironment,
-            payload));
-
-    const auto* output =
-        payload.As<
-            rim::EnvironmentCapability>();
-
-    ASSERT_NE(
-        output,
-        nullptr);
-
-    EXPECT_DOUBLE_EQ(
-        output->temperature,
-        300.15);
-
-    EXPECT_DOUBLE_EQ(
-        output->humidity,
-        60.0);
-}
-
-TEST(
-    EndToEndNotificationFlowTest,
-    ErrorNotification)
-{
-    Fixture f;
-
-    rim::StorePublishBinding binding
-    {
-        &f.store,
-        &f.notifyManager,
-        rim::kCapError
-    };
-
-    rim::GenericCapabilityPublisher publisher(
-        rim::StorePublishBinding::Publish,
-        &binding);
-
-    f.RegisterPublisher(
-        rim::kCapError,
-        publisher);
-
-    rim::ErrorCapability input{};
-
-    input.Add(
-        {
-            1001,
-            rim::ErrorState::kActive,
-            rim::ErrorSeverity::kError
-        });
-
-    f.store.Store(
-        rim::kCapError,
-        rim::CapabilityPayload::From(
-            input));
-
-    f.publishManager.Publish(
-        rim::kCapError);
-
-    rim::NotificationReceiver receiver(
-        f.mailbox);
-
-    rim::CapabilityPayload payload;
-
-    ASSERT_TRUE(
-        receiver.TryGet(
-            rim::kCapError,
-            payload));
-
-    const auto* output =
-        payload.As<
-            rim::ErrorCapability>();
-
-    ASSERT_NE(
-        output,
-        nullptr);
-
-    ASSERT_EQ(
-        output->count,
-        1U);
+        receiver.TryGetNotification(
+            subscriptionId,
+            message));
 
     EXPECT_EQ(
-        output->errors[0].errorCode,
-        1001U);
+        message.target.type,
+        rim::NotificationTargetType::Capability);
 
     EXPECT_EQ(
-        output->errors[0].state,
-        rim::ErrorState::kActive);
+        message.target.id,
+        RI_CAPABILITY_ENVIRONMENT);
 
     EXPECT_EQ(
-        output->errors[0].severity,
-        rim::ErrorSeverity::kError);
+        message.trigger,
+        rim::NotificationTrigger::OnChange);
 }
 
 TEST(
     EndToEndNotificationFlowTest,
     PrintReadyNotification)
 {
-    Fixture f;
+    rim::SubscriptionStore
+        subscriptionStore;
 
-    rim::StorePublishBinding binding
+    rim::SubscriberMailboxManager
+        mailboxManager;
+
+    rim::CallbackSubscriptionRegistry
+        callbackRegistry;
+
+    rim::ChangeNotifyManager notifyManager(
+        subscriptionStore,
+        mailboxManager,
+        callbackRegistry);
+
+    rim::PeriodicNotifyManager
+        periodicNotifyManager;
+
+    rim::PublishManager publishManager(
+        notifyManager,
+        periodicNotifyManager,
+        subscriptionStore);
+
+    const auto subscriptionId =
+        subscriptionStore.CreateSubscriptionId();
+
+    rim::SubscriptionInfo info{};
+
+    info.id = subscriptionId;
+
+    info.target =
     {
-        &f.store,
-        &f.notifyManager,
-        rim::kCapPrintReady
+        rim::NotificationTargetType::Capability,
+        RI_CAPABILITY_PRINT_READY
     };
 
-    rim::GenericCapabilityPublisher publisher(
-        rim::StorePublishBinding::Publish,
-        &binding);
+    info.method =
+        rim::DeliveryMethod::Mailbox;
 
-    f.RegisterPublisher(
-        rim::kCapPrintReady,
-        publisher);
+    info.trigger =
+        rim::NotificationTrigger::OnChange;
 
-    rim::PrintReadyCapability input{};
+    subscriptionStore.Register(
+        info);
 
-    input.ready = true;
+    publishManager.Publish(
+        info.target,
+        rim::NotificationTrigger::OnChange);
 
-    f.store.Store(
-        rim::kCapPrintReady,
-        rim::CapabilityPayload::From(
-            input));
+    rim::NotificationReceiver
+        receiver(
+            mailboxManager);
 
-    f.publishManager.Publish(
-        rim::kCapPrintReady);
-
-    rim::NotificationReceiver receiver(
-        f.mailbox);
-
-    rim::CapabilityPayload payload;
+    rim::NotificationMessage
+        message{};
 
     ASSERT_TRUE(
-        receiver.TryGet(
-            rim::kCapPrintReady,
-            payload));
+        receiver.TryGetNotification(
+            subscriptionId,
+            message));
 
-    const auto* output =
-        payload.As<
-            rim::PrintReadyCapability>();
+    EXPECT_EQ(
+        message.target.type,
+        rim::NotificationTargetType::Capability);
 
-    ASSERT_NE(
-        output,
-        nullptr);
+    EXPECT_EQ(
+        message.target.id,
+        RI_CAPABILITY_PRINT_READY);
 
-    EXPECT_TRUE(
-        output->ready);
+    EXPECT_EQ(
+        message.trigger,
+        rim::NotificationTrigger::OnChange);
 }

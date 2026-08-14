@@ -1,115 +1,58 @@
 #include <gtest/gtest.h>
 
-#include <cstdint>
-
-#include "CapabilityEvaluator.hpp"
-#include "CapabilityStore.hpp"
-#include "CapabilityWorker.hpp"
-#include "ICapabilityRule.hpp"
-#include "PublisherInputQueue.hpp"
-
 #include "test/support/SnapshotTestHelper.hpp"
 
-//
-// Snapshot -> Capability 生成 -> 変化検知 -> 配信キュー、の一段。
-//
-// 旧試験は CapabilityManager と MachineCapabilityStore(いずれも製品の
-// Capability 型を直接持つ)を組み立てていたため、Core の試験なのに機種を
-// 知っている必要があった。ここでは試験用のダミー規則を1つ登録するだけで済む。
-//
+#include "CapabilityWorker.hpp"
 
-namespace
-{
+#include "CapabilityManager.hpp"
+#include "CapabilityStore.hpp"
 
-struct SampleCapability
-{
-    double value{};
-};
+#include "PublisherInputQueue.hpp"
 
-constexpr rim::CapabilityId kSampleId = 0;
+#include "PrinterAProductDefinition.hpp"
 
-// 温度をそのまま Capability にするだけの試験用規則。
-class SampleRule final : public rim::ICapabilityRule
-{
-public:
-
-    rim::CapabilityId Id() const override
-    {
-        return kSampleId;
-    }
-
-    bool Evaluate(
-        const rim::RIMSnapshot& snapshot,
-        rim::CapabilityPayload& out) const override
-    {
-        SampleCapability cap{};
-
-        snapshot.TryGetDouble(
-            rim::RIMDataId::kTemperatureSensorA,
-            cap.value);
-
-        out = rim::CapabilityPayload::From(
-            cap);
-
-        return true;
-    }
-};
-
-// 何も生成しない規則(生成不可のときの扱いを見るため)
-class SilentRule final : public rim::ICapabilityRule
-{
-public:
-
-    rim::CapabilityId Id() const override
-    {
-        return 1;
-    }
-
-    bool Evaluate(
-        const rim::RIMSnapshot&,
-        rim::CapabilityPayload&) const override
-    {
-        return false;
-    }
-};
-
-rim::RIMSnapshot MakeSnapshot(
-    double temperature)
-{
-    rim::RIMSnapshot snapshot{};
-
-    rim::AddDoubleItem(
-        snapshot,
-        rim::RIMDataId::kTemperatureSensorA,
-        temperature);
-
-    return snapshot;
-}
-
-}
+#include "CapabilityInput.hpp"
 
 TEST(
     CapabilityWorkerTest,
     ExecuteOnce)
 {
     rim::CapabilityInputQueue queue;
-    rim::CapabilityStore      store;
-    rim::CapabilityEvaluator  evaluator;
-    rim::PublisherInputQueue  publisherQueue;
 
-    SampleRule rule;
+    rim::CapabilityStore store;
 
-    evaluator.Register(
-        &rule);
+    rim::CapabilityManager manager(
+        store,
+        rim::kPrinterAProductDefinition);
+
+    rim::PublisherInputQueue publisherQueue;
 
     rim::CapabilityWorker worker(
         queue,
-        evaluator,
-        store,
+        manager,
         publisherQueue);
 
+    rim::CapabilityInput input{};
+
+    input.changedDataId =
+        RI_DATA_TEMPERATURE_SENSOR_A;
+
+    ASSERT_NE(
+        input.changedDataId,
+        RI_DATA_UNKNOWN);
+
+    rim::AddDoubleItem(
+        input.snapshot,
+        RI_DATA_TEMPERATURE_SENSOR_A,
+        300.15);
+
+    rim::AddDoubleItem(
+        input.snapshot,
+        RI_DATA_HUMIDITY_SENSOR,
+        60.0);
+
     queue.Push(
-        MakeSnapshot(300.15));
+        input);
 
     EXPECT_TRUE(
         worker.ExecuteOnce());
@@ -120,14 +63,18 @@ TEST(
     ReturnFalseWhenQueueEmpty)
 {
     rim::CapabilityInputQueue queue;
-    rim::CapabilityStore      store;
-    rim::CapabilityEvaluator  evaluator;
-    rim::PublisherInputQueue  publisherQueue;
+
+    rim::CapabilityStore store;
+
+    rim::CapabilityManager manager(
+        store,
+        rim::kPrinterAProductDefinition);
+
+    rim::PublisherInputQueue publisherQueue;
 
     rim::CapabilityWorker worker(
         queue,
-        evaluator,
-        store,
+        manager,
         publisherQueue);
 
     EXPECT_FALSE(
@@ -136,117 +83,75 @@ TEST(
 
 TEST(
     CapabilityWorkerTest,
-    PublishEventGenerated)
+    PublishDataAndCapabilityEvents)
 {
     rim::CapabilityInputQueue queue;
-    rim::CapabilityStore      store;
-    rim::CapabilityEvaluator  evaluator;
-    rim::PublisherInputQueue  publisherQueue;
 
-    SampleRule rule;
+    rim::PublisherInputQueue publisherQueue;
 
-    evaluator.Register(
-        &rule);
+    rim::CapabilityStore store;
+
+    rim::CapabilityManager manager(
+        store,
+        rim::kPrinterAProductDefinition);
 
     rim::CapabilityWorker worker(
         queue,
-        evaluator,
-        store,
+        manager,
         publisherQueue);
 
+    rim::CapabilityInput input{};
+
+    input.changedDataId =
+        RI_DATA_TEMPERATURE_SENSOR_A;
+
+    rim::AddDoubleItem(
+        input.snapshot,
+        RI_DATA_TEMPERATURE_SENSOR_A,
+        300.15);
+
+    rim::AddDoubleItem(
+        input.snapshot,
+        RI_DATA_HUMIDITY_SENSOR,
+        60.0);
+
+    ASSERT_NE(
+        input.changedDataId,
+        RI_DATA_UNKNOWN);
+
     queue.Push(
-        MakeSnapshot(300.15));
+        input);
 
     ASSERT_TRUE(
         worker.ExecuteOnce());
 
-    rim::CapabilityChangeList changes{};
+    rim::PublisherInput dataNotification{};
 
     ASSERT_TRUE(
         publisherQueue.TryPop(
-            changes));
+            dataNotification));
 
-    EXPECT_TRUE(
-        changes.Contains(
-            kSampleId));
-}
+    EXPECT_EQ(
+        rim::NotificationTargetType::Data,
+        dataNotification.target.type);
 
-TEST(
-    CapabilityWorkerTest,
-    UnchangedSnapshotDoesNotPublish)
-{
-    // RIM は「生の値が来たとき」ではなく「Capability が変わったとき」に配信する。
-    // 同じ値を2回流しても2回目は配信されない。
-    rim::CapabilityInputQueue queue;
-    rim::CapabilityStore      store;
-    rim::CapabilityEvaluator  evaluator;
-    rim::PublisherInputQueue  publisherQueue;
+    EXPECT_EQ(
+        static_cast<std::uint32_t>(
+            RI_DATA_TEMPERATURE_SENSOR_A),
+        dataNotification.target.id);
 
-    SampleRule rule;
-
-    evaluator.Register(
-        &rule);
-
-    rim::CapabilityWorker worker(
-        queue,
-        evaluator,
-        store,
-        publisherQueue);
-
-    queue.Push(
-        MakeSnapshot(300.15));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    rim::CapabilityChangeList changes{};
+    rim::PublisherInput capabilityNotification{};
 
     ASSERT_TRUE(
         publisherQueue.TryPop(
-            changes));
+            capabilityNotification));
 
-    // 同じ値をもう一度
-    queue.Push(
-        MakeSnapshot(300.15));
+    EXPECT_EQ(
+        rim::NotificationTargetType::Capability,
+        capabilityNotification.target.type);
 
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    EXPECT_FALSE(
-        publisherQueue.TryPop(
-            changes));
-}
-
-TEST(
-    CapabilityWorkerTest,
-    RuleThatProducesNothingIsSkipped)
-{
-    rim::CapabilityInputQueue queue;
-    rim::CapabilityStore      store;
-    rim::CapabilityEvaluator  evaluator;
-    rim::PublisherInputQueue  publisherQueue;
-
-    SilentRule rule;
-
-    evaluator.Register(
-        &rule);
-
-    rim::CapabilityWorker worker(
-        queue,
-        evaluator,
-        store,
-        publisherQueue);
-
-    queue.Push(
-        MakeSnapshot(300.15));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    // 生成されていないので配信対象も無い
-    rim::CapabilityChangeList changes{};
-
-    EXPECT_FALSE(
-        publisherQueue.TryPop(
-            changes));
+    EXPECT_EQ(
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT),
+        capabilityNotification.target.id);
 }

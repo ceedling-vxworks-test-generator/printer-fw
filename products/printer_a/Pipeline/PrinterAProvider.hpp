@@ -1,10 +1,10 @@
 #pragma once
 
 #include "IProductProvider.hpp"
+#include "../PrinterAProductProfile.hpp"
 
-#include "../DataItem/PrinterADataDefinitionProvider.hpp"
-#include "../CapabilityItem/PrinterAErrorRegistry.hpp"
 #include "../PrinterAProductDefinition.hpp"
+#include "../ChangeChecker.hpp"
 
 namespace rim
 {
@@ -14,28 +14,23 @@ class PrinterAProvider final
 {
 public:
 
-    const IErrorDefinitionRegistry&
-    GetErrorRegistry() const override
+    const ProductProfile&
+    GetProfile() const override
     {
-        return errorRegistry_;
+        return kPrinterAProductProfile;
     }
 
-    const IDataDefinitionProvider&
-    GetDataDefinitionProvider() const override
+    const IChangeChecker&
+    GetChangeChecker() const override
     {
-        return dataDefinitionProvider_;
-    }
-
-    const ProductDefinition&
-    GetProductDefinition() const override
-    {
-        return kPrinterAProductDefinition;
+        return changeChecker_;
     }
 
 private:
 
-    PrinterAErrorRegistry errorRegistry_;
-    PrinterADataDefinitionProvider dataDefinitionProvider_;
+    ChangeChecker
+        changeChecker_;
+
 };
 
 } // namespace rim

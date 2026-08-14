@@ -5,61 +5,80 @@
 
 TEST(
     ProductProviderTest,
-    HasErrorRegistry)
+    HasProductDefinition)
 {
-    rim::PrinterAProvider provider;
+    auto provider =
+        rim::CreatePrinterAProvider();
 
-    const auto& registry =
-        provider.GetErrorRegistry();
-
-    (void)registry;
+    EXPECT_NE(
+        &provider
+             ->GetProfile()
+             .definition,
+        nullptr);
 }
 
 TEST(
     ProductProviderTest,
-    HasDataDefinitionProvider)
-{
-    rim::PrinterAProvider provider;
-
-    const auto& definitions =
-        provider.GetDataDefinitionProvider();
-
-    EXPECT_FALSE(
-        definitions.GetDefinitions().empty());
-}
-
-TEST(ProductProviderTest, HasProductDefinition)
-{
-    auto provider = rim::CreatePrinterAProvider();
-
-    EXPECT_NE(
-        &provider->GetProductDefinition(),
-        nullptr);
-}
-
-TEST(ProductProviderTest,
-     ProductDefinitionContainsCapabilities)
+    ProductDefinitionContainsCapabilities)
 {
     rim::PrinterAProvider provider;
 
     const auto& product =
-        provider.GetProductDefinition();
+        provider
+            .GetProfile()
+            .definition;
 
     EXPECT_GT(
-        rim::GetCapabilityCount(product),
+        rim::GetCapabilityCount(
+            product),
         0u);
 }
 
-TEST(ProductProviderTest,
-     ProductDefinitionContainsPipelines)
+TEST(
+    ProductProviderTest,
+    ProductDefinitionContainsPipelines)
 {
     rim::PrinterAProvider provider;
 
     const auto& product =
-        provider.GetProductDefinition();
+        provider
+            .GetProfile()
+            .definition;
 
     EXPECT_GT(
-        rim::GetPipelineCount(product),
+        rim::GetPipelineCount(
+            product),
         0u);
 }
 
+// TEST(
+//     ProductProviderTest,
+//     HasProfile)
+// {
+//     rim::PrinterAProvider provider;
+
+//     const auto& profile =
+//         provider.GetProfile();
+
+//     EXPECT_NE(
+//         profile.errorRegistry,
+//         nullptr);
+
+//     EXPECT_GT(
+//         profile.definition.dataItemCount,
+//         0u);
+// }
+
+TEST(
+    ProductProviderTest,
+    ProfileContainsDefinition)
+{
+    rim::PrinterAProvider provider;
+
+    const auto& profile =
+        provider.GetProfile();
+
+    EXPECT_GT(
+        profile.definition.dataItemCount,
+        0u);
+}

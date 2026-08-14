@@ -3,115 +3,16 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #include "rim_types.h"
-#include "rim_capability.h"
 
-/* ------------------------------------------------------------------ */
-/* データ投入時に添える文脈                                             */
-/* ------------------------------------------------------------------ */
+#include "rim_data_id.h"
+#include "rim_capability_id.h"
 
-/*
- * 生値がどの単位で送られてきたかを示す。
- *
- * 同じ id へ摂氏でも華氏でも投入でき、規則が内部統一表現へ正規化する
- * (単位ごとに id を増やさずに済ませるための仕組み)。
- * 未指定は RIM_UNIT_NORMALIZED、つまり「既に正規化済み。換算しない」の扱いになる
- * (単位不明を推測して勝手に換算することはしない)。
- *
- * C++ 側 rim::SourceUnit と値が一致していること。ずれたらビルドで検出する
- * (rim_api.cpp の static_assert)。
- */
-typedef enum rim_source_unit_t
-{
-    RIM_UNIT_NORMALIZED = 0,   /* 既に正規化済み(換算しない) */
-    RIM_UNIT_CELSIUS    = 1,   /* 摂氏 [degC] */
-    RIM_UNIT_FAHRENHEIT = 2    /* 華氏 [degF] */
-} rim_source_unit_t;
 
-/*
- * 異常報告の状態。
- *
- * fault_state を指定した投入は「現在値」ではなく **異常報告** として扱われ、
- * 値の格納先ではなく異常一覧へ反映される(判別は Datastore 層が行う)。
- * 異常コードは key で渡す。
- *
- * C++ 側 rim::FaultState と値が一致していること(rim_api.cpp の static_assert)。
- */
-typedef enum rim_fault_state_t
-{
-    RIM_FAULT_NONE           = 0,
-    RIM_FAULT_RAISED         = 1,  /* 発生。異常一覧へ登録する */
-    RIM_FAULT_CLEARED        = 2,  /* 解除。異常一覧から取り除く */
-    RIM_FAULT_ALL_CLEARED    = 3,  /* 全解除。key は不要 */
-    RIM_FAULT_UPDATED_HEAL   = 4,  /* 回復状態へ更新 */
-    RIM_FAULT_UPDATED_ACTIVE = 5   /* 発生状態へ更新 */
-} rim_fault_state_t;
-
-/*
- * 異常の状態(FaultInfoList 相当のスナップショットで使う「今の状態」)。
- *
- * rim_fault_state_t(発生/解除/更新という**イベント**)とは別物であることに注意。
- * こちらは ACTIVE/HEALED の2値で「今その異常コードがどちらか」を表す**現在値**。
- * C++ 側 rim::ErrorState と値が一致していること(rim_api.cpp の static_assert)。
- *
- * 名前を rim_error_state_t としなかったのは、機種側
- * (products/printer_a/CapabilityItem/rim_capability_types.h)に既に同名の型
- * (Capability 読み出し用)があり、衝突するため。
- */
-typedef enum rim_fault_snapshot_state_t
-{
-    RIM_FAULT_SNAPSHOT_STATE_ACTIVE = 0,   /* 発生中 */
-    RIM_FAULT_SNAPSHOT_STATE_HEALED = 1    /* 回復済み */
-} rim_fault_snapshot_state_t;
-
-/*
- * FaultInfoList の1件(異常コード + その時点の状態)。
- */
-typedef struct rim_fault_snapshot_entry_t
-{
-    uint32_t                    error_code;
-    rim_fault_snapshot_state_t  state;
-} rim_fault_snapshot_entry_t;
-
-/*
- * データに添える補足情報。has_xxx が false のフィールドは未指定として扱う。
- */
-typedef struct rim_context_t
-{
-    bool              has_unit;
-    rim_source_unit_t unit;
-
-    bool              has_fault_state;
-    rim_fault_state_t fault_state;
-
-    bool              has_scale_x1000;
-    int32_t           scale_x1000;   /* スケール係数 x1000 */
-
-    bool              has_key;
-    uint32_t          key;           /* 異常コード等のキー */
-} rim_context_t;
-
-/*
- * RIManager C API
- *
- * 旧 API は RIManager_GetEnvironment / _SubscribeError / _TestInjectTemperature …
- * と **機種固有の Capability 名・データ名が関数名に焼き付いて**いた。
- * その結果、Capability を1つ増やすたびに Core の公開 API に手が入っていた。
- *
- * 本 API は「どの Capability か(RICapabilityId)」「どのデータか(dataId)」を
- * 引数で受ける形に統一してある。ID の意味を知っているのは Product と利用者だけで、
- * Core は整数として素通しする。Capability やデータが増えても Core は無改修。
- *
- * インスタンスはプロセス内に**常に1つ**という前提(1プロセス=1台のプリンタ)。
- * そのためハンドルは持たず、内部で単一インスタンスを保持する。
- * RIManager_Create() で生成し、RIManager_Destroy() で破棄する
- * (Destroy 後に再度 Create すれば新しい状態で作り直せる)。
- */
-
+typedef void *RIM_HANDLE;
 typedef enum RIStatus
 {
     RI_SUCCESS = 0,
@@ -119,151 +20,136 @@ typedef enum RIStatus
     /* 引数不正 */
     RI_INVALID_PARAMETER = -1,
 
-    /* 未初期化(Create 前、または Destroy 後に呼ばれた) */
+    /* ハンドル不正 */
+    RI_INVALID_HANDLE = -2,
+
+    /* 未初期化 */
     RI_NOT_INITIALIZED = -3,
 
     /* データなし */
     RI_NO_DATA = -4,
 
-    /* 受け側のバッファが足りない */
-    RI_BUFFER_TOO_SMALL = -5,
+    // /* 購読なし */
+    // RI_NOT_SUBSCRIBED = -5,
+
+    // /* サポート外 */
+    // RI_NOT_SUPPORTED = -6,
 
     /* 内部エラー */
     RI_INTERNAL_ERROR = -100
 
 } RIStatus;
 
-/* ------------------------------------------------------------------ */
-/* ライフサイクル                                                       */
-/* ------------------------------------------------------------------ */
 
-/* 既に生成済みの場合は何もせず RI_SUCCESS を返す(冪等)。 */
-int RIManager_Create(void);
+int RIM_Create(void);
 
-/* 未生成の場合は RI_NOT_INITIALIZED。 */
-int RIManager_Destroy(void);
+int RIM_Destroy(void);
 
-int RIManager_Start(void);
+int RIM_Start(void);
 
-int RIManager_Stop(void);
+int RIM_Stop(void);
 
-/* ------------------------------------------------------------------ */
-/* Capability の取得                                                    */
-/* ------------------------------------------------------------------ */
-
-/*
- * 変化通知を1件取り出す(溜まっていなければ RI_NO_DATA)。
- *
- * buffer には capabilityId に対応する構造体を受け取れる大きさを渡すこと。
- * 実際に書き込まれたバイト数は written に返る(不要なら NULL)。
- * バッファが足りない場合は RI_BUFFER_TOO_SMALL を返し、**通知は消費しない**。
- */
-int RIManager_GetCapability(
+RIStatus RIM_Subscribe(
+    const RI_SUBSCRIPTION_REQUEST* request,
+    uint64_t* subscriptionId);
+    
+RIStatus
+RIM_SubscribeCapability(
     RICapabilityId capabilityId,
-    void* buffer,
-    size_t bufferSize,
-    size_t* written);
-
-/*
- * 現在値を読み出す(変化の有無によらず、今の値をいつでも読める)。
- * まだ一度も生成されていない Capability は RI_NO_DATA。
- */
-int RIManager_GetCurrentCapability(
-    RICapabilityId capabilityId,
-    void* buffer,
-    size_t bufferSize,
-    size_t* written);
-
-/* 通知が溜まっているか(0/1)。未初期化時は負値を返す。 */
-int RIManager_HasPendingCapability(
-    RICapabilityId capabilityId);
-
-/* ------------------------------------------------------------------ */
-/* 購読                                                                */
-/* ------------------------------------------------------------------ */
-
-int RIManager_SubscribeCapability(
-    RICapabilityId capabilityId,
-    RICapabilityCallback callback,
-    void* userData,
+    RINotificationCallback callback,
     uint64_t* subscriptionId);
 
-int RIManager_Unsubscribe(
+RIStatus RIM_GetNotification(
+    uint64_t subscriptionId,
+    rim_notification_message_t* notificationMessage);
+
+uint32_t RIM_GetMailboxCount(
     uint64_t subscriptionId);
 
-/* ------------------------------------------------------------------ */
-/* 異常                                                                */
-/* ------------------------------------------------------------------ */
+RIStatus
+RIM_GetCapability(
+    RICapabilityId capabilityId,
+    void* capability);
 
-int RIManager_AddError(
-    uint32_t errorCode);
+int RIM_Unsubscribe(
+    uint64_t subscriptionId);
 
-int RIManager_RemoveError(
-    uint32_t errorCode);
 
-int RIManager_SetErrorState(
-    uint32_t errorCode,
-    int state);
 
-/*
- * 異常の一覧をスナップショットとして丸ごと反映する(FaultInfoList 相当)。
- *
- * RIManager_AddError 等(1件ずつのイベント通知)とは**別経路**であり、置き換えでは
- * なく併存する。呼び出しのたびに「今存在する異常の全件」を渡すこと(差分ではない)。
- *
- *   - 一覧にあり、まだ登録されていないコード → 新規登録する
- *     (state が RIM_FAULT_SNAPSHOT_STATE_HEALED であっても、回復済みとして新規登録する)
- *   - 一覧にあり、登録済みのコード         → state を更新する
- *   - 一覧に無い、登録済みのコード         → 削除する
- *     (回復扱いにはしない。全件スナップショットに無い = もう存在しない異常、という前提)
- *
- * count が内部の保持上限を超える場合は何も反映せず RI_INVALID_PARAMETER を返す
- * (黙って切り詰めると異常の取りこぼしになるため)。
- */
-int RIManager_PushFaultSnapshot(
-    const rim_fault_snapshot_entry_t* entries,
-    size_t count);
 
-/* ------------------------------------------------------------------ */
-/* データ投入                                                          */
-/* ------------------------------------------------------------------ */
+int RIM_TestInjectJobActive(
+    int active);
 
-/*
- * Adapter の受理点。
- *
- * 値は double 1本で受け、id ごとの規則が内部統一表現へ正規化する
- * (単位換算・クランプなど)。ctx に単位を添えると、同じ id へ摂氏でも華氏でも
- * 投入できる。ctx は NULL 可(その場合は既に正規化済みとして扱う)。
- *
- * double で受けても int32 / uint32 の値は正確に往復する(仮数部53ビット)。
- * 精度が落ちるのは 2^53 を超える整数を渡した場合だけである。
- */
-int RIManager_Push(
-    uint16_t dataId,
-    double value,
-    const rim_context_t* ctx);
+int RIM_TestInjectJobId(
+    int jobId);
 
-/* ------------------------------------------------------------------ */
-/* データ投入(試験用の短縮形)                                          */
-/* ------------------------------------------------------------------ */
+int RIM_TestInjectTemperature(
+    double temperature);
 
-/*
- * 旧 API の _TestInjectTemperature / _TestInjectUpperDoorOpen … を、
- * データ ID を引数で受ける3本(型ごと)に置き換えたもの。
- * dataId の意味を知っているのは Product と利用者だけである。
- */
+int RIM_TestInjectUpperDoorOpen(
+    int opened);
 
-int RIManager_TestInjectDouble(
-    uint16_t dataId,
-    double value);
+int RIM_TestInjectRightDoorOpen(
+    int opened);   
 
-int RIManager_TestInjectInt32(
-    uint16_t dataId,
+int RIM_TestInjectLeftDoorOpen(
+    int opened);
+
+int RIM_TestInjectStapleLevel(
+    int32_t level);
+
+
+RIStatus
+RIM_GetBool(
+    RIDataId dataId,
+    int* value);
+
+    RIStatus
+RIM_SetBool(
+    RIDataId dataId,
+    int value);
+    
+RIStatus
+RIM_GetInt32(
+    RIDataId dataId,
+    int32_t* value);
+
+RIStatus
+RIM_SetInt32(
+    RIDataId dataId,
     int32_t value);
 
-int RIManager_TestInjectBool(
-    uint16_t dataId,
-    int value);
+RIStatus
+RIM_GetDouble(
+    RIDataId dataId,
+    double* value);
+
+RIStatus
+RIM_SetDouble(
+    RIDataId dataId,
+    double value);
+
+RIStatus
+RIM_GetBinary(
+    RIDataId dataId,
+    RI_BINARY* binary);
+
+int RIM_SetBinary(
+    RIDataId dataId,
+    const void* data,
+    size_t size);
+
+RIStatus
+RIM_SetErrorList(
+    const RI_FAULT_INFO_LIST* list);
+
+RIStatus
+RIM_GetErrorList(
+    RI_FAULT_INFO_LIST* list);
+    
+
+
+
 
 #ifdef __cplusplus
 }

@@ -1,139 +1,150 @@
 #pragma once
 
-#include <cstddef>
-#include <mutex>
-
-#include "FixedVector.hpp"
-#include "RIMConfig.hpp"
 #include "RIMDataItem.hpp"
+#include "BinaryStoreValue.hpp"
+#include "RIMValueAccessor.hpp"
+
+#include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
 
 namespace rim
 {
 
-//
-// ValueStore - データ項目の最新値を id ごとに保持する。
-//
-// 旧実装は std::unordered_map<RIMDataId, RIMDataItem> で、
-//   - Store のたびにノードを動的確保しうる
-//   - GetAll() が std::vector を **返り値で** 作るため、Snapshot を作るたびに確保
-// が起きていた(定常運転中にヒープを触る)。
-//
-// RIMDataId は 0 から連番の列挙なので、**添字で引く固定長配列**にすれば
-// 動的確保もハッシュ計算も不要になり、参照は O(1) になる。
-//
-// 容量は kMaxDataItems。機種が定義する RIMDataId の総数以上にしておくこと
-// (足りない id は格納されず、Snapshot に載らない)。
-//
 class ValueStore
 {
 public:
 
-    // 最新値を格納する。id が範囲外なら false。
-    bool Store(
+    void Store(
         const RIMDataItem& item)
     {
-        const std::size_t index =
-            static_cast<std::size_t>(
-                item.id);
+        std::lock_guard<std::mutex> lock(
+            m_);
 
-        if (index >= kMaxDataItems)
+        d_[item.id] =
+            item;
+
+        if (item.valueType !=
+            ValueType::kBinary)
         {
-            return false;
+            return;
         }
 
-        std::lock_guard<std::mutex> lock(m_);
+        BinaryStoreValue* binary{};
 
-        slots_[index].item    = item;
-        slots_[index].present = true;
+        if (!RIMValueAccessor::GetBinaryStore(
+                item.value,
+                binary))
+        {
+            return;
+        }
 
-        return true;
+        if (binary == nullptr)
+        {
+            return;
+        }
+
+        binaries_[item.id] =
+            std::make_unique<
+                BinaryStoreValue>(
+                    *binary);
     }
 
     bool Find(
-        RIMDataId id,
+        RIDataId id,
         RIMDataItem& out) const
     {
-        const std::size_t index =
-            static_cast<std::size_t>(id);
-
-        if (index >= kMaxDataItems)
-        {
-            return false;
-        }
-
         std::lock_guard<std::mutex> lock(m_);
 
-        if (!slots_[index].present)
+        const auto it = d_.find(id);
+
+        if (it == d_.end())
         {
             return false;
         }
 
-        out = slots_[index].item;
+        out = it->second;
 
         return true;
     }
 
-    //
-    // 格納済みの全項目を out へ書き出す。
-    //
-    // 旧 GetAll() は std::vector を返していたため呼び出しごとに確保していた。
-    // 呼出側の入れ物へ詰める形にして確保を無くしてある。
-    //
-    void CopyAllTo(
-        FixedVector<RIMDataItem, kMaxDataItems>& out) const
+    bool FindBinary(
+        RIDataId id,
+        BinaryStoreValue*& out) const
     {
-        out.Clear();
-
         std::lock_guard<std::mutex> lock(m_);
 
-        for (std::size_t i = 0; i < kMaxDataItems; ++i)
-        {
-            if (!slots_[i].present)
-            {
-                continue;
-            }
+        const auto it =
+            binaries_.find(id);
 
-            out.PushBack(
-                slots_[i].item);
+        if (it == binaries_.end())
+        {
+            return false;
         }
+
+        out =
+            it->second.get();
+
+        return true;
     }
 
-    std::size_t Count() const
+    std::vector<RIMDataItem> GetAll() const
     {
         std::lock_guard<std::mutex> lock(m_);
 
-        std::size_t n = 0;
+        std::vector<RIMDataItem> result;
 
-        for (std::size_t i = 0; i < kMaxDataItems; ++i)
+        result.reserve(
+            d_.size());
+
+        for (const auto& [id, item] : d_)
         {
-            if (slots_[i].present) ++n;
+            result.push_back(
+                item);
         }
 
-        return n;
+        return result;
     }
 
-    void Clear()
+public: // for test
+
+    std::size_t GetDataCount() const
     {
         std::lock_guard<std::mutex> lock(m_);
+        return d_.size();
+    }
 
-        for (auto& slot : slots_)
-        {
-            slot.present = false;
-            slot.item    = RIMDataItem{};
-        }
+    std::size_t GetDataBucketCount() const
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        return d_.bucket_count();
+    }
+
+    std::size_t GetBinaryCount() const
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        return binaries_.size();
+    }
+
+    std::size_t GetBinaryBucketCount() const
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        return binaries_.bucket_count();
     }
 
 private:
 
-    struct Slot
-    {
-        RIMDataItem item{};
-        bool        present{false};
-    };
-
     mutable std::mutex m_;
 
-    Slot slots_[kMaxDataItems]{};
+    std::unordered_map<
+        RIDataId,
+        RIMDataItem> d_;
+
+    std::unordered_map<
+        RIDataId,
+        std::unique_ptr<BinaryStoreValue>>
+        binaries_;
 };
 
 } // namespace rim

@@ -2,46 +2,22 @@
 
 #include "PublisherInputQueue.hpp"
 
-//
-// 旧試験は CapabilityChangeSet(std::vector<std::string>)に "Environment" などの
-// 文字列を積んでいた。現在は CapabilityChangeList(CapabilityId の固定長配列)。
-//
-
-namespace
-{
-
-constexpr rim::CapabilityId kSlotA = 0;
-constexpr rim::CapabilityId kSlotB = 1;
-
-}
-
 TEST(
     PublisherInputQueueTest,
     PushPop)
 {
     rim::PublisherInputQueue queue;
 
-    rim::CapabilityChangeList input{};
-
-    input.Add(
-        kSlotA);
+    rim::PublisherInput input{};
 
     queue.Push(
         input);
 
-    rim::CapabilityChangeList output{};
-
-    ASSERT_TRUE(
-        queue.TryPop(
-            output));
-
-    ASSERT_EQ(
-        output.Size(),
-        1U);
+    rim::PublisherInput output{};
 
     EXPECT_TRUE(
-        output.Contains(
-            kSlotA));
+        queue.TryPop(
+            output));
 }
 
 TEST(
@@ -50,40 +26,15 @@ TEST(
 {
     rim::PublisherInputQueue queue;
 
-    rim::CapabilityChangeList input{};
-
-    input.Add(
-        kSlotB);
+    rim::PublisherInput input{};
 
     queue.Push(
         input);
 
-    rim::CapabilityChangeList output{};
+    rim::PublisherInput output{};
 
-    ASSERT_TRUE(
-        queue.WaitAndPop(
-            output));
-
-    ASSERT_EQ(
-        output.Size(),
-        1U);
-
-    EXPECT_TRUE(
-        output.Contains(
-            kSlotB));
-}
-
-TEST(
-    PublisherInputQueueTest,
-    TryPopOnEmptyReturnsFalse)
-{
-    rim::PublisherInputQueue queue;
-
-    rim::CapabilityChangeList output{};
-
-    EXPECT_FALSE(
-        queue.TryPop(
-            output));
+    queue.WaitAndPop(
+        output);
 }
 
 TEST(
@@ -94,9 +45,42 @@ TEST(
 
     queue.Shutdown();
 
-    rim::CapabilityChangeList input{};
+    rim::PublisherInput input{};
 
     EXPECT_FALSE(
         queue.WaitAndPop(
             input));
+}
+
+TEST(
+    PublisherInputQueueTest,
+    WaitAndPopForTimeout)
+{
+    rim::PublisherInputQueue queue;
+
+    rim::PublisherInput input{};
+
+    EXPECT_FALSE(
+        queue.WaitAndPopFor(
+            input,
+            std::chrono::milliseconds(
+                10)));
+}
+
+TEST(
+    PublisherInputQueueTest,
+    WaitAndPopFor)
+{
+    rim::PublisherInputQueue queue;
+
+    rim::PublisherInput input{};
+
+    queue.Push(
+        rim::PublisherInput{});
+
+    EXPECT_TRUE(
+        queue.WaitAndPopFor(
+            input,
+            std::chrono::milliseconds(
+                10)));
 }

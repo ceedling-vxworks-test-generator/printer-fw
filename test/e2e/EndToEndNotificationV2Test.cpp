@@ -1,118 +1,159 @@
 #include <gtest/gtest.h>
 
+#include "test/support/TestWaitHelper.hpp"
+
 #include "AdapterDispatcher.hpp"
 #include "PrinterAdapter.hpp"
 
-#include "AggregateRIMSnapshotReader.hpp"
-#include "DataStoreWorker.hpp"
-#include "ErrorRepository.hpp"
 #include "StoreInputQueue.hpp"
+#include "DataStoreWorker.hpp"
+#include "RIMSnapshotManager.hpp"
 
-#include "CapabilityEvaluator.hpp"
 #include "CapabilityInputQueue.hpp"
-#include "CapabilityStore.hpp"
 #include "CapabilityWorker.hpp"
+#include "CapabilityManager.hpp"
+#include "CapabilityStore.hpp"
 
-#include "CallbackSubscriptionRegistry.hpp"
-#include "CapabilityPublisherRegistry.hpp"
-#include "ChangeNotifyManager.hpp"
-#include "GenericCapabilityPublisher.hpp"
-
-#include "test/support/CallbackTestHelper.hpp"
-#include "PublishManager.hpp"
 #include "PublisherInputQueue.hpp"
 #include "PublisherWorker.hpp"
-#include "SubscriberMailbox.hpp"
 
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
+#include "PublishManager.hpp"
+#include "ChangeNotifyManager.hpp"
+#include "PeriodicNotifyManager.hpp"
 
-//
-// Adapter からコールバック到達までの全段。
-//
-// Product(PrinterACapabilityRuleSet)が規則を持ち込み、Core の各段は
-// CapabilityId と型消去バイト列だけを扱う、という現在の構成をそのまま組んでいる。
-//
+#include "SubscriptionStore.hpp"
+#include "SubscriberMailboxManager.hpp"
+#include "CallbackSubscriptionRegistry.hpp"
+
+#include "NotificationTarget.hpp"
+#include "NotificationTargetType.hpp"
+#include "NotificationTrigger.hpp"
+#include "SubscriptionInfo.hpp"
+#include "DeliveryMethod.hpp"
+
+#include "PrinterAProductDefinition.hpp"
+#include "RouteProvider.hpp"
+#include "RoutePipeline.hpp"
+
+#include "ProductFactory.hpp"
+#include "IProductProvider.hpp"
 
 TEST(
     EndToEndNotificationV2Test,
     AdapterToCallback)
 {
-    rim::StoreInputQueue      storeQueue;
+    rim::StoreInputQueue storeQueue;
+
     rim::CapabilityInputQueue capabilityQueue;
-    rim::PublisherInputQueue  publisherQueue;
+
+    rim::RouteProvider routeProvider;
+
+    rim::PublisherInputQueue publisherQueue;
 
     rim::ValueStore valueStore;
 
-    rim::AggregateRIMSnapshotReader reader(
+    rim::RIMSnapshotManager reader(
         valueStore);
 
     rim::CapabilityStore capabilityStore;
 
-    rim::ErrorRepository errorRepository;
+    rim::CapabilityManager capabilityManager(
+        capabilityStore,
+        rim::kPrinterAProductDefinition);
 
-    rim::PrinterACapabilityRuleSet ruleSet(
-        errorRepository);
+    rim::SubscriptionStore
+        subscriptionStore;
 
-    rim::CapabilityEvaluator capabilityEvaluator;
-
-    ruleSet.RegisterTo(
-        capabilityEvaluator);
-
-    rim::SubscriberMailbox mailbox;
+    rim::SubscriberMailboxManager
+        mailboxManager;
 
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    rim::CapabilityRecorder recorder;
+    bool called = false;
+
+    const rim::SubscriptionId
+        subscriptionId =
+            subscriptionStore.CreateSubscriptionId();
 
     callbackRegistry.Subscribe(
-        rim::kCapEnvironment,
-        rim::CapabilityRecorder::Callback,
-        &recorder);
+        subscriptionId,
+        [&](auto id,
+            const rim::NotificationMessage& message)
+        {
+            (void)id;
+            (void)message;
 
-    rim::ChangeNotifyManager notifyManager(
-        mailbox,
-        callbackRegistry);
+            called = true;
+        });
 
-    rim::CapabilityPublisherRegistry
-        publisherRegistry;
+    rim::SubscriptionInfo info{};
 
-    rim::StorePublishBinding binding
+    info.id =
+        subscriptionId;
+
+    info.target =
     {
-        &capabilityStore,
-        &notifyManager,
-        rim::kCapEnvironment
+        rim::NotificationTargetType::Capability,
+
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT)
     };
 
-    rim::GenericCapabilityPublisher publisher(
-        rim::StorePublishBinding::Publish,
-        &binding);
+    info.method =
+        rim::DeliveryMethod::Callback;
 
-    publisherRegistry.Register(
-        rim::kCapEnvironment,
-        &publisher);
+    info.trigger =
+        rim::NotificationTrigger::OnChange;
+
+    subscriptionStore.Register(
+        info);
+
+    rim::ChangeNotifyManager notifyManager(
+        subscriptionStore,
+        mailboxManager,
+        callbackRegistry);
+
+    rim::PeriodicNotifyManager
+        periodicNotifyManager;
 
     rim::PublishManager publishManager(
-        publisherRegistry);
+        notifyManager,
+        periodicNotifyManager,
+        subscriptionStore);
+
+    auto productProvider = rim::CreatePrinterAProvider();
+
+    routeProvider.Initialize(productProvider->GetProfile().definition);
 
     rim::DataStoreWorker dataStoreWorker(
+        rim::kPrinterAProductDefinition,
         storeQueue,
         valueStore,
         reader,
-        capabilityQueue);
+        routeProvider);
 
-    rim::CapabilityWorker capabilityWorker(
-        capabilityQueue,
-        capabilityEvaluator,
-        capabilityStore,
-        publisherQueue);
+    std::vector<std::unique_ptr<rim::RoutePipeline>> pipelines;
+
+    for (const auto& route : routeProvider.GetQueues())
+    {
+        pipelines.push_back(
+            std::make_unique<rim::RoutePipeline>(
+                rim::kPrinterAProductDefinition,
+                *route.second,
+                valueStore,
+                productProvider->GetChangeChecker(),
+                reader,
+                capabilityManager,
+                publisherQueue));
+    }
 
     rim::PublisherWorker publisherWorker(
         publisherQueue,
         publishManager);
 
     rim::AdapterDispatcher dispatcher(
+        rim::kPrinterAProductDefinition,
         storeQueue);
 
     rim::PrinterAdapter adapter(
@@ -124,12 +165,21 @@ TEST(
     ASSERT_TRUE(
         dataStoreWorker.ExecuteOnce());
 
-    ASSERT_TRUE(
-        capabilityWorker.ExecuteOnce());
-
-    ASSERT_TRUE(
-        publisherWorker.ExecuteOnce());
+    for (auto& pipeline : pipelines)
+    {
+        pipeline->ExecuteOnce();
+    }
 
     EXPECT_TRUE(
-        recorder.Called());
+        WaitUntil(
+            [&]
+            {
+                publisherWorker.ExecuteOnce();
+
+                return called;
+            },
+            std::chrono::milliseconds(100)));
+
+    EXPECT_TRUE(
+        called);
 }

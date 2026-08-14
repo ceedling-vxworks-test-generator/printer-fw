@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-#include "RIMDataId.hpp"
+#include "rim_data_id.h"
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
 
@@ -12,7 +12,7 @@ namespace rim
 
 inline void AddDoubleItem(
     RIMSnapshot& snapshot,
-    RIMDataId id,
+    RIDataId id,
     double value)
 {
     RIMDataItem item{};
@@ -25,12 +25,12 @@ inline void AddDoubleItem(
         RIMValueFactory::CreateDouble(
             value);
 
-    snapshot.items.PushBack(item);
+    snapshot.items.push_back(item);
 }
 
 inline void AddBoolItem(
     RIMSnapshot& snapshot,
-    RIMDataId id,
+    RIDataId id,
     bool value)
 {
     RIMDataItem item{};
@@ -43,12 +43,12 @@ inline void AddBoolItem(
         RIMValueFactory::CreateBool(
             value);
 
-    snapshot.items.PushBack(item);
+    snapshot.items.push_back(item);
 }
 
 inline void AddInt32Item(
     RIMSnapshot& snapshot,
-    RIMDataId id,
+    RIDataId id,
     std::int32_t value)
 {
     RIMDataItem item{};
@@ -61,12 +61,12 @@ inline void AddInt32Item(
         RIMValueFactory::CreateInt32(
             value);
 
-    snapshot.items.PushBack(item);
+    snapshot.items.push_back(item);
 }
 
 inline double GetDouble(
     const RIMSnapshot& snapshot,
-    RIMDataId id)
+    RIDataId id)
 {
     double value{};
 
@@ -83,7 +83,7 @@ inline double GetDouble(
 
 inline bool GetBool(
     const RIMSnapshot& snapshot,
-    RIMDataId id)
+    RIDataId id)
 {
     bool value{};
 
@@ -100,7 +100,7 @@ inline bool GetBool(
 
 inline std::int32_t GetInt32(
     const RIMSnapshot& snapshot,
-    RIMDataId id)
+    RIDataId id)
 {
     std::int32_t value{};
 

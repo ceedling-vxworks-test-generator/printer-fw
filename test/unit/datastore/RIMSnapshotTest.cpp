@@ -12,7 +12,7 @@ TEST(
     rim::RIMDataItem source{};
 
     source.id =
-        rim::RIMDataId::kTemperatureSensorA;
+        RI_DATA_TEMPERATURE_SENSOR_A;
 
     source.valueType =
         rim::ValueType::kDouble;
@@ -21,14 +21,14 @@ TEST(
         rim::RIMValueFactory::CreateDouble(
             300.15);
 
-    snapshot.items.PushBack(
+    snapshot.items.push_back(
         source);
 
     rim::RIMDataItem result{};
 
     EXPECT_TRUE(
         snapshot.Find(
-            rim::RIMDataId::kTemperatureSensorA,
+            RI_DATA_TEMPERATURE_SENSOR_A,
             result));
 
     double value{};
@@ -53,7 +53,7 @@ TEST(
 
     EXPECT_FALSE(
         snapshot.Find(
-            rim::RIMDataId::kTemperatureSensorA,
+            RI_DATA_TEMPERATURE_SENSOR_A,
             result));
 }
 
@@ -66,7 +66,7 @@ TEST(
     rim::RIMDataItem item{};
 
     item.id =
-        rim::RIMDataId::kTemperatureSensorA;
+        RI_DATA_TEMPERATURE_SENSOR_A;
 
     item.valueType =
         rim::ValueType::kDouble;
@@ -75,17 +75,62 @@ TEST(
         rim::RIMValueFactory::CreateDouble(
             300.15);
 
-    snapshot.items.PushBack(
+    snapshot.items.push_back(
         item);
 
     double value{};
 
     EXPECT_TRUE(
         snapshot.TryGetDouble(
-            rim::RIMDataId::kTemperatureSensorA,
+            RI_DATA_TEMPERATURE_SENSOR_A,
             value));
 
     EXPECT_DOUBLE_EQ(
         value,
         300.15);
+}
+
+TEST(
+    RIMSnapshotTest,
+    TryGetBinary)
+{
+    rim::RIMSnapshot snapshot;
+
+    auto binary =
+        std::make_unique<
+            rim::BinaryStoreValue>();
+
+    binary->data =
+    {
+        1,
+        2,
+        3
+    };
+
+    rim::RIMDataItem item{};
+
+    item.id =
+        RI_DATA_ERROR_LIST;
+
+    item.value =
+        rim::RIMValueFactory::CreateBinary(
+            binary.release());
+
+    snapshot.items.push_back(
+        item);
+
+    const rim::BinaryStoreValue* found{};
+
+    ASSERT_TRUE(
+        snapshot.TryGetBinary(
+            RI_DATA_ERROR_LIST,
+            found));
+
+    ASSERT_NE(
+        found,
+        nullptr);
+
+    EXPECT_EQ(
+        found->data.size(),
+        3U);
 }

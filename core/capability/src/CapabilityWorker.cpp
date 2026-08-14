@@ -1,24 +1,54 @@
 #include "CapabilityWorker.hpp"
 
+#include "CapabilityInput.hpp"
+#include "NotificationTargetType.hpp"
+
 namespace rim
 {
 
-void CapabilityWorker::ProcessSnapshot(
-    const RIMSnapshot& snapshot)
+    CapabilityWorker::CapabilityWorker(
+        CapabilityInputQueue& queue,
+        CapabilityManager& manager,
+        PublisherInputQueue& publisherQueue)
+        : queue_(queue)
+        , manager_(manager)
+        , publisherQueue_(publisherQueue)
+    {
+    }
+
+    CapabilityWorker::~CapabilityWorker()
+    {
+        Stop();
+    }
+
+void CapabilityWorker::Process(
+    const CapabilityInput& capabilityInput)
 {
-    evaluator_.Evaluate(
-        snapshot,
-        store_);
+    if (capabilityInput.changedDataId
+        == RI_DATA_UNKNOWN)
+    {
+        return;
+    }
+
+    PublisherInput dataInput{};
+
+    dataInput.target.type =
+        NotificationTargetType::Data;
+
+    dataInput.target.id =
+        static_cast<std::uint32_t>(
+            capabilityInput.changedDataId);
+
+    publisherQueue_.Push(
+        dataInput);
 
     const auto changes =
-        changeTracker_.Detect(
-            store_);
+        manager_.Evaluate(
+            capabilityInput.snapshot,
+            capabilityInput.changedDataId);
 
-    if (!changes.Empty())
-    {
-        publisherQueue_.Push(
-            changes);
-    }
+    PublishCapabilityChanges(
+        changes);
 }
 
 void CapabilityWorker::Run()
@@ -36,16 +66,16 @@ void CapabilityWorker::Run()
             {
                 while (running_)
                 {
-                    RIMSnapshot snapshot{};
+                    CapabilityInput capabilityInput{};
 
                     if (!queue_.WaitAndPop(
-                            snapshot))
+                            capabilityInput))
                     {
                         break;
                     }
 
-                    ProcessSnapshot(
-                        snapshot);
+                    Process(
+                        capabilityInput);
                 }
             });
 }
@@ -64,18 +94,43 @@ void CapabilityWorker::Stop()
 
 bool CapabilityWorker::ExecuteOnce()
 {
-    RIMSnapshot snapshot{};
+    CapabilityInput capabilityInput{};
 
     if (!queue_.TryPop(
-            snapshot))
+            capabilityInput))
     {
         return false;
     }
 
-    ProcessSnapshot(
-        snapshot);
+    Process(
+        capabilityInput);
 
     return true;
+}
+
+void CapabilityWorker::PublishCapabilityChanges(
+    const CapabilityChangeSet& changes)
+{
+    if (changes.Empty())
+    {
+        return;
+    }
+
+    for (const auto capabilityId
+            : changes.changedCapabilities)
+    {
+        PublisherInput input{};
+
+        input.target.type =
+            NotificationTargetType::Capability;
+
+        input.target.id =
+            static_cast<std::uint32_t>(
+                capabilityId);
+
+        publisherQueue_.Push(
+            input);
+    }
 }
 
 } // namespace rim

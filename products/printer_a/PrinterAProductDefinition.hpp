@@ -2,10 +2,10 @@
 
 #include <array>
 
-#include "DataItem/DataItemDefinition.hpp"
+#include "DataItemDefinition.hpp"
 #include "DataItem/PrinterADataItems.hpp"
 
-#include "Domain/DomainDefinition.hpp"
+#include "DomainDefinition.hpp"
 #include "Domain/PrinterADomains.hpp"
 
 #include "CapabilityItem/CapabilityItemDefinition.hpp"
@@ -23,9 +23,15 @@ inline constexpr std::array kDomains =
 {
     kEnvironmentDomain,
     kDoorDomain,
-    kConsumableDomain,
-    kJobDomain,
-    kErrorDomain
+    // kConsumableDomain,
+    // kJobDomain,
+};
+
+inline constexpr std::array kRoutes =
+{
+    kValue,
+    kData,
+    kError
 };
 
 inline constexpr std::array kDataItems =
@@ -44,47 +50,33 @@ inline constexpr std::array kDataItems =
     kJobActive,
     kJobId,
 
-    // kErrorList
+    kErrorList
 };
 
 inline constexpr std::array kCapabilities =
 {
     kEnvironmentCapability,
     kPrintReadyCapability,
-    kConsumableCapability,
-    kJobCapability,
-    kErrorCapability
+    // kConsumableCapability,
+    // kJobCapability,
 };
 
 inline constexpr std::array kPipelines =
 {
     kEnvironmentPipeline,
     kPrintReadyPipeline,
-    kConsumablePipeline,
-    kJobPipeline,
-    kErrorPipeline
+    // kConsumablePipeline,
+    // kJobPipeline,
 };
-
-// struct ProductDefinition
-// {
-//     const DomainDefinition* domains;
-//     std::size_t domainCount;
-
-//     const DataItemDefinition* dataItems;
-//     std::size_t dataItemCount;
-
-//     const CapabilityItemDefinition* capabilities;
-//     std::size_t capabilityCount;
-
-//     const PipelineDefinition* pipelines;
-//     std::size_t pipelineCount;
-// };
 
 inline constexpr ProductDefinition
 kPrinterAProductDefinition
 {
     kDomains.data(),
     kDomains.size(),
+
+    kRoutes.data(),
+    kRoutes.size(),
 
     kDataItems.data(),
     kDataItems.size(),

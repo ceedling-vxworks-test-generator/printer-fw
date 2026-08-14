@@ -1,7 +1,5 @@
 #include "PublisherWorker.hpp"
 
-#include <cstddef>
-
 namespace rim
 {
 
@@ -20,24 +18,20 @@ void PublisherWorker::Run()
             {
                 while (running_)
                 {
-                    CapabilityChangeList input{};
-
-                    if (!queue_.WaitAndPop(
-                            input))
-                    {
-                        break;
-                    }
-
-                    for (std::size_t i = 0;
-                        i < input.Size();
-                        ++i)
-                    {
-                        manager_.Publish(
-                            input.At(i));
-                    }
-
+                    PublisherInput input{};
+                        if (queue_.WaitAndPopFor(
+                            input,
+                            std::chrono::milliseconds(100))) 
+                        {
+                            //変更通知
+                            manager_.Publish(input.target,NotificationTrigger::OnChange);
+                        }
+                    
+                    //定期通知
+                    manager_.ProcessPeriodicNotifications();
                 }
-            });
+            }
+        );
 }
 
 void PublisherWorker::Stop()
@@ -54,7 +48,7 @@ void PublisherWorker::Stop()
 
 bool PublisherWorker::ExecuteOnce()
 {
-    CapabilityChangeList input{};
+    PublisherInput input{};
 
     if (!queue_.TryPop(
             input))
@@ -62,15 +56,14 @@ bool PublisherWorker::ExecuteOnce()
         return false;
     }
 
-    for (std::size_t i = 0;
-        i < input.Size();
-        ++i)
-    {
-        manager_.Publish(
-            input.At(i));
-    }
+    manager_.Publish(
+    input.target,
+    NotificationTrigger::OnChange);
+
+    manager_.ProcessPeriodicNotifications();
 
     return true;
 }
+
 
 } // namespace rim

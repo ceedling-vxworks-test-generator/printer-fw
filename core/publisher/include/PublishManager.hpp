@@ -1,35 +1,37 @@
 #pragma once
 
-#include "CapabilityId.hpp"
-#include "CapabilityPublisherRegistry.hpp"
+#include "ChangeNotifyManager.hpp"
+#include "PeriodicNotifyManager.hpp"
 
 namespace rim
 {
 
-//
-// PublishManager - 変化した Capability の配信器を引いて叩く。
-//
-// 旧実装は Publish(const std::string& capabilityId) で文字列キーを引いていた。
-// CapabilityId(整数)に変えたことで、動的確保と文字列比較が経路から消えている。
-//
 class PublishManager
 {
 public:
 
-    explicit PublishManager(
-        CapabilityPublisherRegistry& registry)
-        : registry_(registry)
+    PublishManager(
+        ChangeNotifyManager& notifyManager,
+        PeriodicNotifyManager& periodicNotifyManager,
+        SubscriptionStore& subscriptionStore)
+        : notifyManager_(notifyManager)
+        , periodicNotifyManager_(periodicNotifyManager)
+        , subscriptionStore_(subscriptionStore)
     {
     }
 
-    // 配信器が未登録の Capability は黙って無視する
-    // (誰も購読していない Capability を登録しない運用を許すため)。
-    void Publish(CapabilityId capabilityId);
+    void ProcessPeriodicNotifications();
+
+    void Publish(const NotificationTarget& target,NotificationTrigger trigger);
 
 private:
 
-    CapabilityPublisherRegistry&
-        registry_;
+    ChangeNotifyManager& notifyManager_;
+
+    PeriodicNotifyManager& periodicNotifyManager_;
+    
+    SubscriptionStore& subscriptionStore_;
+    
 };
 
-}
+} // namespace rim

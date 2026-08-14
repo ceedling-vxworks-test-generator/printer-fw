@@ -15,7 +15,7 @@ TEST(
 
     rim::RIMDataItem temperature{};
     temperature.id = static_cast<int>(
-        rim::RIMDataId::kTemperatureSensorA);
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
     temperature.value = 30;
 
@@ -26,7 +26,7 @@ TEST(
     ASSERT_TRUE(
         store.Find(
             static_cast<int>(
-                rim::RIMDataId::kTemperatureSensorA),
+                RI_DATA_TEMPERATURE_SENSOR_A),
             out));
 
     EXPECT_EQ(

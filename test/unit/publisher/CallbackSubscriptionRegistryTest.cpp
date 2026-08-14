@@ -1,336 +1,324 @@
 #include <gtest/gtest.h>
 
-#include <cstdint>
+#include "rim_capability_id.h"
 
 #include "CallbackSubscriptionRegistry.hpp"
-
-#include "test/support/CallbackTestHelper.hpp"
-
-//
-// コールバック購読。
-//
-// 旧実装は SubscribeEnvironment / SubscribeError / … と Capability ごとに
-// 購読関数と std::vector を持っていた(Capability を増やすたびに Core を改修)。
-// 現在は購読したい CapabilityId を引数で渡す1本にまとまっている。
-//
-// コールバックは std::function ではなく **関数ポインタ + userData** である
-// (暗黙の動的確保と例外送出を経路から外すため)。捕捉付きラムダは渡せないので、
-// 状態は CapabilityRecorder に置いてそのアドレスを userData で渡す。
-//
+#include "SubscriptionStore.hpp"
 
 namespace
 {
 
-struct SampleCapability
+rim::NotificationTarget EnvironmentTarget()
 {
-    std::int32_t value{};
-};
+    return {
+        rim::NotificationTargetType::Capability,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT)
+    };
+}
 
-constexpr rim::CapabilityId kSlotA = 0;
-constexpr rim::CapabilityId kSlotB = 1;
+// rim::NotificationTarget ErrorTarget()
+// {
+//     return {
+//         rim::NotificationTargetType::Capability,
+//         static_cast<std::uint32_t>(
+//             RI_CAPABILITY_ERROR)
+//     };
+// }
 
-rim::CapabilityPayload Make(
-    std::int32_t value)
+rim::NotificationTarget PrintReadyTarget()
 {
-    SampleCapability cap{};
+    return {
+        rim::NotificationTargetType::Capability,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_PRINT_READY)
+    };
+}
 
-    cap.value = value;
+rim::NotificationTarget ConsumableTarget()
+{
+    return {
+        rim::NotificationTargetType::Capability,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_PRINT_READY)
+    };
+}
 
-    return rim::CapabilityPayload::From(
-        cap);
+rim::NotificationTarget JobTarget()
+{
+    return {
+        rim::NotificationTargetType::Capability,
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_JOB)
+    };
+}
+
+rim::NotificationMessage EnvironmentMessage()
+{
+    return {
+        EnvironmentTarget(),
+        rim::NotificationTrigger::OnChange
+    };
+}
+
+// rim::NotificationMessage ErrorMessage()
+// {
+//     return {
+//         ErrorTarget(),
+//         rim::NotificationTrigger::OnChange
+//     };
+// }
+
+rim::NotificationMessage JobMessage()
+{
+    return {
+        JobTarget(),
+        rim::NotificationTrigger::OnChange
+    };
 }
 
 }
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    SubscribeAndNotify)
+    InvokeCallback)
 {
-    rim::CallbackSubscriptionRegistry registry;
+    bool called = false;
 
-    rim::CapabilityRecorder recorder;
+    rim::CallbackSubscriptionRegistry
+        registry;
+
+    rim::SubscriptionStore
+        store;
 
     const auto id =
+        store.CreateSubscriptionId();
+
         registry.Subscribe(
-            kSlotA,
-            rim::CapabilityRecorder::Callback,
-            &recorder);
+        id,
+        [&](rim::SubscriptionId subscriptionId,
+            const rim::NotificationMessage& message)
+        {
+            (void)subscriptionId;
+
+            EXPECT_EQ(
+                message.target.type,
+                rim::NotificationTargetType::Capability);
+
+            EXPECT_EQ(
+                message.target.id,
+                static_cast<std::uint32_t>(
+                    RI_CAPABILITY_ENVIRONMENT));
+
+            EXPECT_EQ(
+                message.trigger,
+                rim::NotificationTrigger::OnChange);
+
+            called = true;
+        });
+
+    registry.Notify(
+        id,
+        EnvironmentMessage());
+
+    EXPECT_TRUE(
+        called);
+}
+
+TEST(
+    SubscriptionStoreTest,
+    GenerateUniqueSubscriptionId)
+{
+    rim::SubscriptionStore store;
+
+    const auto id1 =
+        store.CreateSubscriptionId();
+
+    const auto id2 =
+        store.CreateSubscriptionId();
 
     EXPECT_NE(
+        id1,
+        id2);
+}
+
+TEST(
+    CallbackSubscriptionRegistryTest,
+    UnsubscribeRemovesCallback)
+{
+    rim::CallbackSubscriptionRegistry
+        registry;
+
+    rim::SubscriptionStore
+        store;
+
+    bool called = false;
+
+    const auto id =
+        store.CreateSubscriptionId();
+
+    registry.Subscribe(
         id,
-        rim::kInvalidSubscriptionId);
-
-    EXPECT_EQ(
-        registry.Notify(
-            kSlotA,
-            Make(1)),
-        1U);
+        [&](rim::SubscriptionId subscriptionId,
+            const rim::NotificationMessage& message)
+        {
+            called = true;
+        });
 
     EXPECT_TRUE(
-        recorder.Called());
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    CallbackReceivesIdAndPayload)
-{
-    rim::CallbackSubscriptionRegistry registry;
-
-    rim::CapabilityRecorder recorder;
-
-    const auto id =
-        registry.Subscribe(
-            kSlotA,
-            rim::CapabilityRecorder::Callback,
-            &recorder);
+        registry.Unsubscribe(id));
 
     registry.Notify(
-        kSlotA,
-        Make(7));
+        id,
+        EnvironmentMessage());
 
-    EXPECT_EQ(
-        recorder.lastSubscription.load(),
-        id);
-
-    EXPECT_EQ(
-        recorder.lastCapability.load(),
-        kSlotA);
-
-    const auto* cap =
-        recorder.As<SampleCapability>();
-
-    ASSERT_NE(
-        cap,
-        nullptr);
-
-    EXPECT_EQ(
-        cap->value,
-        7);
+    EXPECT_FALSE(
+        called);
 }
+
+// TEST(
+//     CallbackSubscriptionRegistryTest,
+//     EnvironmentError)
+// {
+//     rim::CallbackSubscriptionRegistry registry;
+
+//     rim::SubscriptionStore store;
+
+//     bool environmentCalled = false;
+//     bool errorCalled = false;
+
+//     const auto environmentId =
+//         store.CreateSubscriptionId();
+
+//     registry.Subscribe(
+//         environmentId,
+//         [&](rim::SubscriptionId subscriptionId,
+//             const rim::NotificationMessage& message)
+//         {
+//             (void)subscriptionId;
+
+//             EXPECT_EQ(
+//                 message.target.id,
+//                 static_cast<std::uint32_t>(
+//                     RI_CAPABILITY_ENVIRONMENT));
+
+//             environmentCalled = true;
+//         });
+
+//     const auto errorId =
+//         store.CreateSubscriptionId();
+
+//     registry.Subscribe(
+//         errorId,
+//         [&](rim::SubscriptionId subscriptionId,
+//             const rim::NotificationMessage& message)
+//         {
+//             (void)subscriptionId;
+
+//             EXPECT_EQ(
+//                 message.target.id,
+//                 static_cast<std::uint32_t>(
+//                     RI_CAPABILITY_ERROR));
+
+//             errorCalled = true;
+//         });
+
+//     registry.Notify(
+//         environmentId,
+//         EnvironmentMessage());
+
+//     EXPECT_TRUE(environmentCalled);
+//     EXPECT_FALSE(errorCalled);
+
+//     environmentCalled = false;
+//     errorCalled = false;
+
+//     registry.Notify(
+//         errorId,
+//         ErrorMessage());
+
+//     EXPECT_FALSE(environmentCalled);
+//     EXPECT_TRUE(errorCalled);
+// }
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    OnlyMatchingCapabilityIsNotified)
+    UnsubscribeJob)
 {
     rim::CallbackSubscriptionRegistry registry;
 
-    rim::CapabilityRecorder a;
-    rim::CapabilityRecorder b;
+    rim::SubscriptionStore store;
 
-    registry.Subscribe(
-        kSlotA,
-        rim::CapabilityRecorder::Callback,
-        &a);
-
-    registry.Subscribe(
-        kSlotB,
-        rim::CapabilityRecorder::Callback,
-        &b);
-
-    registry.Notify(
-        kSlotA,
-        Make(1));
-
-    EXPECT_EQ(a.calls.load(), 1);
-    EXPECT_EQ(b.calls.load(), 0);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    MultipleSubscribersOnSameCapability)
-{
-    rim::CallbackSubscriptionRegistry registry;
-
-    rim::CapabilityRecorder recorder;
-
-    for (int i = 0; i < 3; ++i)
-    {
-        registry.Subscribe(
-            kSlotA,
-            rim::CapabilityRecorder::Callback,
-            &recorder);
-    }
-
-    EXPECT_EQ(
-        registry.Notify(
-            kSlotA,
-            Make(1)),
-        3U);
-
-    EXPECT_EQ(
-        recorder.calls.load(),
-        3);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    Unsubscribe)
-{
-    rim::CallbackSubscriptionRegistry registry;
-
-    rim::CapabilityRecorder recorder;
+    bool called = false;
 
     const auto id =
-        registry.Subscribe(
-            kSlotA,
-            rim::CapabilityRecorder::Callback,
-            &recorder);
+        store.CreateSubscriptionId();
+
+    registry.Subscribe(
+        id,
+        [&](rim::SubscriptionId subscriptionId,
+            const rim::NotificationMessage& message)
+        {
+            called = true;
+        });
 
     EXPECT_TRUE(
-        registry.Unsubscribe(
-            id));
+        registry.Unsubscribe(id));
 
     registry.Notify(
-        kSlotA,
-        Make(1));
+        id,
+        JobMessage());
 
     EXPECT_FALSE(
-        recorder.Called());
+        called);
+
+
+    EXPECT_FALSE(
+        called);
 }
 
 TEST(
     CallbackSubscriptionRegistryTest,
-    UnsubscribeUnknownIdReturnsFalse)
+    NotifyOnlySpecifiedEnvironmentSubscriber)
 {
-    rim::CallbackSubscriptionRegistry registry;
+    rim::CallbackSubscriptionRegistry
+        registry;
 
-    EXPECT_FALSE(
-        registry.Unsubscribe(
-            9999));
-}
+    rim::SubscriptionStore
+        store;
 
-TEST(
-    CallbackSubscriptionRegistryTest,
-    UnsubscribeKeepsOtherSubscribers)
-{
-    // 内部で末尾を詰めて削除するため、残りが壊れないことを確認する。
-    rim::CallbackSubscriptionRegistry registry;
+    bool firstCalled = false;
+    bool secondCalled = false;
 
-    rim::CapabilityRecorder removed;
-    rim::CapabilityRecorder remaining;
-
-    const auto first =
-        registry.Subscribe(
-            kSlotA,
-            rim::CapabilityRecorder::Callback,
-            &removed);
+const auto id1 =
+    store.CreateSubscriptionId();
 
     registry.Subscribe(
-        kSlotA,
-        rim::CapabilityRecorder::Callback,
-        &remaining);
+        id1,
+        [&](rim::SubscriptionId subscriptionId,
+            const rim::NotificationMessage& message)
+        {
+            firstCalled = true;
+        });
 
-    ASSERT_TRUE(
-        registry.Unsubscribe(
-            first));
+    const auto id2 =
+        store.CreateSubscriptionId();
+
+    registry.Subscribe(
+        id2,
+        [&](rim::SubscriptionId subscriptionId,
+            const rim::NotificationMessage& message)
+        {
+            secondCalled = true;
+        });
 
     registry.Notify(
-        kSlotA,
-        Make(1));
+        id1,
+        EnvironmentMessage());
 
-    EXPECT_EQ(
-        remaining.calls.load(),
-        1);
+    EXPECT_TRUE(
+        firstCalled);
 
     EXPECT_FALSE(
-        removed.Called());
-
-    EXPECT_EQ(
-        registry.Count(),
-        1U);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    RejectsNullCallback)
-{
-    rim::CallbackSubscriptionRegistry registry;
-
-    EXPECT_EQ(
-        registry.Subscribe(
-            kSlotA,
-            nullptr,
-            nullptr),
-        rim::kInvalidSubscriptionId);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    RejectsOutOfRangeCapabilityId)
-{
-    rim::CallbackSubscriptionRegistry registry;
-
-    rim::CapabilityRecorder recorder;
-
-    const rim::CapabilityId outOfRange =
-        static_cast<rim::CapabilityId>(
-            rim::kCapabilityMaxCount);
-
-    EXPECT_EQ(
-        registry.Subscribe(
-            outOfRange,
-            rim::CapabilityRecorder::Callback,
-            &recorder),
-        rim::kInvalidSubscriptionId);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    RejectsSubscriptionWhenFull)
-{
-    // 固定容量なので、満杯になったら採番失敗を返す(黙って伸びない)。
-    rim::CallbackSubscriptionRegistry registry;
-
-    rim::CapabilityRecorder recorder;
-
-    for (std::size_t i = 0;
-         i < rim::kCapabilitySubscriptionMaxCount;
-         ++i)
-    {
-        ASSERT_NE(
-            registry.Subscribe(
-                kSlotA,
-                rim::CapabilityRecorder::Callback,
-                &recorder),
-            rim::kInvalidSubscriptionId);
-    }
-
-    EXPECT_EQ(
-        registry.Subscribe(
-            kSlotA,
-            rim::CapabilityRecorder::Callback,
-            &recorder),
-        rim::kInvalidSubscriptionId);
-}
-
-TEST(
-    CallbackSubscriptionRegistryTest,
-    CountsSubscribersPerCapability)
-{
-    rim::CallbackSubscriptionRegistry registry;
-
-    rim::CapabilityRecorder recorder;
-
-    registry.Subscribe(
-        kSlotA,
-        rim::CapabilityRecorder::Callback,
-        &recorder);
-
-    registry.Subscribe(
-        kSlotB,
-        rim::CapabilityRecorder::Callback,
-        &recorder);
-
-    registry.Subscribe(
-        kSlotB,
-        rim::CapabilityRecorder::Callback,
-        &recorder);
-
-    EXPECT_EQ(
-        registry.CountFor(kSlotA),
-        1U);
-
-    EXPECT_EQ(
-        registry.CountFor(kSlotB),
-        2U);
+        secondCalled);
 }

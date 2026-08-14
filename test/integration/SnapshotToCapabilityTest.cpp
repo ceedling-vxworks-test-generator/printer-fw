@@ -1,23 +1,37 @@
 #include <gtest/gtest.h>
 
-#include "CapabilityEvaluator.hpp"
-#include "CapabilityStore.hpp"
-#include "ErrorRepository.hpp"
+#include <any>
 
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "CapabilityItem/PrinterACapabilityRuleSet.hpp"
-#include "CapabilityItem/PrinterACapabilityTypes.hpp"
+#include "RIMSnapshot.hpp"
+#include "RIMValueFactory.hpp"
 
-#include "test/support/SnapshotTestHelper.hpp"
+#include "EnvironmentCapability.hpp"
+#include "PrintReadyCapability.hpp"
 
-//
-// Snapshot -> Capability 生成。
-//
-// 旧試験は core の CapabilityManager が5種の規則を内蔵している前提だった。
-// 現在は Product(PrinterACapabilityRuleSet)が規則を持ち込み、
-// Core の CapabilityEvaluator はそれを回すだけである。
-// この試験は **その受け渡しが成立していること** の確認にもなっている。
-//
+#include "CapabilityItem/PrinterACapabilityBuilders.hpp"
+
+namespace
+{
+
+void AddBoolItem(
+    rim::RIMSnapshot& snapshot,
+    RIDataId id,
+    bool value)
+{
+    rim::RIMDataItem item{};
+
+    item.id = id;
+    item.valueType = rim::ValueType::kBool;
+
+    item.value =
+        rim::RIMValueFactory::CreateBool(
+            value);
+
+    snapshot.items.push_back(
+        item);
+}
+
+}
 
 TEST(
     SnapshotToCapabilityTest,
@@ -25,114 +39,75 @@ TEST(
 {
     rim::RIMSnapshot snapshot{};
 
-    rim::AddDoubleItem(
-        snapshot,
-        rim::RIMDataId::kTemperatureSensorA,
-        300.15);
+    {
+        rim::RIMDataItem item{};
 
-    rim::AddDoubleItem(
-        snapshot,
-        rim::RIMDataId::kHumiditySensor,
-        60.0);
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
 
-    rim::AddBoolItem(
+        item.valueType =
+            rim::ValueType::kDouble;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        snapshot.items.push_back(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.valueType =
+            rim::ValueType::kDouble;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                60.0);
+
+        snapshot.items.push_back(
+            item);
+    }
+
+    AddBoolItem(
         snapshot,
-        rim::RIMDataId::kUpperDoorOpen,
+        RI_DATA_UPPER_DOOR_OPEN,
         false);
 
-    rim::AddBoolItem(
+    AddBoolItem(
         snapshot,
-        rim::RIMDataId::kRightDoorOpen,
+        RI_DATA_RIGHT_DOOR_OPEN,
         false);
 
-    rim::AddBoolItem(
+    AddBoolItem(
         snapshot,
-        rim::RIMDataId::kLeftDoorOpen,
+        RI_DATA_LEFT_DOOR_OPEN,
         false);
 
-    rim::ErrorRepository errorRepository;
+    const auto environment =
+        std::any_cast<
+            rim::EnvironmentCapability>(
+                rim::BuildEnvironmentCapability(
+                    snapshot));
 
-    rim::PrinterACapabilityRuleSet ruleSet(
-        errorRepository);
-
-    rim::CapabilityEvaluator evaluator;
-
-    ruleSet.RegisterTo(
-        evaluator);
-
-    rim::CapabilityStore store;
-
-    evaluator.Evaluate(
-        snapshot,
-        store);
-
-    rim::CapabilityPayload payload;
-
-    ASSERT_TRUE(
-        store.TryGet(
-            rim::kCapEnvironment,
-            payload));
-
-    const auto* environment =
-        payload.As<
-            rim::EnvironmentCapability>();
-
-    ASSERT_NE(
-        environment,
-        nullptr);
+    const auto printReady =
+        std::any_cast<
+            rim::PrintReadyCapability>(
+                rim::BuildPrintReadyCapability(
+                    snapshot));
 
     EXPECT_DOUBLE_EQ(
-        environment->temperature,
+        environment.temperature,
         300.15);
 
     EXPECT_DOUBLE_EQ(
-        environment->humidity,
+        environment.humidity,
         60.0);
-
-    ASSERT_TRUE(
-        store.TryGet(
-            rim::kCapPrintReady,
-            payload));
-
-    const auto* printReady =
-        payload.As<
-            rim::PrintReadyCapability>();
-
-    ASSERT_NE(
-        printReady,
-        nullptr);
 
     EXPECT_TRUE(
-        printReady->ready);
-}
-
-TEST(
-    SnapshotToCapabilityTest,
-    AllRegisteredCapabilitiesAreGenerated)
-{
-    // Product が登録した規則の数だけ Capability が生成されること。
-    // Core は「いくつあるか」を Product から受け取るだけで、中身を知らない。
-    rim::RIMSnapshot snapshot{};
-
-    rim::ErrorRepository errorRepository;
-
-    rim::PrinterACapabilityRuleSet ruleSet(
-        errorRepository);
-
-    rim::CapabilityEvaluator evaluator;
-
-    ruleSet.RegisterTo(
-        evaluator);
-
-    EXPECT_EQ(
-        evaluator.RuleCount(),
-        ruleSet.CapabilityCount());
-
-    rim::CapabilityStore store;
-
-    EXPECT_EQ(
-        evaluator.Evaluate(
-            snapshot,
-            store),
-        ruleSet.CapabilityCount());
+        printReady.ready);
 }

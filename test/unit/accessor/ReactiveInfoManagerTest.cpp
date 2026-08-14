@@ -2,120 +2,62 @@
 
 #include "NotificationReceiver.hpp"
 
-//
-// ポーリング購読の受け口。
-// 旧実装の TryGetEnvironment / TryGetError / TryGetPrintReady は
-// TryGet(id, payload) の1本に統合されている。
-//
+#include "SubscriberMailboxManager.hpp"
+#include "SubscriptionId.hpp"
 
-namespace
-{
-
-struct SampleCapability
-{
-    double temperature{};
-    double humidity{};
-};
-
-constexpr rim::CapabilityId kSlotA = 0;
-
-}
+#include "NotificationMessage.hpp"
+#include "NotificationTarget.hpp"
+#include "NotificationTargetType.hpp"
+#include "NotificationTrigger.hpp"
 
 TEST(
-    NotificationReceiverTest,
-    TryGetReturnsPushedNotification)
+    ReactiveInfoManagerTest,
+    TryGetNotification)
 {
-    rim::SubscriberMailbox mailbox;
+    rim::SubscriberMailboxManager
+        mailboxManager;
 
-    SampleCapability input{};
+    constexpr rim::SubscriptionId
+        subscriptionId{1};
 
-    input.temperature = 300.15;
-    input.humidity    = 60.0;
+    rim::NotificationMessage
+        input{};
 
-    mailbox.Push(
-        kSlotA,
-        rim::CapabilityPayload::From(
-            input));
+    input.target.type =
+        rim::NotificationTargetType::Capability;
 
-    rim::NotificationReceiver receiver(
-        mailbox);
+    input.target.id = 1;
 
-    rim::CapabilityPayload payload;
+    input.trigger =
+        rim::NotificationTrigger::OnChange;
+
+    mailboxManager
+        .GetMailbox(
+            subscriptionId)
+        .Push(
+            input);
+
+    rim::NotificationReceiver
+        receiver(
+            mailboxManager);
+
+    rim::NotificationMessage
+        output{};
 
     ASSERT_TRUE(
-        receiver.TryGet(
-            kSlotA,
-            payload));
-
-    const auto* output =
-        payload.As<SampleCapability>();
-
-    ASSERT_NE(
-        output,
-        nullptr);
-
-    EXPECT_DOUBLE_EQ(
-        output->temperature,
-        300.15);
-
-    EXPECT_DOUBLE_EQ(
-        output->humidity,
-        60.0);
-}
-
-TEST(
-    NotificationReceiverTest,
-    TryGetOnEmptyReturnsFalse)
-{
-    rim::SubscriberMailbox mailbox;
-
-    rim::NotificationReceiver receiver(
-        mailbox);
-
-    rim::CapabilityPayload payload;
-
-    EXPECT_FALSE(
-        receiver.HasPending(
-            kSlotA));
-
-    EXPECT_FALSE(
-        receiver.TryGet(
-            kSlotA,
-            payload));
-}
-
-TEST(
-    NotificationReceiverTest,
-    PendingCountReflectsMailbox)
-{
-    rim::SubscriberMailbox mailbox;
-
-    SampleCapability input{};
-
-    mailbox.Push(
-        kSlotA,
-        rim::CapabilityPayload::From(input));
-
-    mailbox.Push(
-        kSlotA,
-        rim::CapabilityPayload::From(input));
-
-    rim::NotificationReceiver receiver(
-        mailbox);
+        receiver.TryGetNotification(
+            subscriptionId,
+            output));
 
     EXPECT_EQ(
-        receiver.Pending(
-            kSlotA),
-        2U);
-
-    rim::CapabilityPayload payload;
-
-    receiver.TryGet(
-        kSlotA,
-        payload);
+        output.target.type,
+        rim::NotificationTargetType::Capability);
 
     EXPECT_EQ(
-        receiver.Pending(
-            kSlotA),
+        output.target.id,
         1U);
+
+    EXPECT_EQ(
+        output.trigger,
+        rim::NotificationTrigger::OnChange);
 }

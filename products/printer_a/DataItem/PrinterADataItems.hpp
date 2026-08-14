@@ -1,7 +1,14 @@
 #pragma once
 
 #include "DataItemDefinition.hpp"
+
 #include "../Domain/PrinterADomains.hpp"
+#include "../Route/PrinterARoute.hpp"
+
+#include "PrinterANormalizationFunctions.hpp"
+
+#include "../../common/CommonStoreFunctions.hpp"
+#include "../../common/CommonDiffFunctions.hpp"
 
 namespace rim
 {
@@ -9,100 +16,221 @@ namespace rim
 inline constexpr DataItemDefinition
 kTemperatureSensorA
 {
-    RIMDataId::kTemperatureSensorA,
+    RI_DATA_TEMPERATURE_SENSOR_A,
     "TemperatureSensorA",
     kEnvironmentDomain.name,
-    ValueType::kDouble
+    kValue.name,
+
+    ValueType::kDouble,
+    ValueType::kDouble,
+    ValueType::kDouble,
+    ValueType::kDouble,
+
+    NormalizeTemperatureSensorA,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kTemperatureSensorB
 {
-    RIMDataId::kTemperatureSensorB,
+    RI_DATA_TEMPERATURE_SENSOR_B,
     "TemperatureSensorB",
     kEnvironmentDomain.name,
-    ValueType::kDouble
+    kValue.name,
+
+    ValueType::kDouble,
+    ValueType::kDouble,
+    ValueType::kDouble,
+    ValueType::kDouble,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kHumiditySensor
 {
-    RIMDataId::kHumiditySensor,
+    RI_DATA_HUMIDITY_SENSOR,
     "HumiditySensor",
     kEnvironmentDomain.name,
-    ValueType::kDouble
+    kValue.name,
+
+    ValueType::kDouble,
+    ValueType::kDouble,
+    ValueType::kDouble,
+    ValueType::kDouble,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kUpperDoorOpen
 {
-    RIMDataId::kUpperDoorOpen,
+    RI_DATA_UPPER_DOOR_OPEN,
     "UpperDoorOpen",
     kDoorDomain.name,
-    ValueType::kBool
+    kValue.name,
+
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kRightDoorOpen
 {
-    RIMDataId::kRightDoorOpen,
+    RI_DATA_RIGHT_DOOR_OPEN,
     "RightDoorOpen",
     kDoorDomain.name,
-    ValueType::kBool
+    kValue.name,
+
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kLeftDoorOpen
 {
-    RIMDataId::kLeftDoorOpen,
+    RI_DATA_LEFT_DOOR_OPEN,
     "LeftDoorOpen",
     kDoorDomain.name,
-    ValueType::kBool
+    kValue.name,
+
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kStapleLevel
 {
-    RIMDataId::kStapleLevel,
+    RI_DATA_STAPLE_LEVEL,
     "StapleLevel",
     kConsumableDomain.name,
-    ValueType::kUInt32
+    kData.name,
+
+    ValueType::kUInt32,
+    ValueType::kUInt32,
+    ValueType::kUInt32,
+    ValueType::kUInt32,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kTonerLevel
 {
-    RIMDataId::kTonerLevel,
+    RI_DATA_TONER_LEVEL,
     "TonerLevel",
     kConsumableDomain.name,
-    ValueType::kInt32
+    kData.name,
+
+    ValueType::kInt32,
+    ValueType::kInt32,
+    ValueType::kInt32,
+    ValueType::kInt32,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kJobActive
 {
-    RIMDataId::kJobActive,
+    RI_DATA_JOB_ACTIVE,
     "JobActive",
     kJobDomain.name,
-    ValueType::kBool
+    kData.name,
+
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+    ValueType::kBool,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
 inline constexpr DataItemDefinition
 kJobId
 {
-    RIMDataId::kJobId,
+    RI_DATA_JOB_ID,
     "JobId",
     kJobDomain.name,
-    ValueType::kInt32
+    kData.name,
+
+    ValueType::kInt32,
+    ValueType::kInt32,
+    ValueType::kInt32,
+    ValueType::kInt32,
+
+    IdentityNormalize,
+
+    IdentityStore,
+
+    IdentityDiff
 };
 
-// inline constexpr DataItemDefinition
-// kErrorList
-// {
-//     RIMDataId::kErrorList,
-//     "ErrorList",
-//     kErrorDomain.name,
-//     ValueType::kObject
-// };
+inline constexpr DataItemDefinition
+kErrorList
+{
+    RI_DATA_ERROR_LIST,
+    "ErrorList",
+    kErrorDomain.name,
+    kError.name,
 
-}
+    ValueType::kBinary,
+    ValueType::kBinary,
+    ValueType::kBinary,
+    ValueType::kBinary,
+
+    NormalizeBinary,
+
+    IdentityStore,
+
+    IdentityDiff
+};
+
+} // namespace rim

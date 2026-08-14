@@ -32,7 +32,6 @@ inline constexpr std::array
 kPrintReadyTriggerDomains =
 {
     std::string_view("Door"),
-    std::string_view("Error")
 };
 
 inline constexpr PipelineDefinition
@@ -72,21 +71,6 @@ kJobPipeline
     kJobTriggerDomains.data(),
     kJobTriggerDomains.size(),
     "Job"
-};
-
-inline constexpr std::array
-kErrorTriggerDomains =
-{
-    std::string_view("Error")
-};
-
-inline constexpr PipelineDefinition
-kErrorPipeline
-{
-    "ErrorPipeline",
-    kErrorTriggerDomains.data(),
-    kErrorTriggerDomains.size(),
-    "Error"
 };
 
 }

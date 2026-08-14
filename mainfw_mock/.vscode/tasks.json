@@ -1,0 +1,41 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cmake: configure mainfw-mock",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S", "${workspaceFolder}",
+                "-B", "${workspaceFolder}/build",
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "problemMatcher": [],
+        },
+        {
+            "label": "cmake: build mainfw_mock",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "${workspaceFolder}/build",
+                "--target", "mainfw_mock"
+            ],
+            "dependsOn": "cmake: configure mainfw-mock",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+        },
+        {
+            "label": "printer-fw: build & vendor into lib/ include/ (手動・任意)",
+            "type": "shell",
+            "command": "sh",
+            "args": [
+                "-c",
+                "cmake -S ${workspaceFolder}/.. -B ${workspaceFolder}/../build-shared -DCMAKE_BUILD_TYPE=Debug -DRIMANAGER_BUILD_TESTS=OFF && cmake --build ${workspaceFolder}/../build-shared --target rimanager && cmake --install ${workspaceFolder}/../build-shared --prefix ${workspaceFolder}"
+            ],
+            "problemMatcher": ["$gcc"],
+        }
+    ]
+}

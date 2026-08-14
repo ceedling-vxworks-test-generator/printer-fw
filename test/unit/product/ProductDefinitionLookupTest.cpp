@@ -101,4 +101,31 @@ TEST(ProductDefinitionLookupTest,
         0u);
 }
 
+TEST(
+    ProductDefinitionLookupTest,
+    FindCapabilityById)
+{
+    EXPECT_NE(
+        rim::FindCapability(
+            rim::kPrinterAProductDefinition,
+            RI_CAPABILITY_ENVIRONMENT),
+        nullptr);
+}
 
+TEST(
+    ProductDefinitionLookupTest,
+    FindErrorList)
+{
+    const auto* item =
+        rim::FindDataItem(
+            rim::kPrinterAProductDefinition,
+            RI_DATA_ERROR_LIST);
+
+    ASSERT_NE(
+        item,
+        nullptr);
+
+    EXPECT_EQ(
+        item->storeValueType,
+        rim::ValueType::kBinary);
+}

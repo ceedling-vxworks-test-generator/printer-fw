@@ -2,6 +2,7 @@
 
 #include "DeviceEvent.hpp"
 #include "StoreInputQueue.hpp"
+#include "ProductDefinition.hpp"
 
 namespace rim
 {
@@ -10,9 +11,11 @@ class AdapterDispatcher
 {
 public:
 
-    explicit AdapterDispatcher(
+    AdapterDispatcher(
+        const ProductDefinition& product,
         StoreInputQueue& queue)
-        : queue_(queue)
+        : product_(product),
+          queue_(queue)
     {
     }
 
@@ -20,6 +23,8 @@ public:
         const DeviceEvent& event);
 
 private:
+
+    const ProductDefinition& product_;
 
     StoreInputQueue& queue_;
 };

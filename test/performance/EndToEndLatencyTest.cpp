@@ -2,15 +2,15 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstdint>
 #include <iostream>
-#include <thread>
+#include <mutex>
 #include <vector>
+#include <thread>
 
 #include "PerformanceStatistics.hpp"
 #include "PerformanceTestFixture.hpp"
-
-#include "CapabilityItem/PrinterACapabilityIds.hpp"
-#include "DataItem/PrinterADataIds.hpp"
 
 namespace
 {
@@ -18,29 +18,35 @@ namespace
 using Clock =
     std::chrono::steady_clock;
 
-std::atomic<bool>
-    g_notified{false};
+struct CallbackContext
+{
+    std::mutex mutex;
 
-Clock::time_point
-    g_end;
+    std::condition_variable cv;
+
+    bool notified{false};
+
+    Clock::time_point end;
+};
+
+CallbackContext g_context;
 
 void OnEnvironment(
     uint64_t subscriptionId,
-    RICapabilityId capabilityId,
-    const void* data,
-    size_t size,
-    void* userData)
+    const void* notificationMessage)
 {
     (void)subscriptionId;
-    (void)capabilityId;
-    (void)data;
-    (void)size;
-    (void)userData;
+    (void)notificationMessage;
 
-    g_end =
-        Clock::now();
+    {
+        std::lock_guard<std::mutex>
+            lock(g_context.mutex);
 
-    g_notified = true;
+        g_context.end = Clock::now();
+        g_context.notified = true;
+    }
+
+    g_context.cv.notify_one();
 }
 
 } // namespace
@@ -64,49 +70,78 @@ TEST_F(
     uint64_t subscriptionId{};
 
     ASSERT_EQ(
-        RIManager_SubscribeCapability(
-            rim::kCapEnvironment,
+        RIM_SubscribeCapability(
+            RI_CAPABILITY_ENVIRONMENT,
             OnEnvironment,
-            nullptr,
             &subscriptionId),
         RI_SUCCESS);
+
+    //
+    // Warmup
+    //
+    for (int i = 0;
+         i < 3;
+         ++i)
+    {
+        ASSERT_EQ(
+            RIM_TestInjectTemperature(
+                1000.0 + i),
+            RI_SUCCESS);
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                10));
+    }
 
     for (int i = 1;
          i <= kIterationCount;
          ++i)
     {
-        g_notified = false;
+        {
+            std::lock_guard<std::mutex>
+                lock(
+                    g_context.mutex);
+
+            g_context.notified =
+                false;
+        }
 
         const auto start =
             Clock::now();
 
         ASSERT_EQ(
-            RIManager_TestInjectDouble(
-                rim::ToDataId(
-                    rim::RIMDataId::kTemperatureSensorA),
-                static_cast<double>(i)),
+            RIM_TestInjectTemperature(
+                static_cast<double>(
+                    i)),
             RI_SUCCESS);
 
-        const auto deadline =
-            Clock::now() + kTimeout;
-
-        while (!g_notified)
         {
-            if (Clock::now() >= deadline)
-            {
-                FAIL()
-                    << "Timeout waiting for callback";
-            }
+            std::unique_lock<std::mutex>
+                lock(
+                    g_context.mutex);
 
-            std::this_thread::sleep_for(
-                std::chrono::microseconds(
-                    50));
+            const bool received =
+                g_context.cv.wait_until(
+                    lock,
+                    Clock::now() +
+                        kTimeout,
+                    [&]
+                    {
+                        return g_context
+                            .notified;
+                    });
+
+            ASSERT_TRUE(
+                received)
+                << "Timeout waiting "
+                   "for callback";
         }
 
         const auto latency =
             std::chrono::duration_cast<
                 std::chrono::microseconds>(
-                    g_end - start);
+                g_context.end -
+                start);
 
         latenciesUs.push_back(
             latency.count());
@@ -117,10 +152,11 @@ TEST_F(
             latenciesUs);
 
     std::cout
-        << "\n[PERF] Environment Callback Latency\n"
+        << "\n[PERF] Environment "
+           "Callback Latency\n"
         << "  Samples : "
         << latenciesUs.size()
-        << "\n"
+        << '\n'
         << "  Min      : "
         << stats.min
         << " us\n"
@@ -138,7 +174,7 @@ TEST_F(
         << " us\n";
 
     ASSERT_EQ(
-        RIManager_Unsubscribe(
+        RIM_Unsubscribe(
             subscriptionId),
         RI_SUCCESS);
 }

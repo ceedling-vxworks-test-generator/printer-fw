@@ -11,7 +11,7 @@ TEST(
     rim::DeviceEvent event{};
 
     event.id =
-        rim::RIMDataId::kTemperatureSensorA;
+        RI_DATA_TEMPERATURE_SENSOR_A;
 
     event.value = 30;
 
@@ -34,7 +34,7 @@ TEST(
 
     ASSERT_TRUE(
         store.Find(
-            rim::RIMDataId::kTemperatureSensorA,
+            RI_DATA_TEMPERATURE_SENSOR_A,
             out));
 
     std::int32_t value{};
