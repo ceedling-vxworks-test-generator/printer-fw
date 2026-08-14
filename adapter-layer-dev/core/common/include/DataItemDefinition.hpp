@@ -4,6 +4,7 @@
 
 #include "ValueType.hpp"
 #include "RIMValue.hpp"
+#include "RIMContext.hpp"
 #include "rim_data_id.h"
 
 namespace rim
@@ -14,13 +15,13 @@ class RIMValue;
 using NormalizeCallback =
     RIMValue (*)(
         const RIMValue& value,
-        const void* context);
+        const RIMContext* context);
 
 using StoreCallback =
     RIMValue (*)(
         const RIMValue& currentValue,
         const RIMValue& setValue,
-        const void* context);
+        const RIMContext* context);
 
 using DiffCallback =
     bool (*)(

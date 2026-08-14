@@ -1,8 +1,9 @@
 #pragma once
 
-#include "DeviceEvent.hpp"
+#include "RIMContext.hpp"
 #include "StoreInputQueue.hpp"
 #include "ProductDefinition.hpp"
+#include "rim_data_id.h"
 
 namespace rim
 {
@@ -19,8 +20,13 @@ public:
     {
     }
 
+    // IN: id(何のデータか) / value(生の数値) / context(単位などの補足情報。
+    // 省略可、nullptr可 = 「既に正規化済み」として扱う)。
+    // idとcontextの組でnormalize()(変換ルール)を辿り着けるようにする。
     bool Dispatch(
-        const DeviceEvent& event);
+        RIDataId id,
+        int value,
+        const RIMContext* context = nullptr);
 
 private:
 

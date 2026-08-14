@@ -9,12 +9,18 @@ namespace rim
 {
 
 bool AdapterDispatcher::Dispatch(
-    const DeviceEvent& event)
+    RIDataId id,
+    int value,
+    const RIMContext* context)
 {
+    // idとcontextの組から変換ルール(normalize)を辿り着く。
+    // 現状はidだけでDataItemDefinition(=normalizeそのもの)が決まり、
+    // normalize自身がcontextを見て単位等を判別する形(機種依存の
+    // normalize関数は products/<機種>/ に定義する)。
     const auto* definition =
         FindDataItem(
             product_,
-            event.id);
+            id);
 
     if (definition == nullptr)
     {
@@ -24,16 +30,16 @@ bool AdapterDispatcher::Dispatch(
     const RIMValue rawValue =
         RIMValueFactory::CreateDouble(
             static_cast<double>(
-                event.value));
+                value));
 
     const RIMValue setValue =
         definition->normalize(
             rawValue,
-            nullptr);
+            context);
 
     RIMDataItem item{};
 
-    item.id = event.id;
+    item.id = id;
 
     item.valueType =
         definition->setValueType;

@@ -1,7 +1,5 @@
 #include "PrinterAdapter.hpp"
 
-#include "DeviceEvent.hpp"
-
 namespace rim
 {
 
@@ -18,14 +16,12 @@ bool PrinterAdapter::Initialize()
 
 bool PrinterAdapter::Poll()
 {
-    DeviceEvent ev
-    {
-        RI_DATA_TEMPERATURE_SENSOR_A,
-        30
-    };
-
+    // ハードウェアポーリングは単位等の補足情報を持たないため、
+    // context無し(nullptr = 既に正規化済み扱い)で投入する。
     return dispatcher_.Dispatch(
-        ev);
+        RI_DATA_TEMPERATURE_SENSOR_A,
+        30,
+        nullptr);
 }
 
 void PrinterAdapter::Shutdown()
