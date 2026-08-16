@@ -23,13 +23,12 @@ bool AdapterDispatcher::Dispatch(
 
     const RIMValue rawValue =
         RIMValueFactory::CreateDouble(
-            static_cast<double>(
-                event.value));
+            event.value);
 
     const RIMValue setValue =
         definition->normalize(
             rawValue,
-            nullptr);
+            event.context);
 
     RIMDataItem item{};
 

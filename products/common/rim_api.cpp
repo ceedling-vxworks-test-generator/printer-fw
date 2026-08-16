@@ -5,6 +5,9 @@
 #include <cstring>
 #include <exception>
 
+#include "AdapterDispatcher.hpp"
+#include "SourceUnit.hpp"
+
 #include "CapabilityStore.hpp"
 
 #include "CapabilityAccessor.hpp"
@@ -35,6 +38,19 @@
 #include "ProductFactory.hpp"
 #include "RoutePipeline.hpp"
 
+//
+// C 側ミラーと C++ 側列挙の値がずれていないことをビルド時に検査する。
+//
+static_assert(
+    static_cast<int>(rim::SourceUnit::kNormalized) == RIM_UNIT_NORMALIZED,
+    "rim_source_unit_t と rim::SourceUnit がずれている");
+static_assert(
+    static_cast<int>(rim::SourceUnit::kCelsius) == RIM_UNIT_CELSIUS,
+    "rim_source_unit_t と rim::SourceUnit がずれている");
+static_assert(
+    static_cast<int>(rim::SourceUnit::kFahrenheit) == RIM_UNIT_FAHRENHEIT,
+    "rim_source_unit_t と rim::SourceUnit がずれている");
+
 namespace
 {
 
@@ -60,6 +76,17 @@ struct RIManagerContext
 
     rim::PublisherInputQueue
         publisherQueue;
+
+    //
+    // Adapter
+    //
+    // RIM_SetBool/SetInt32/SetDouble の受理点。DataItemDefinition::normalize を
+    // 経由してから storeQueue へ積む(storeQueue は上で宣言済みなので、下の
+    // コンストラクタ初期化子リストの並びに関わらず先に構築される)。
+    //
+
+    rim::AdapterDispatcher
+        dispatcher;
 
     //
     // Datastore
@@ -129,7 +156,10 @@ struct RIManagerContext
         capabilityAccessor;
 
     RIManagerContext()
-        : snapshotReader(
+        : dispatcher(
+            rim::kPrinterAProductDefinition,
+            storeQueue)
+        , snapshotReader(
             valueStore)
         , routeProvider()
         , capabilityManager(
@@ -747,30 +777,24 @@ RIM_GetBool(
 RIStatus
 RIM_SetBool(
     RIDataId dataId,
-    int value)
+    int value,
+    const void* ctx)
 {
     if (!g_context)
     {
         return RI_NOT_INITIALIZED;
     }
 
-    rim::RIMDataItem item{};
+    const rim::DeviceEvent event
+    {
+        dataId,
+        value != 0 ? 1.0 : 0.0,
+        ctx
+    };
 
-    item.id =
-        dataId;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateBool(
-                value != 0);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(event)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus
@@ -814,30 +838,25 @@ RIM_GetInt32(
 RIStatus
 RIM_SetInt32(
     RIDataId dataId,
-    int32_t value)
+    int32_t value,
+    const void* ctx)
 {
     if (!g_context)
     {
         return RI_NOT_INITIALIZED;
     }
 
-    rim::RIMDataItem item{};
+    const rim::DeviceEvent event
+    {
+        dataId,
+        static_cast<double>(
+            value),
+        ctx
+    };
 
-    item.id =
-        dataId;
-
-    item.valueType =
-        rim::ValueType::kInt32;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateInt32(
-                value);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(event)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus
@@ -881,30 +900,24 @@ RIM_GetDouble(
 RIStatus
 RIM_SetDouble(
     RIDataId dataId,
-    double value)
+    double value,
+    const void* ctx)
 {
     if (!g_context)
     {
         return RI_NOT_INITIALIZED;
     }
 
-    rim::RIMDataItem item{};
+    const rim::DeviceEvent event
+    {
+        dataId,
+        value,
+        ctx
+    };
 
-    item.id =
-        dataId;
-
-    item.valueType =
-        rim::ValueType::kDouble;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateDouble(
-                value);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(event)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus

@@ -72,7 +72,8 @@ TEST(
     ASSERT_EQ(
         RIM_SetBool(
             RI_DATA_UPPER_DOOR_OPEN,
-            1),
+            1,
+            nullptr),
         RI_SUCCESS);
 
     std::this_thread::sleep_for(
