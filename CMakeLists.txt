@@ -12,7 +12,7 @@ project(
 # mainFW へ add_subdirectory() で組み込まれた場合(=このプロジェクトがトップレベルで
 # ない場合)は、既定でテストをビルドしない。rimanager 自身の gtest/FetchContent が
 # mainFW 側のビルドを巻き込まないようにするため(ネットワーク制限下でも
-# rimanager 本体は問題なく組み込める)。old_v2/CMakeLists.txt と同じ方針。
+# rimanager 本体は問題なく組み込める)。
 #
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(RIMANAGER_IS_TOP_LEVEL ON)
