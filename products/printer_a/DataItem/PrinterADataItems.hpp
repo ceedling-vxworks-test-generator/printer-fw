@@ -86,7 +86,7 @@ kUpperDoorOpen
     ValueType::kBool,
     ValueType::kBool,
 
-    IdentityNormalizeBool,
+    IdentityNormalize,
 
     IdentityStore,
 
@@ -106,7 +106,7 @@ kRightDoorOpen
     ValueType::kBool,
     ValueType::kBool,
 
-    IdentityNormalizeBool,
+    IdentityNormalize,
 
     IdentityStore,
 
@@ -126,7 +126,7 @@ kLeftDoorOpen
     ValueType::kBool,
     ValueType::kBool,
 
-    IdentityNormalizeBool,
+    IdentityNormalize,
 
     IdentityStore,
 
@@ -166,7 +166,7 @@ kTonerLevel
     ValueType::kInt32,
     ValueType::kInt32,
 
-    IdentityNormalizeInt32,
+    IdentityNormalize,
 
     IdentityStore,
 
@@ -186,7 +186,7 @@ kJobActive
     ValueType::kBool,
     ValueType::kBool,
 
-    IdentityNormalizeBool,
+    IdentityNormalize,
 
     IdentityStore,
 
@@ -206,7 +206,7 @@ kJobId
     ValueType::kInt32,
     ValueType::kInt32,
 
-    IdentityNormalizeInt32,
+    IdentityNormalize,
 
     IdentityStore,
 

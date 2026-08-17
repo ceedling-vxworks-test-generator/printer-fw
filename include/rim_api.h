@@ -11,22 +11,6 @@ extern "C" {
 #include "rim_data_id.h"
 #include "rim_capability_id.h"
 
-/*
- * 生値がどの単位で送られてきたかを示す(Adapter の DataItemDefinition::normalize が
- * 解釈する context の一種)。C++ 側 rim::SourceUnit と値が一致していること
- * (rim_api.cpp の static_assert)。
- *
- * RIM_SetDouble 等の ctx 引数へ、このポインタを渡すことで単位換算を指定できる。
- * ctx=NULL は RIM_UNIT_NORMALIZED と同義(既に正規化済み。換算しない)。
- * どの id が実際に unit を解釈するかは DataItemDefinition::normalize 次第であり、
- * 解釈しない id へ渡しても無視されるだけである。
- */
-typedef enum rim_source_unit_t
-{
-    RIM_UNIT_NORMALIZED = 0,
-    RIM_UNIT_CELSIUS    = 1,
-    RIM_UNIT_FAHRENHEIT = 2
-} rim_source_unit_t;
 
 typedef void *RIM_HANDLE;
 typedef enum RIStatus
@@ -120,21 +104,11 @@ RIM_GetBool(
     RIDataId dataId,
     int* value);
 
-/*
- * RIM_SetBool/SetInt32/SetDouble - Adapter(AdapterDispatcher::Dispatch)を経由する
- * 受理点。dataId で DataItemDefinition(=変換規則)を引き、その normalize が
- * value を正規化してから Store へ積む。dataId に対応する DataItemDefinition が
- * 無ければ RI_INVALID_PARAMETER。
- *
- * ctx は normalize へそのまま渡される補足情報で、dataId ごとに解釈が異なる
- * (例: 温度なら rim_source_unit_t へのポインタ。不要なら NULL でよい)。
- */
     RIStatus
 RIM_SetBool(
     RIDataId dataId,
-    int value,
-    const void* ctx);
-
+    int value);
+    
 RIStatus
 RIM_GetInt32(
     RIDataId dataId,
@@ -143,8 +117,7 @@ RIM_GetInt32(
 RIStatus
 RIM_SetInt32(
     RIDataId dataId,
-    int32_t value,
-    const void* ctx);
+    int32_t value);
 
 RIStatus
 RIM_GetDouble(
@@ -154,8 +127,7 @@ RIM_GetDouble(
 RIStatus
 RIM_SetDouble(
     RIDataId dataId,
-    double value,
-    const void* ctx);
+    double value);
 
 RIStatus
 RIM_GetBinary(
