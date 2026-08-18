@@ -4,46 +4,48 @@
 #include "DataItemDefinition.hpp"
 
 #include "RIMDataItem.hpp"
-#include "RIMValueFactory.hpp"
 
 namespace rim
 {
 
 bool AdapterDispatcher::Dispatch(
-    const DeviceEvent& event)
+    const RIMDataItem& item)
 {
     const auto* definition =
         FindDataItem(
             product_,
-            event.id);
+            item.id);
 
     if (definition == nullptr)
     {
         return false;
     }
 
-    const RIMValue rawValue =
-        RIMValueFactory::CreateDouble(
-            static_cast<double>(
-                event.value));
+    if (item.value.type != definition->rawValueType)
+    {
+        // 呼び出し元が渡した値の型がこのDataItemのrawValueTypeと一致しない。
+        // 型不一致のまま先へ進めると、setValueTypeと実際のRIMValue::typeが
+        // 食い違ったままStoreへ積まれてしまうため、ここで拒否する。
+        return false;
+    }
 
     const RIMValue setValue =
         definition->normalize(
-            rawValue,
+            item.value,
             nullptr);
 
-    RIMDataItem item{};
+    RIMDataItem outItem{};
 
-    item.id = event.id;
+    outItem.id = item.id;
 
-    item.valueType =
+    outItem.valueType =
         definition->setValueType;
 
-    item.value =
+    outItem.value =
         setValue;
 
     queue_.Push(
-        item);
+        outItem);
 
     return true;
 }

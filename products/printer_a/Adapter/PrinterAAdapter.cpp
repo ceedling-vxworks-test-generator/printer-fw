@@ -1,7 +1,8 @@
 #include "PrinterAAdapter.hpp"
 
 #include "AdapterDispatcher.hpp"
-#include "DeviceEvent.hpp"
+#include "RIMDataItem.hpp"
+#include "RIMValueFactory.hpp"
 
 #include "printer_a_data_id.h"
 
@@ -21,14 +22,20 @@ bool PrinterAAdapter::Initialize()
 
 bool PrinterAAdapter::Poll()
 {
-    DeviceEvent event
-    {
-        RI_DATA_TEMPERATURE_SENSOR_A,
-        30
-    };
+    RIMDataItem item{};
+
+    item.id =
+        RI_DATA_TEMPERATURE_SENSOR_A;
+
+    item.valueType =
+        ValueType::kDouble;
+
+    item.value =
+        RIMValueFactory::CreateDouble(
+            30);
 
     return dispatcher_.Dispatch(
-        event);
+        item);
 }
 
 void PrinterAAdapter::Shutdown()

@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <cstring>
 
+#include "AdapterDispatcher.hpp"
+
 #include "CapabilityStore.hpp"
 
 #include "CapabilityAccessor.hpp"
@@ -52,6 +54,13 @@ struct RIManagerContext
 
     rim::PublisherInputQueue
         publisherQueue;
+
+    //
+    // Adapter
+    //
+
+    rim::AdapterDispatcher
+        dispatcher;
 
     //
     // Datastore
@@ -124,7 +133,10 @@ struct RIManagerContext
         capabilityAccessor;
 
     RIManagerContext()
-        : snapshotManager(
+        : dispatcher(
+            rim::kPrinterAProductDefinition,
+            storeQueue)
+        , snapshotManager(
             domainStore)
         , routeProvider()
         , capabilityManager(
@@ -626,10 +638,9 @@ RIM_SetInt32(
             CreateInt32(
                 value);
 
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(item)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus

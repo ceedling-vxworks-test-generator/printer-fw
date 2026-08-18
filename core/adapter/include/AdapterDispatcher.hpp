@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DeviceEvent.hpp"
+#include "RIMDataItem.hpp"
 #include "StoreInputQueue.hpp"
 #include "ProductDefinition.hpp"
 
@@ -19,8 +19,10 @@ public:
     {
     }
 
+    // item.value は呼び出し側が item.id の DataItemDefinition::rawValueType
+    // 通りに型付け済みであることを前提とする(型が一致しない場合は拒否してfalseを返す)。
     bool Dispatch(
-        const DeviceEvent& event);
+        const RIMDataItem& item);
 
 private:
 
