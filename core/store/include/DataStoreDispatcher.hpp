@@ -3,16 +3,17 @@
 #include <atomic>
 #include <thread>
 
-#include "CapabilityInputQueue.hpp"
 #include "IRIMSnapshotReader.hpp"
 #include "ProductDefinition.hpp"
 
+#include "DomainStorageRegistry.hpp"
+#include "DataDomainMap.hpp"
+#include "IQueue.hpp"
+#include "CapabilityInput.hpp"
+#include "RIMDataItem.hpp"
+
 namespace rim
 {
-
-class DataStoreQueue;
-class ValueStore;
-class IChangeChecker;
 
 class DataStoreDispatcher
 {
@@ -20,35 +21,36 @@ public:
 
     DataStoreDispatcher(
         const ProductDefinition& product,
-        DataStoreQueue& queue,
-        ValueStore& store,
-        const IChangeChecker& changeChecker,
+        IQueue<RIMDataItem>& queue,
+        DomainStorageRegistry& domainStore,
         IRIMSnapshotReader& reader,
-        CapabilityInputQueue& capabilityQueue,
-        uint32_t priority);
+        IQueue<CapabilityInput>& capabilityQueue);
 
     ~DataStoreDispatcher();
+
     void start();
+
     void stop();
+
     bool ExecuteOnce();
 
 private:
 
     void run();
-    void ProcessItem(RIMDataItem& item);
+
+    bool ProcessItem(
+        RIMDataItem& item);
 
 private:
 
     const ProductDefinition& product_;
-    DataStoreQueue& queue_;
-    ValueStore& store_;
-    const IChangeChecker& changeChecker_;
-    CapabilityInputQueue& capabilityQueue_;
-    uint32_t priority_;
+    IQueue<RIMDataItem>& queue_;
+    DomainStorageRegistry& domainStore_;
+    IQueue<CapabilityInput>& capabilityQueue_;
     std::atomic<bool> running_{false};
     std::thread workerThread_;
-
-    IRIMSnapshotReader& reader_; // いずれ消す
+    IRIMSnapshotReader& reader_;
+    DataDomainMap dataDomainMap_;
 };
 
 } // namespace rim

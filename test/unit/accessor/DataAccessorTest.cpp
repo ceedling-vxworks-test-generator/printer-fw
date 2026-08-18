@@ -1,30 +1,39 @@
 #include <gtest/gtest.h>
 
-#include "DataAccessor.hpp"
-#include "PrinterAProductDefinition.hpp"
-#include "RIMValueFactory.hpp"
-#include "ValueStore.hpp"
+#include <algorithm>
 
-TEST(
+#include "DataAccessor.hpp"
+
+#include "test/support/AccessorTestConstants.hpp"
+#include "test/support/AccessorTestFixture.hpp"
+
+namespace
+{
+
+class DataAccessorTest :
+    public ::testing::Test,
+    protected rim::test::AccessorTestFixture
+{
+protected:
+
+    DataAccessorTest()
+        :
+        accessor(
+            domainStore,
+            rim::kPrinterAProductDefinition)
+    {
+    }
+
+    rim::DataAccessor accessor;
+};
+
+}
+
+TEST_F(
     DataAccessorTest,
     GetData)
 {
-    rim::ValueStore store;
-
-    rim::RIMDataItem item
-    {
-        RI_DATA_TEMPERATURE_SENSOR_A,
-        rim::ValueType::kDouble,
-        rim::RIMValueFactory::CreateDouble(
-            25.0)
-    };
-
-    store.Store(
-        item);
-
-    rim::DataAccessor accessor(
-        store,
-        rim::kPrinterAProductDefinition);
+    StoreTemperatureA();
 
     rim::RIMDataItem out{};
 
@@ -38,16 +47,22 @@ TEST(
         RI_DATA_TEMPERATURE_SENSOR_A);
 }
 
-TEST(
+TEST_F(
+    DataAccessorTest,
+    ReturnFalseWhenDataNotFound)
+{
+    rim::RIMDataItem out{};
+
+    EXPECT_FALSE(
+        accessor.TryGetData(
+            rim::test::kUnknownDataId,
+            out));
+}
+
+TEST_F(
     DataAccessorTest,
     GetDomain)
 {
-    rim::ValueStore store;
-
-    rim::DataAccessor accessor(
-        store,
-        rim::kPrinterAProductDefinition);
-
     std::string_view domain;
 
     EXPECT_TRUE(
@@ -59,19 +74,50 @@ TEST(
         domain.empty());
 }
 
-TEST(
+TEST_F(
+    DataAccessorTest,
+    ReturnFalseWhenDomainNotFound)
+{
+    std::string_view domain;
+
+    EXPECT_FALSE(
+        accessor.TryGetDomain(
+            rim::test::kUnknownDataId,
+            domain));
+}
+
+TEST_F(
     DataAccessorTest,
     EnumerateDomains)
 {
-    rim::ValueStore store;
-
-    rim::DataAccessor accessor(
-        store,
-        rim::kPrinterAProductDefinition);
-
     const auto domains =
         accessor.GetDomains();
 
     EXPECT_FALSE(
         domains.empty());
+}
+
+TEST_F(
+    DataAccessorTest,
+    EnumeratedDomainsContainTemperatureDomain)
+{
+    const auto domains =
+        accessor.GetDomains();
+
+    EXPECT_FALSE(
+        domains.empty());
+
+    std::string_view domain;
+
+    ASSERT_TRUE(
+        accessor.TryGetDomain(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            domain));
+
+    EXPECT_NE(
+        std::find(
+            domains.begin(),
+            domains.end(),
+            domain),
+        domains.end());
 }

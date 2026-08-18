@@ -1,4 +1,6 @@
 #include "PublishManager.hpp"
+#include "RouteDefinition.hpp"
+#include "RouteResolver.hpp"
 
 namespace rim
 {
@@ -30,6 +32,29 @@ void PublishManager::Publish(
     const NotificationTarget& target,
     NotificationTrigger trigger)
 {
+    if (trigger ==
+        NotificationTrigger::OnChange)
+    {
+
+        const auto* route =
+            RouteResolver::Resolve(
+                product_,
+                target);
+
+        if (route == nullptr)
+        {
+            return;
+        }
+
+        if (!rateLimiter_.ShouldNotify(
+                target,
+                route->minimumNotifyIntervalMs))
+        {
+            return;
+        }
+
+    }
+
     notifyManager_.Notify(
         target,
         trigger);

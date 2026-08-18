@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 class PerformanceTestFixture
     : public ::testing::Test

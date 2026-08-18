@@ -84,7 +84,8 @@ TEST_F(
          ++i)
     {
         ASSERT_EQ(
-            RIM_TestInjectTemperature(
+            RIM_SetDouble(
+                RI_DATA_TEMPERATURE_SENSOR_A,
                 1000.0 + i),
             RI_SUCCESS);
 
@@ -92,6 +93,22 @@ TEST_F(
             std::chrono::milliseconds(
                 10));
     }
+
+    //
+    // RateLimiter対策
+    //
+    {
+        std::lock_guard<std::mutex>
+            lock(
+                g_context.mutex);
+
+        g_context.notified =
+            false;
+    }
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            120));
 
     for (int i = 1;
          i <= kIterationCount;
@@ -110,7 +127,8 @@ TEST_F(
             Clock::now();
 
         ASSERT_EQ(
-            RIM_TestInjectTemperature(
+            RIM_SetDouble(
+                RI_DATA_TEMPERATURE_SENSOR_A,
                 static_cast<double>(
                     i)),
             RI_SUCCESS);
@@ -140,11 +158,18 @@ TEST_F(
         const auto latency =
             std::chrono::duration_cast<
                 std::chrono::microseconds>(
-                g_context.end -
-                start);
+                    g_context.end -
+                    start);
 
         latenciesUs.push_back(
             latency.count());
+
+        //
+        // 最小通知間隔(100ms)
+        //
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                120));
     }
 
     const auto stats =

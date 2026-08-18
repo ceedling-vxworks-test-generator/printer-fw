@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ProductProfile.hpp"
-#include "IChangeChecker.hpp"
+#include "ICustomDeliveryHandler.hpp"
 
 namespace rim
 {
@@ -13,10 +13,14 @@ class IProductProvider
 public:
     virtual ~IProductProvider() = default;
 
+    virtual ICustomDeliveryHandler*
+    GetCustomDeliveryHandler()
+    {
+        return nullptr;
+    }
+
     virtual const ProductProfile&
     GetProfile() const = 0;
-    virtual const IChangeChecker&
-    GetChangeChecker() const = 0;
 };
 
 } // namespace rim

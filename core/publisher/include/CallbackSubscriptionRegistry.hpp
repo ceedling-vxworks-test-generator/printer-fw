@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <unordered_map>
 #include <mutex>
 
 #include "CallbackSubscriber.hpp"
@@ -23,24 +23,11 @@ public:
         SubscriptionId id)
     {
         std::lock_guard<std::mutex>
-        lock(mutex_);
-        bool removed = false;
+            lock(mutex_);
 
-        for (auto it = notifications_.begin();
-            it != notifications_.end();)
-        {
-            if (it->id == id)
-            {
-                it = notifications_.erase(it);
-                removed = true;
-            }
-            else
-            {
-                ++it;
-            }
-        }
-
-        return removed;
+        return
+            notifications_.erase(id)
+            > 0U;
     }
 
     void Subscribe(
@@ -48,12 +35,10 @@ public:
         NotificationCallback callback)
     {
         std::lock_guard<std::mutex>
-        lock(mutex_);
-        notifications_.push_back(
-        {
-            id,
-            std::move(callback)
-        });
+            lock(mutex_);
+
+        notifications_[id] =
+            std::move(callback);
     }
 
     void Notify(
@@ -66,18 +51,13 @@ public:
             std::lock_guard<std::mutex>
                 lock(mutex_);
 
-            for (const auto& entry
-                : notifications_)
+            auto it =
+                notifications_.find(id);
+
+            if (it != notifications_.end())
             {
-                if (entry.id != id)
-                {
-                    continue;
-                }
-
                 callback =
-                    entry.callback;
-
-                break;
+                    it->second;
             }
         }
 
@@ -91,8 +71,9 @@ public:
 
 private:
 
-    std::vector<
-    NotificationSubscription>
+    std::unordered_map<
+    SubscriptionId,
+    NotificationCallback>
         notifications_;
 
     mutable std::mutex

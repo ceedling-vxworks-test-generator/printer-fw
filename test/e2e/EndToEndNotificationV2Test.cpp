@@ -1,15 +1,16 @@
 #include <gtest/gtest.h>
+#include <atomic>
 
 #include "test/support/TestWaitHelper.hpp"
 
 #include "AdapterDispatcher.hpp"
-#include "RIMValueFactory.hpp"
+#include "products/printer_a/Adapter/PrinterAAdapter.hpp"
 
 #include "StoreInputQueue.hpp"
 #include "DataStoreWorker.hpp"
 #include "RIMSnapshotManager.hpp"
+#include "DomainStorageRegistry.hpp"
 
-#include "CapabilityInputQueue.hpp"
 #include "CapabilityWorker.hpp"
 #include "CapabilityManager.hpp"
 #include "CapabilityStore.hpp"
@@ -38,22 +39,23 @@
 #include "ProductFactory.hpp"
 #include "IProductProvider.hpp"
 
+#include "CallbackQueue.hpp"
+#include "CallbackWorker.hpp"
+
 TEST(
     EndToEndNotificationV2Test,
     AdapterToCallback)
 {
     rim::StoreInputQueue storeQueue;
 
-    rim::CapabilityInputQueue capabilityQueue;
-
     rim::RouteProvider routeProvider;
 
     rim::PublisherInputQueue publisherQueue;
 
-    rim::ValueStore valueStore;
+    rim::DomainStorageRegistry domainStore;
 
     rim::RIMSnapshotManager reader(
-        valueStore);
+        domainStore);
 
     rim::CapabilityStore capabilityStore;
 
@@ -70,7 +72,8 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    bool called = false;
+    std::atomic<bool>
+        called{false};
 
     const rim::SubscriptionId
         subscriptionId =
@@ -78,7 +81,7 @@ TEST(
 
     callbackRegistry.Subscribe(
         subscriptionId,
-        [&](auto id,
+        [&](rim::SubscriptionId id,
             const rim::NotificationMessage& message)
         {
             (void)id;
@@ -109,58 +112,76 @@ TEST(
     subscriptionStore.Register(
         info);
 
-    rim::ChangeNotifyManager notifyManager(
-        subscriptionStore,
-        mailboxManager,
-        callbackRegistry);
+    rim::CallbackQueue
+        callbackQueue;
+
+    rim::CallbackWorker
+        callbackWorker(
+            callbackQueue,
+            callbackRegistry);
+
+    rim::ChangeNotifyManager
+        notifyManager(
+            subscriptionStore,
+            mailboxManager,
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
-    rim::PublishManager publishManager(
-        notifyManager,
-        periodicNotifyManager,
-        subscriptionStore);
+    rim::PublishManager
+        publishManager(
+            notifyManager,
+            periodicNotifyManager,
+            subscriptionStore,
+            rim::kPrinterAProductDefinition);
 
-    auto productProvider = rim::CreatePrinterAProvider();
+    auto productProvider =
+        rim::CreatePrinterAProvider();
 
-    routeProvider.Initialize(productProvider->GetProfile().definition);
+    routeProvider.Initialize(
+        productProvider->GetProfile().definition);
 
     rim::DataStoreWorker dataStoreWorker(
         rim::kPrinterAProductDefinition,
         storeQueue,
-        valueStore,
+        domainStore,
         reader,
         routeProvider);
 
     std::vector<std::unique_ptr<rim::RoutePipeline>> pipelines;
 
-    for (const auto& route : routeProvider.GetQueues())
+    for (const auto& [name, queues]: routeProvider.GetQueues())
     {
         pipelines.push_back(
             std::make_unique<rim::RoutePipeline>(
                 rim::kPrinterAProductDefinition,
-                *route.second,
-                valueStore,
-                productProvider->GetChangeChecker(),
+                queues,
+                domainStore,
                 reader,
                 capabilityManager,
                 publisherQueue));
     }
 
-    rim::PublisherWorker publisherWorker(
-        publisherQueue,
-        publishManager);
+    rim::PublisherWorker
+        publisherWorker(
+            publisherQueue,
+            publishManager);
 
-    rim::AdapterDispatcher dispatcher(
-        rim::kPrinterAProductDefinition,
-        storeQueue);
+    rim::AdapterDispatcher
+        dispatcher(
+            rim::kPrinterAProductDefinition,
+            storeQueue);
+
+    rim::PrinterAAdapter
+        adapter(
+            dispatcher);
+
+    callbackWorker.Run();
 
     ASSERT_TRUE(
-        dispatcher.Dispatch(
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::RIMValueFactory::CreateDouble(
-                30)));
+        adapter.Poll());
 
     ASSERT_TRUE(
         dataStoreWorker.ExecuteOnce());
@@ -176,10 +197,13 @@ TEST(
             {
                 publisherWorker.ExecuteOnce();
 
-                return called;
+                return called.load();
             },
-            std::chrono::milliseconds(100)));
+            std::chrono::milliseconds(
+                100)));
+
+    callbackWorker.Stop();
 
     EXPECT_TRUE(
-        called);
+        called.load());
 }

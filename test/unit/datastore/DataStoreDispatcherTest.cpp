@@ -1,40 +1,46 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
+
 #include "DataStoreDispatcher.hpp"
 
 #include "RIMSnapshotManager.hpp"
 #include "BinaryStoreValue.hpp"
-#include "BufferedQueue.hpp"
-#include "CapabilityInputQueue.hpp"
 #include "IProductProvider.hpp"
 #include "ProductFactory.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueFactory.hpp"
-#include "ValueStore.hpp"
+#include "DomainStorageRegistry.hpp"
+#include "DataDomainMap.hpp"
+#include "RouteProvider.hpp"
+#include "QueueFactory.hpp"
 
 TEST(
     DataStoreDispatcherTest,
     GenerateSnapshotEvent)
 {
-    rim::BufferedQueue queue;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::ValueStore store;
-
-    rim::RIMSnapshotManager Reader(store);
-
-    rim::CapabilityInputQueue capabilityQueue;
+    rim::RIMSnapshotManager Reader(domainStore);
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
     rim::DataStoreDispatcher dispatcher(
         productProvider->GetProfile().definition,
-        queue,
-        store,
-        productProvider->GetChangeChecker(),
+        *queues.storeQueue,
+        domainStore,
         Reader,
-        capabilityQueue,
-        0U);
+        *queues.capabilityQueue);
 
     rim::RIMDataItem item{};
 
@@ -49,7 +55,7 @@ TEST(
             true);
 
     ASSERT_TRUE(
-        queue.push(
+        queues.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
@@ -58,7 +64,7 @@ TEST(
     rim::CapabilityInput input{};
 
     ASSERT_TRUE(
-        capabilityQueue.TryPop(
+        queues.capabilityQueue->TryPop(
             input));
 
     EXPECT_EQ(
@@ -68,27 +74,30 @@ TEST(
 
 TEST(
     DataStoreDispatcherTest,
-    UpdateValueStore)
+    UpdateDomainStorage)
 {
-    rim::BufferedQueue queue;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::ValueStore store;
-
-    rim::RIMSnapshotManager Reader(store);
-
-    rim::CapabilityInputQueue capabilityQueue;
+    rim::RIMSnapshotManager Reader(domainStore);
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
     rim::DataStoreDispatcher dispatcher(
         productProvider->GetProfile().definition,
-        queue,
-        store,
-        productProvider->GetChangeChecker(),
+        *queues.storeQueue,
+        domainStore,
         Reader,
-        capabilityQueue,
-        0U);
+        *queues.capabilityQueue);
 
     rim::RIMDataItem item{};
 
@@ -103,16 +112,34 @@ TEST(
             true);
 
     ASSERT_TRUE(
-        queue.push(
+        queues.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
         dispatcher.ExecuteOnce());
 
+    const auto domainId =
+        rim::DataDomainMap(
+            productProvider->GetProfile().definition)
+            .Find(
+                RI_DATA_UPPER_DOOR_OPEN);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    auto* storage =
+        domainStore.Find(
+            domainId);
+
+    ASSERT_NE(
+        storage,
+        nullptr);
+
     rim::RIMDataItem stored{};
 
     ASSERT_TRUE(
-        store.Find(
+        storage->Find(
             RI_DATA_UPPER_DOOR_OPEN,
             stored));
 
@@ -125,25 +152,28 @@ TEST(
     DataStoreDispatcherTest,
     StoreErrorList)
 {
-    rim::BufferedQueue queue;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::ValueStore store;
-
-    rim::RIMSnapshotManager Reader(store);
-
-    rim::CapabilityInputQueue capabilityQueue;
+    rim::RIMSnapshotManager Reader(domainStore);
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
     rim::DataStoreDispatcher dispatcher(
         productProvider->GetProfile().definition,
-        queue,
-        store,
-        productProvider->GetChangeChecker(),
+        *queues.storeQueue,
+        domainStore,
         Reader,
-        capabilityQueue,
-        0U);
+        *queues.capabilityQueue);
 
     auto binary =
         std::make_unique<
@@ -169,16 +199,34 @@ TEST(
             binary.release());
 
     ASSERT_TRUE(
-        queue.push(
+        queues.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
         dispatcher.ExecuteOnce());
 
+    const auto domainId =
+        rim::DataDomainMap(
+            productProvider->GetProfile().definition)
+            .Find(
+                RI_DATA_ERROR_LIST);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    auto* storage =
+        domainStore.Find(
+            domainId);
+
+    ASSERT_NE(
+        storage,
+        nullptr);
+
     rim::RIMDataItem stored{};
 
     ASSERT_TRUE(
-        store.Find(
+        storage->Find(
             RI_DATA_ERROR_LIST,
             stored));
 
@@ -191,25 +239,28 @@ TEST(
     DataStoreDispatcherTest,
     StoreErrorListCopiesBinaryData)
 {
-    rim::BufferedQueue queue;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::ValueStore store;
-
-    rim::RIMSnapshotManager Reader(store);
-
-    rim::CapabilityInputQueue capabilityQueue;
+    rim::RIMSnapshotManager Reader(domainStore);
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
     rim::DataStoreDispatcher dispatcher(
         productProvider->GetProfile().definition,
-        queue,
-        store,
-        productProvider->GetChangeChecker(),
+        *queues.storeQueue,
+        domainStore,
         Reader,
-        capabilityQueue,
-        0U);
+        *queues.capabilityQueue);
 
     auto binary =
         std::make_unique<
@@ -236,16 +287,34 @@ TEST(
             binary.release());
 
     ASSERT_TRUE(
-        queue.push(
+        queues.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
         dispatcher.ExecuteOnce());
 
+    const auto domainId =
+        rim::DataDomainMap(
+            productProvider->GetProfile().definition)
+            .Find(
+                RI_DATA_ERROR_LIST);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    auto* storage =
+        domainStore.Find(
+            domainId);
+
+    ASSERT_NE(
+        storage,
+        nullptr);
+
     rim::BinaryStoreValue* found{};
 
     ASSERT_TRUE(
-        store.FindBinary(
+        storage->FindBinary(
             RI_DATA_ERROR_LIST,
             found));
 
@@ -278,24 +347,28 @@ TEST(
     DataStoreDispatcherTest,
     NoNotificationWhenUnchanged)
 {
-    rim::BufferedQueue queue;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::ValueStore store;
-
-    rim::RIMSnapshotManager Reader(store);
-    rim::CapabilityInputQueue capabilityQueue;
+    rim::RIMSnapshotManager Reader(domainStore);
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
     rim::DataStoreDispatcher dispatcher(
         productProvider->GetProfile().definition,
-        queue,
-        store,
-        productProvider->GetChangeChecker(),
+        *queues.storeQueue,
+        domainStore,
         Reader,
-        capabilityQueue,
-        0U);
+        *queues.capabilityQueue);
 
     rim::RIMDataItem item{};
 
@@ -310,7 +383,7 @@ TEST(
             true);
 
     ASSERT_TRUE(
-        queue.push(
+        queues.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
@@ -319,17 +392,17 @@ TEST(
     rim::CapabilityInput input{};
 
     ASSERT_TRUE(
-        capabilityQueue.TryPop(
+        queues.capabilityQueue->TryPop(
             input));
 
     ASSERT_TRUE(
-        queue.push(
+        queues.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
         dispatcher.ExecuteOnce());
 
     EXPECT_FALSE(
-        capabilityQueue.TryPop(
+        queues.capabilityQueue->TryPop(
             input));
 }

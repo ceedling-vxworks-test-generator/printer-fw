@@ -4,7 +4,7 @@
 #include <chrono>
 #include <thread>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 namespace
 {
@@ -93,7 +93,8 @@ TEST(
         0U);
 
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             30.0),
         RI_SUCCESS);
 
@@ -126,7 +127,8 @@ TEST(
     g_environmentCalled = false;
 
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             31.0),
         RI_SUCCESS);
 
@@ -174,17 +176,20 @@ TEST(
         0U);
 
     ASSERT_EQ(
-        RIM_TestInjectUpperDoorOpen(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIM_TestInjectRightDoorOpen(
+        RIM_SetBool(
+            RI_DATA_RIGHT_DOOR_OPEN,
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIM_TestInjectLeftDoorOpen(
+        RIM_SetBool(
+            RI_DATA_LEFT_DOOR_OPEN,
             0),
         RI_SUCCESS);
 

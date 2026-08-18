@@ -3,10 +3,9 @@
 #include <iostream>
 #include <memory>
 
-#include "DataStoreQueue.hpp"
-#include "CapabilityInputQueue.hpp"
 #include "PublisherInputQueue.hpp"
 #include "ProductDefinition.hpp"
+#include "RouteProvider.hpp"
 
 namespace rim
 {
@@ -15,20 +14,18 @@ class DataStoreDispatcher;
 class CapabilityWorker;
 
 class CapabilityManager;
-class CapabilityStore;
 
-class ValueStore;
-class IChangeChecker;
+class DomainStorageRegistry;
 class IRIMSnapshotReader;
 
 class RoutePipeline
 {
 public:
+
     RoutePipeline(
         const ProductDefinition& product,
-        DataStoreQueue& queue,
-        ValueStore& valueStore,
-        const IChangeChecker& changeChecker,
+        const RouteQueues& queues,
+        DomainStorageRegistry& domainStore,
         IRIMSnapshotReader& snapshotReader,
         CapabilityManager& capabilityManager,
         PublisherInputQueue& publisherQueue);
@@ -43,7 +40,8 @@ public:
 
 private:
 
-    CapabilityInputQueue capabilityQueue_;
+    bool stopped_{false};
+
     std::unique_ptr<DataStoreDispatcher> dispatcher_;
     std::unique_ptr<CapabilityWorker> capabilityWorker_;
 };

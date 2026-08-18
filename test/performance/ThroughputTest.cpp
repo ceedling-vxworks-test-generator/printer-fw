@@ -3,7 +3,7 @@
 #include <chrono>
 #include <iostream>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 TEST(
     ThroughputTest,
@@ -28,7 +28,8 @@ TEST(
          ++i)
     {
         ASSERT_EQ(
-            RIM_TestInjectTemperature(
+            RIM_SetDouble(
+                RI_DATA_TEMPERATURE_SENSOR_A,
                 static_cast<double>(i)),
             RI_SUCCESS);
     }

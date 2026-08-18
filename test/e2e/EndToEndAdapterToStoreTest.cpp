@@ -1,9 +1,13 @@
 #include <gtest/gtest.h>
 
 #include "DeviceEvent.hpp"
-#include "ValueStore.hpp"
 #include "RIMValueFactory.hpp"
 #include "RIMValueAccessor.hpp"
+
+#include "DomainStorageRegistry.hpp"
+#include "DataDomainMap.hpp"
+#include "PrinterAProductDefinition.hpp"
+
 TEST(
     EndToEndAdapterToStoreTest,
     StoreTemperature)
@@ -15,7 +19,10 @@ TEST(
 
     event.value = 30;
 
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
+
+    rim::DataDomainMap map(
+        rim::kPrinterAProductDefinition);
 
     rim::RIMDataItem item{};
 
@@ -28,14 +35,29 @@ TEST(
         rim::RIMValueFactory::CreateInt32(
             event.value);
 
-    store.Store(item);
+    const auto domainId =
+        map.Find(
+            item.id);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    store
+        .GetOrCreate(
+            domainId)
+        .Store(
+            item);
 
     rim::RIMDataItem out{};
 
     ASSERT_TRUE(
-        store.Find(
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            out));
+        store
+            .GetOrCreate(
+                domainId)
+            .Find(
+                RI_DATA_TEMPERATURE_SENSOR_A,
+                out));
 
     std::int32_t value{};
 

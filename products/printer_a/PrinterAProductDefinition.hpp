@@ -8,10 +8,10 @@
 #include "DomainDefinition.hpp"
 #include "Domain/PrinterADomains.hpp"
 
-#include "CapabilityItem/CapabilityItemDefinition.hpp"
+#include "CapabilityItemDefinition.hpp"
 #include "CapabilityItem/PrinterACapabilities.hpp"
 
-#include "Pipeline/PipelineDefinition.hpp"
+#include "PipelineDefinition.hpp"
 #include "Pipeline/PrinterAPipelines.hpp"
 
 #include "ProductDefinition.hpp"
@@ -23,15 +23,16 @@ inline constexpr std::array kDomains =
 {
     kEnvironmentDomain,
     kDoorDomain,
-    // kConsumableDomain,
-    // kJobDomain,
+    kConsumableDomain,
+    kJobDomain,
+    kErrorDomain
 };
 
 inline constexpr std::array kRoutes =
 {
-    kValue,
-    kData,
-    kError
+    kValueRoute,
+    kDataRoute,
+    kErrorRoute
 };
 
 inline constexpr std::array kDataItems =

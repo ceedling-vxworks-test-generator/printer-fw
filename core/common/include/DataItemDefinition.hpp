@@ -2,9 +2,10 @@
 
 #include <string_view>
 
+#include "RIId.hpp"
 #include "ValueType.hpp"
 #include "RIMValue.hpp"
-#include "rim_data_id.h"
+#include "DomainDefinition.hpp"
 
 namespace rim
 {
@@ -34,7 +35,7 @@ struct DataItemDefinition
     std::string_view name;
     // std::string_view description;
 
-    std::string_view domain;
+    const DomainDefinition* domain;
     std::string_view route;
 
     // ValueType valueType;

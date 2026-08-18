@@ -4,6 +4,7 @@
 
 #include "PrinterAProductDefinition.hpp"
 #include "ProductDefinition.hpp"
+#include "DomainDefinition.hpp"
 
 namespace
 {
@@ -20,6 +21,12 @@ bool DummyCompare(
 {
     return false;
 }
+
+inline constexpr rim::DomainDefinition
+kDomainA
+{
+    "DomainA"
+};
 
 }
 
@@ -73,8 +80,8 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
-            "DomainA",
-            "Value",
+            &kDomainA,
+            "ValueRoute",
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
@@ -92,31 +99,32 @@ TEST(
         RI_DATA_TEMPERATURE_SENSOR_A
     };
 
-const rim::CapabilityItemDefinition capabilities[]
-{
+    const rim::CapabilityItemDefinition capabilities[]
     {
-        RI_CAPABILITY_ENVIRONMENT,
-        "CapabilityA",
-        rim::ValueType::kBool,
+        {
+            RI_CAPABILITY_ENVIRONMENT,
+            "CapabilityA",
+            rim::ValueType::kBool,
 
-        DummyBuild,
-        DummyCompare,
+            DummyBuild,
+            DummyCompare,
 
-        requiredDataIds,
-        1
-    },
-    {
-        RI_CAPABILITY_PRINT_READY,
-        "CapabilityA",
-        rim::ValueType::kBool,
+            requiredDataIds,
+            1
+        },
+        {
+            RI_CAPABILITY_PRINT_READY,
+            "CapabilityA",
+            rim::ValueType::kBool,
 
-        DummyBuild,
-        DummyCompare,
+            DummyBuild,
+            DummyCompare,
 
-        requiredDataIds,
-        1
-    }
-};
+            requiredDataIds,
+            1
+        }
+    };
+
     const rim::ProductDefinition product
     {
         nullptr,
@@ -149,8 +157,8 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_A,
             "Duplicate",
-            "DomainA",
-            "Value",
+            &kDomainA,
+            "ValueRoute",
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
@@ -164,8 +172,8 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_B,
             "Duplicate",
-            "DomainA",
-            "Value",
+            &kDomainA,
+            "ValueRoute",
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
@@ -210,8 +218,8 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
-            "DomainA",
-            "Value",
+            &kDomainA,
+            "ValueRoute",
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
@@ -225,8 +233,8 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemB",
-            "DomainA",
-            "Value",
+            &kDomainA,
+            "ValueRoute",
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
@@ -319,8 +327,8 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
-            "DomainA",
-            "Value",
+            &kDomainA,
+            "ValueRoute",
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
@@ -338,36 +346,37 @@ TEST(
         RI_DATA_TEMPERATURE_SENSOR_A
     };
 
-const rim::CapabilityItemDefinition capabilities[]
-{
+    const rim::CapabilityItemDefinition capabilities[]
     {
-        RI_CAPABILITY_ENVIRONMENT,
-        "CapabilityA",
-        rim::ValueType::kBool,
+        {
+            RI_CAPABILITY_ENVIRONMENT,
+            "CapabilityA",
+            rim::ValueType::kBool,
 
-        DummyBuild,
-        DummyCompare,
+            DummyBuild,
+            DummyCompare,
 
-        requiredDataIds,
-        1
-    },
-    {
-        RI_CAPABILITY_ENVIRONMENT,
-        "CapabilityB",
-        rim::ValueType::kBool,
+            requiredDataIds,
+            1
+        },
+        {
+            RI_CAPABILITY_ENVIRONMENT,
+            "CapabilityB",
+            rim::ValueType::kBool,
 
-        DummyBuild,
-        DummyCompare,
+            DummyBuild,
+            DummyCompare,
 
-        requiredDataIds,
-        1
-    }
-};
+            requiredDataIds,
+            1
+        }
+    };
+
     const rim::ProductDefinition product
     {
         nullptr,
         0,
-        
+
         nullptr,
         0,
 
@@ -393,7 +402,7 @@ TEST(
     const rim::RouteDefinition routes[]
     {
         {
-            "Value"
+            "ValueRoute"
         }
     };
 
@@ -402,7 +411,7 @@ TEST(
         {
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
-            "DomainA",
+            &kDomainA,
             "RouteA",
 
             rim::ValueType::kDouble,
@@ -437,4 +446,40 @@ TEST(
     EXPECT_FALSE(
         rim::ValidateProductDefinition(
             product));
+}
+
+TEST(
+    ProductDefinitionTest,
+    RouteHasCompressionPolicy)
+{
+    const auto* route =
+        rim::FindRoute(
+            rim::kPrinterAProductDefinition,
+            "ValueRoute");
+
+    ASSERT_NE(
+        route,
+        nullptr);
+
+    EXPECT_EQ(
+        route->compressionPolicy,
+        rim::CompressionPolicy::KeepLatest);
+}
+
+TEST(
+    ProductDefinitionTest,
+    RouteHasMinimumNotifyInterval)
+{
+    const auto* route =
+        rim::FindRoute(
+            rim::kPrinterAProductDefinition,
+            "ValueRoute");
+
+    ASSERT_NE(
+        route,
+        nullptr);
+
+    EXPECT_EQ(
+        route->minimumNotifyIntervalMs,
+        100U);
 }

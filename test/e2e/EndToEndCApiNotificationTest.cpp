@@ -3,7 +3,7 @@
 #include <chrono>
 #include <thread>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 #include "EnvironmentCapability.hpp"
 
@@ -20,7 +20,8 @@ TEST(
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             30.0),
         RI_SUCCESS);
 
@@ -32,7 +33,7 @@ TEST(
         capability{};
 
     ASSERT_EQ(
-        RIM_GetCapability(
+        PrinterA_GetCapability(
             RI_CAPABILITY_ENVIRONMENT,
             &capability),
         RI_SUCCESS);

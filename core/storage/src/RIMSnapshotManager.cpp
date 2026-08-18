@@ -1,13 +1,11 @@
 #include "RIMSnapshotManager.hpp"
 
-#include "RIMValueAccessor.hpp"
-
 namespace rim
 {
 
 RIMSnapshotManager::
 RIMSnapshotManager(
-    const ValueStore& store)
+    const DomainStorageRegistry& store)
     : store_(store)
 {
 }

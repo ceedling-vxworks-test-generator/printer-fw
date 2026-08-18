@@ -1,13 +1,11 @@
 #pragma once
 
-#include <string_view>
-
 namespace rim
 {
 
 struct DomainDefinition
 {
-    std::string_view name;
+    const char* name;
 };
 
-}
+} // namespace rim

@@ -5,6 +5,8 @@
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
 
+#include "printer_a.h"
+
 #include "EnvironmentCapability.hpp"
 #include "PrintReadyCapability.hpp"
 

@@ -1,13 +1,12 @@
 #include "CapabilityWorker.hpp"
 
-#include "CapabilityInput.hpp"
 #include "NotificationTargetType.hpp"
 
 namespace rim
 {
 
     CapabilityWorker::CapabilityWorker(
-        CapabilityInputQueue& queue,
+        IQueue<CapabilityInput>& queue,
         CapabilityManager& manager,
         PublisherInputQueue& publisherQueue)
         : queue_(queue)
@@ -25,7 +24,7 @@ void CapabilityWorker::Process(
     const CapabilityInput& capabilityInput)
 {
     if (capabilityInput.changedDataId
-        == RI_DATA_UNKNOWN)
+        == RI_INVALID_DATA_ID)
     {
         return;
     }

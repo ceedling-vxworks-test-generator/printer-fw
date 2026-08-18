@@ -6,12 +6,10 @@
 #include <thread>
 
 #include "StoreInputQueue.hpp"
-#include "ValueStore.hpp"
+#include "DomainStorageRegistry.hpp"
 #include "IRIMSnapshotReader.hpp"
 
-#include "CapabilityInputQueue.hpp"
 #include "RouteProvider.hpp"
-#include "IChangeChecker.hpp"
 #include "IRIMStoreUpdateNotifier.hpp"
 #include "DataStoreDispatcher.hpp"
 #include "ProductDefinition.hpp"
@@ -28,12 +26,12 @@ public:
     DataStoreWorker(
         const ProductDefinition& product,
         StoreInputQueue& queue,
-        ValueStore& store,
+        DomainStorageRegistry& domainStore,
         IRIMSnapshotReader& reader,
         RouteProvider& routeProvider)
         : product_(product)
         , queue_(queue)
-        , store_(store)
+        , domainStore_(domainStore)
         , reader_(reader)
         , routeProvider_(routeProvider)
     {
@@ -51,9 +49,8 @@ private:
 
     StoreInputQueue& queue_;
 
-    ValueStore& store_;
-
-    const IChangeChecker* changeChecker_ {};
+    DomainStorageRegistry&
+        domainStore_;
 
     IRIMStoreUpdateNotifier* notifier_ {};
 

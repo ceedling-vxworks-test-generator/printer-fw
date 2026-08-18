@@ -2,6 +2,8 @@
 
 #include <any>
 
+#include "printer_a.h"
+
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
 

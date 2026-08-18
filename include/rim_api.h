@@ -7,10 +7,7 @@ extern "C" {
 #include <stddef.h>
 
 #include "rim_types.h"
-
-#include "rim_data_id.h"
-#include "rim_capability_id.h"
-
+#include "RIId.hpp"
 
 typedef void *RIM_HANDLE;
 typedef enum RIStatus
@@ -66,38 +63,20 @@ RIStatus RIM_GetNotification(
 uint32_t RIM_GetMailboxCount(
     uint64_t subscriptionId);
 
-RIStatus
-RIM_GetCapability(
-    RICapabilityId capabilityId,
-    void* capability);
+#ifdef __cplusplus
+
+namespace rim
+{
+class CapabilityAccessor;
+}
+
+rim::CapabilityAccessor*
+RIM_GetCapabilityAccessor();
+
+#endif
 
 int RIM_Unsubscribe(
     uint64_t subscriptionId);
-
-
-
-
-int RIM_TestInjectJobActive(
-    int active);
-
-int RIM_TestInjectJobId(
-    int jobId);
-
-int RIM_TestInjectTemperature(
-    double temperature);
-
-int RIM_TestInjectUpperDoorOpen(
-    int opened);
-
-int RIM_TestInjectRightDoorOpen(
-    int opened);   
-
-int RIM_TestInjectLeftDoorOpen(
-    int opened);
-
-int RIM_TestInjectStapleLevel(
-    int32_t level);
-
 
 RIStatus
 RIM_GetBool(
@@ -138,18 +117,6 @@ int RIM_SetBinary(
     RIDataId dataId,
     const void* data,
     size_t size);
-
-RIStatus
-RIM_SetErrorList(
-    const RI_FAULT_INFO_LIST* list);
-
-RIStatus
-RIM_GetErrorList(
-    RI_FAULT_INFO_LIST* list);
-    
-
-
-
 
 #ifdef __cplusplus
 }

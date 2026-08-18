@@ -2,10 +2,10 @@
 
 #include <list>
 
+#include "printer_a.h"
+
 #include "QueuePolicy.hpp"
 #include "PublisherInput.hpp"
-
-#include "rim_capability_id.h"
 
 TEST(
     PriorityCompressionPolicyTest,

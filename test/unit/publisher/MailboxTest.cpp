@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
+
 #include "SubscriberMailbox.hpp"
 
 #include "NotificationMessage.hpp"

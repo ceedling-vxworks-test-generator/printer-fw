@@ -2,7 +2,6 @@
 
 #include "test/support/SnapshotTestHelper.hpp"
 
-#include "CapabilityInputQueue.hpp"
 #include "CapabilityInput.hpp"
 #include "RIMValueFactory.hpp"
 #include "ProductDefinition.hpp"
@@ -12,7 +11,7 @@ TEST(
     CapabilityInputQueueTest,
     PushPop)
 {
-    rim::CapabilityInputQueue queue;
+    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
     rim::CapabilityInput input{};
 
@@ -57,8 +56,9 @@ TEST(
             item);
     }
 
-    queue.Push(
-        input);
+    ASSERT_TRUE(
+        queue.Push(
+            input));
 
     rim::CapabilityInput output{};
 
@@ -91,7 +91,7 @@ TEST(
     CapabilityInputQueueTest,
     WaitAndPop)
 {
-    rim::CapabilityInputQueue queue;
+    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
     rim::CapabilityInput input{};
 
@@ -102,8 +102,9 @@ TEST(
         input.changedDataId,
         RI_DATA_UNKNOWN);
 
-    queue.Push(
-        input);
+    ASSERT_TRUE(
+        queue.Push(
+            input));
 
     rim::CapabilityInput output{};
 
@@ -124,7 +125,7 @@ TEST(
     CapabilityInputQueueTest,
     Shutdown)
 {
-    rim::CapabilityInputQueue queue;
+    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
     queue.Shutdown();
 
@@ -133,4 +134,53 @@ TEST(
     EXPECT_FALSE(
         queue.WaitAndPop(
             input));
+}
+
+TEST(
+    CapabilityInputQueueTest,
+    CoalescingKeepsLatestItem)
+{
+    rim::EventQueue<rim::RIMDataItem, rim::CoalescingPolicy> queue;
+
+    rim::RIMDataItem oldItem{};
+    oldItem.id =
+        RI_DATA_UPPER_DOOR_OPEN;
+    oldItem.value =
+        rim::RIMValueFactory::CreateBool(
+            false);
+
+    rim::RIMDataItem newItem{};
+    newItem.id =
+        RI_DATA_UPPER_DOOR_OPEN;
+    newItem.value =
+        rim::RIMValueFactory::CreateBool(
+            true);
+
+    ASSERT_TRUE(
+        queue.Push(
+            oldItem));
+
+    ASSERT_TRUE(
+        queue.Push(
+            newItem));
+
+    rim::RIMDataItem result{};
+
+    ASSERT_TRUE(
+        queue.TryPop(
+            result));
+
+    bool value{};
+
+    ASSERT_TRUE(
+        rim::RIMValueAccessor::GetBool(
+            result.value,
+            value));
+
+    EXPECT_TRUE(
+        value);
+
+    EXPECT_FALSE(
+        queue.TryPop(
+            result));
 }

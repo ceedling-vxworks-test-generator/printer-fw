@@ -7,7 +7,8 @@ enum class DeliveryMethod
 {
 
     Mailbox,
-    Callback
+    Callback,
+    Custom
     
 };
 

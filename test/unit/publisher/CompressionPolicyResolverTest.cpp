@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "CompressionPolicyResolver.hpp"
+#include "printer_a.h"
 
-#include "rim_capability_id.h"
+#include "CompressionPolicyResolver.hpp"
 
 TEST(
     CompressionPolicyResolverTest,

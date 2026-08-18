@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <chrono>
 
-// #include "ErrorInfo.hpp"
+#include "printer_a.h"
 
 #include "PublishManager.hpp"
 #include "ChangeNotifyManager.hpp"
@@ -9,6 +9,7 @@
 
 #include "PeriodicNotifyManager.hpp"
 #include "NotificationTargetType.hpp"
+#include "PrinterAProductDefinition.hpp"
 
 TEST(
     PublishManagerTest,
@@ -26,11 +27,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
+    rim::CallbackQueue callbackQueue; 
+
     rim::ChangeNotifyManager
         notifyManager(
             subscriptionStore,
             mailboxManager,
-            callbackRegistry);
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -39,7 +43,8 @@ TEST(
         publishManager(
             notifyManager,
             periodicNotifyManager,
-            subscriptionStore);
+            subscriptionStore,
+            rim::kPrinterAProductDefinition);
 
     subscriptionStore.Register(
     {
@@ -96,11 +101,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
+    rim::CallbackQueue callbackQueue; 
+
     rim::ChangeNotifyManager
         notifyManager(
             subscriptionStore,
             mailboxManager,
-            callbackRegistry);
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -109,7 +117,8 @@ TEST(
         publishManager(
             notifyManager,
             periodicNotifyManager,
-            subscriptionStore);
+            subscriptionStore,
+            rim::kPrinterAProductDefinition);
 
     subscriptionStore.Register(
     {
@@ -150,11 +159,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
+    rim::CallbackQueue callbackQueue; 
+
     rim::ChangeNotifyManager
         notifyManager(
             subscriptionStore,
             mailboxManager,
-            callbackRegistry);
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -163,7 +175,8 @@ TEST(
         publishManager(
             notifyManager,
             periodicNotifyManager,
-            subscriptionStore);
+            subscriptionStore,
+            rim::kPrinterAProductDefinition);
 
     EXPECT_NO_THROW(
         publishManager.Publish(
@@ -188,11 +201,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
+    rim::CallbackQueue callbackQueue; 
+
     rim::ChangeNotifyManager
         notifyManager(
             subscriptionStore,
             mailboxManager,
-            callbackRegistry);
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -201,7 +217,8 @@ TEST(
         publishManager(
             notifyManager,
             periodicNotifyManager,
-            subscriptionStore);
+            subscriptionStore,
+            rim::kPrinterAProductDefinition);
 
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();

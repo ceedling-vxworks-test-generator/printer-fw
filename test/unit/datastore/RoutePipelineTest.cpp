@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
+
 #include "RouteProvider.hpp"
 #include "RoutePipeline.hpp"
 
-#include "ValueStore.hpp"
+#include "DataDomainMap.hpp"
 #include "RIMSnapshotManager.hpp"
+#include "DomainStorageRegistry.hpp"
 
 #include "CapabilityStore.hpp"
 #include "CapabilityManager.hpp"
@@ -31,9 +34,10 @@ TEST(
     routeProvider.Initialize(
         product);
 
-    rim::ValueStore valueStore;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::RIMSnapshotManager Reader(valueStore);
+    rim::RIMSnapshotManager Reader(
+        domainStore);
 
     rim::CapabilityStore capabilityStore;
 
@@ -47,19 +51,16 @@ TEST(
         std::unique_ptr<rim::RoutePipeline>>
         pipelines;
 
-    for (const auto& route :
-         routeProvider.GetQueues())
+    for (const auto& [name, queues]: routeProvider.GetQueues())
     {
         pipelines.push_back(
-            std::make_unique<
-                rim::RoutePipeline>(
-                    product,
-                    *route.second,
-                    valueStore,
-                    productProvider->GetChangeChecker(),
-                    Reader,
-                    capabilityManager,
-                    publisherQueue));
+            std::make_unique<rim::RoutePipeline>(
+                product,
+                queues,
+                domainStore,
+                Reader,
+                capabilityManager,
+                publisherQueue));
     }
 
     EXPECT_EQ(
@@ -102,9 +103,10 @@ TEST(
     routeProvider.Initialize(
         product);
 
-    rim::ValueStore valueStore;
+    rim::DomainStorageRegistry domainStore;
 
-    rim::RIMSnapshotManager Reader(valueStore);
+    rim::RIMSnapshotManager Reader(
+        domainStore);
 
     rim::CapabilityStore capabilityStore;
 
@@ -116,7 +118,7 @@ TEST(
 
     auto queueIt =
         routeProvider.GetQueues().find(
-            "Value");
+            "ValueRoute");
 
     ASSERT_NE(
         queueIt,
@@ -124,9 +126,8 @@ TEST(
 
     rim::RoutePipeline pipeline(
         product,
-        *queueIt->second,
-        valueStore,
-        productProvider->GetChangeChecker(),
+        queueIt->second,
+        domainStore,
         Reader,
         capabilityManager,
         publisherQueue);
@@ -144,16 +145,39 @@ TEST(
             true);
 
     ASSERT_TRUE(
-        queueIt->second->push(
+        queueIt->second.storeQueue->Push(
             item));
 
     ASSERT_TRUE(
         pipeline.ExecuteOnce());
 
+    rim::DataDomainMap dataDomainMap(
+        product);
+
+    const auto domainId =
+        dataDomainMap.Find(
+            RI_DATA_UPPER_DOOR_OPEN);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    const auto* storage =
+        domainStore.Find(
+            domainId);
+
+    ASSERT_NE(
+        storage,
+        nullptr);
+
     rim::RIMDataItem stored{};
 
     EXPECT_TRUE(
-        valueStore.Find(
+        storage->Find(
             RI_DATA_UPPER_DOOR_OPEN,
             stored));
+
+    EXPECT_EQ(
+        stored.value.type,
+        rim::ValueType::kBool);
 }

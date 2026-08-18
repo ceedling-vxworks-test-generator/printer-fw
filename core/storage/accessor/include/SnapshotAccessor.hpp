@@ -8,30 +8,48 @@
 #include "SnapshotStorage.hpp"
 #include "ProductDefinition.hpp"
 
+#include "CapabilityDependencyMap.hpp"
+#include "CapabilityDomainResolver.hpp"
+#include "SnapshotBuilder.hpp"
+#include "DomainStorageRegistry.hpp"
+
 namespace rim
 {
+
+struct SnapshotResult
+{
+    AccessId accessId{};
+
+    RIMSnapshot snapshot{};
+};
 
 class SnapshotAccessor
 {
 public:
 
     SnapshotAccessor(
-        const RIMSnapshotManager& reader,
+        const DomainStorageRegistry& store,
         SnapshotStorage& storage,
         const ProductDefinition& product)
         :
-        reader_(reader),
+        store_(store),
         storage_(storage),
-        product_(product)
+        product_(product),
+        dependencyMap_(product),
+        domainResolver_(product),
+        snapshotBuilder_(
+            store,
+            product)
     {
     }
 
-    AccessId
-    CreateSnapshot();
-
-    AccessId
+    SnapshotResult
     CreateSnapshot(
-        const std::vector<std::string_view>& domains);
+        RIDataId changedDataId);
+
+    SnapshotResult
+    CreateSnapshot(
+        const std::vector<RIDataId>& changedDataIds);
 
     bool
     TryGetSnapshot(
@@ -40,18 +58,23 @@ public:
 
 private:
 
-    const RIMSnapshotManager&
-        reader_;
-
     SnapshotStorage&
         storage_;
 
     const ProductDefinition&
         product_;
 
-    RIMSnapshot
-    CreateFilteredSnapshot(
-        const std::vector<std::string_view>* domains) const;
+    const DomainStorageRegistry&
+        store_;
+
+    CapabilityDependencyMap
+        dependencyMap_;
+
+    CapabilityDomainResolver
+        domainResolver_;
+
+    SnapshotBuilder
+        snapshotBuilder_;
 };
 
 } // namespace rim

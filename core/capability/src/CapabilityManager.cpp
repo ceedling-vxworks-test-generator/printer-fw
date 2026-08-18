@@ -3,7 +3,7 @@
 #include <any>
 #include <new>
 
-#include "CapabilityItem/CapabilityItemDefinition.hpp"
+#include "CapabilityItemDefinition.hpp"
 
 namespace rim
 {

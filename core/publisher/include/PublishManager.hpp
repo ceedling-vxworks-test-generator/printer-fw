@@ -2,6 +2,8 @@
 
 #include "ChangeNotifyManager.hpp"
 #include "PeriodicNotifyManager.hpp"
+#include "NotificationRateLimiter.hpp"
+#include "ProductDefinition.hpp"
 
 namespace rim
 {
@@ -13,10 +15,12 @@ public:
     PublishManager(
         ChangeNotifyManager& notifyManager,
         PeriodicNotifyManager& periodicNotifyManager,
-        SubscriptionStore& subscriptionStore)
+        SubscriptionStore& subscriptionStore,
+        const ProductDefinition& product)
         : notifyManager_(notifyManager)
         , periodicNotifyManager_(periodicNotifyManager)
         , subscriptionStore_(subscriptionStore)
+        ,product_(product)
     {
     }
 
@@ -31,6 +35,10 @@ private:
     PeriodicNotifyManager& periodicNotifyManager_;
     
     SubscriptionStore& subscriptionStore_;
+    
+    NotificationRateLimiter rateLimiter_;
+
+    const ProductDefinition& product_;
     
 };
 

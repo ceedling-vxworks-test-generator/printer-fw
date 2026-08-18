@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
+
 #include "NotificationReceiver.hpp"
 
 #include "PublishManager.hpp"
@@ -16,6 +18,7 @@
 #include "NotificationTargetType.hpp"
 #include "SubscriptionInfo.hpp"
 #include "DeliveryMethod.hpp"
+#include "PrinterAProductDefinition.hpp"
 
 TEST(
     EndToEndNotificationFlowTest,
@@ -30,10 +33,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    rim::ChangeNotifyManager notifyManager(
-        subscriptionStore,
-        mailboxManager,
-        callbackRegistry);
+    rim::CallbackQueue callbackQueue; 
+
+    rim::ChangeNotifyManager
+        notifyManager(
+            subscriptionStore,
+            mailboxManager,
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -41,7 +48,8 @@ TEST(
     rim::PublishManager publishManager(
         notifyManager,
         periodicNotifyManager,
-        subscriptionStore);
+        subscriptionStore,
+        rim::kPrinterAProductDefinition);
 
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();
@@ -107,10 +115,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    rim::ChangeNotifyManager notifyManager(
-        subscriptionStore,
-        mailboxManager,
-        callbackRegistry);
+    rim::CallbackQueue callbackQueue; 
+
+    rim::ChangeNotifyManager
+        notifyManager(
+            subscriptionStore,
+            mailboxManager,
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -118,7 +130,8 @@ TEST(
     rim::PublishManager publishManager(
         notifyManager,
         periodicNotifyManager,
-        subscriptionStore);
+        subscriptionStore,
+        rim::kPrinterAProductDefinition);
 
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();

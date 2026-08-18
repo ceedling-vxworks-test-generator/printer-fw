@@ -4,7 +4,7 @@
 #include <chrono>
 #include <thread>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 namespace
 {
@@ -102,7 +102,7 @@ TEST(
     list.entries[1].state = 2;
 
     ASSERT_EQ(
-        RIM_SetErrorList(
+        PrinterA_SetErrorList(
             &list),
         RI_SUCCESS);
 
@@ -154,7 +154,7 @@ TEST(
         readBack{};
 
     ASSERT_EQ(
-        RIM_GetErrorList(
+        PrinterA_GetErrorList(
             &readBack),
         RI_SUCCESS);
 

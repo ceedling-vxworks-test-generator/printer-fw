@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rim_data_id.h"
+#include "RIId.hpp"
 #include "ValueType.hpp"
 #include "RIMValue.hpp"
 
@@ -14,6 +14,11 @@ struct RIMDataItem
     ValueType valueType;
 
     RIMValue value;
+
+    RIDataId CompressionKey() const
+    {
+        return id;
+    }
 };
 
 } // namespace rim

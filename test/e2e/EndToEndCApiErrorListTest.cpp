@@ -4,10 +4,8 @@
 #include <thread>
 #include <cstring>
 
-#include "rim_api.h"
-#include "rim_types.h"
+#include "printer_a.h"
 
-#include "ValueStore.hpp"
 #include "BinaryStoreValue.hpp"
 
 #include "RIMSnapshotManager.hpp"
@@ -32,7 +30,7 @@ TEST(
     input.entries[0].state = 5;
 
     ASSERT_EQ(
-        RIM_SetErrorList(
+        PrinterA_SetErrorList(
             &input),
         RI_SUCCESS);
 
@@ -42,7 +40,7 @@ TEST(
     RI_FAULT_INFO_LIST output{};
 
     ASSERT_EQ(
-        RIM_GetErrorList(
+        PrinterA_GetErrorList(
             &output),
         RI_SUCCESS);
 

@@ -1,289 +1,185 @@
 #include <gtest/gtest.h>
 
-#include "RIMSnapshotManager.hpp"
-#include "PrinterAProductDefinition.hpp"
-#include "RIMValueFactory.hpp"
 #include "SnapshotAccessor.hpp"
-#include "SnapshotStorage.hpp"
-#include "ValueStore.hpp"
 
-TEST(
-    SnapshotAccessorTest,
-    CreateSnapshot)
+#include "test/support/AccessorTestConstants.hpp"
+#include "test/support/AccessorTestFixture.hpp"
+
+namespace
 {
-    rim::ValueStore store;
 
-    store.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
+class SnapshotAccessorTest :
+    public ::testing::Test,
+    protected rim::test::AccessorTestFixture
+{
+protected:
 
-    rim::RIMSnapshotManager
-        reader(
-            store);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::SnapshotAccessor
+    SnapshotAccessorTest()
+        :
         accessor(
-            reader,
+            domainStore,
             snapshotStorage,
-            rim::kPrinterAProductDefinition);
+            rim::kPrinterAProductDefinition)
+    {
+    }
 
-    const auto accessId =
-        accessor.CreateSnapshot();
+    rim::RIMSnapshot
+    GetSnapshot(
+        rim::AccessId accessId)
+    {
+        rim::RIMSnapshot snapshot;
 
-    EXPECT_GT(
-        accessId,
-        0u);
-}
+        EXPECT_TRUE(
+            accessor.TryGetSnapshot(
+                accessId,
+                snapshot));
 
-TEST(
+        return snapshot;
+    }
+
+    rim::SnapshotAccessor accessor;
+};
+
+} // namespace
+
+TEST_F(
     SnapshotAccessorTest,
     GetCreatedSnapshot)
 {
-    rim::ValueStore store;
+    StoreTemperatureA();
 
-    store.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
+    const auto result =
+        accessor.CreateSnapshot(
+            RI_DATA_TEMPERATURE_SENSOR_A);
 
-    rim::RIMSnapshotManager
-        reader(
-            store);
+    EXPECT_GT(
+        result.accessId,
+        0u);
 
-    rim::SnapshotStorage
-        snapshotStorage;
+    const auto snapshot =
+        GetSnapshot(
+            result.accessId);
 
-    rim::SnapshotAccessor
-        accessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    const auto accessId =
-        accessor.CreateSnapshot();
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        accessor.TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_EQ(
+    ASSERT_EQ(
         snapshot.items.size(),
         1u);
+
+    double value{};
+
+    ASSERT_TRUE(
+        snapshot.TryGetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            value));
+
+    EXPECT_DOUBLE_EQ(
+        value,
+        rim::test::kTemperatureA);
 }
 
-TEST(
+TEST_F(
+    SnapshotAccessorTest,
+    CreateSnapshotFromMultipleDataIds)
+{
+    StoreTemperatureA();
+    StoreHumidity();
+
+    const auto result =
+        accessor.CreateSnapshot(
+            {
+                RI_DATA_TEMPERATURE_SENSOR_A,
+                RI_DATA_HUMIDITY_SENSOR
+            });
+
+    const auto snapshot =
+        GetSnapshot(
+            result.accessId);
+
+    ASSERT_EQ(
+        snapshot.items.size(),
+        2u);
+
+    double temperature{};
+    double humidity{};
+
+    EXPECT_TRUE(
+        snapshot.TryGetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            temperature));
+
+    EXPECT_TRUE(
+        snapshot.TryGetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            humidity));
+
+    EXPECT_DOUBLE_EQ(
+        temperature,
+        rim::test::kTemperatureA);
+
+    EXPECT_DOUBLE_EQ(
+        humidity,
+        rim::test::kHumidity);
+}
+
+TEST_F(
+    SnapshotAccessorTest,
+    IgnoreUnknownDataIdAndKeepValidData)
+{
+    StoreTemperatureA();
+
+    const auto result =
+        accessor.CreateSnapshot(
+            {
+                rim::test::kUnknownDataId,
+                RI_DATA_TEMPERATURE_SENSOR_A
+            });
+
+    const auto snapshot =
+        GetSnapshot(
+            result.accessId);
+
+    ASSERT_EQ(
+        snapshot.items.size(),
+        1u);
+
+    double value{};
+
+    EXPECT_TRUE(
+        snapshot.TryGetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            value));
+
+    EXPECT_DOUBLE_EQ(
+        value,
+        rim::test::kTemperatureA);
+}
+
+TEST_F(
+    SnapshotAccessorTest,
+    AccessIdIncreases)
+{
+    StoreTemperatureA();
+
+    const auto result1 =
+        accessor.CreateSnapshot(
+            RI_DATA_TEMPERATURE_SENSOR_A);
+
+    const auto result2 =
+        accessor.CreateSnapshot(
+            RI_DATA_TEMPERATURE_SENSOR_A);
+
+    EXPECT_GT(
+        result2.accessId,
+        result1.accessId);
+}
+
+TEST_F(
     SnapshotAccessorTest,
     ReturnFalseWhenSnapshotDoesNotExist)
 {
-    rim::ValueStore store;
-
-    rim::RIMSnapshotManager
-        reader(
-            store);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::SnapshotAccessor
-        accessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
     rim::RIMSnapshot snapshot;
 
     EXPECT_FALSE(
         accessor.TryGetSnapshot(
-            99999,
+            rim::test::kUnknownAccessId,
             snapshot));
-}
-
-TEST(
-    SnapshotAccessorTest,
-    CreateEnvironmentSnapshot)
-{
-    rim::ValueStore store;
-
-    store.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    rim::RIMSnapshotManager
-        reader(
-            store);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::SnapshotAccessor
-        accessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    const auto accessId =
-        accessor.CreateSnapshot(
-            {
-                "Environment"
-            });
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        accessor.TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_EQ(
-        snapshot.items.size(),
-        1u);
-}
-
-TEST(
-    SnapshotAccessorTest,
-    UnknownDomainReturnsEmptySnapshot)
-{
-    rim::ValueStore store;
-
-    store.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    rim::RIMSnapshotManager
-        reader(
-            store);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::SnapshotAccessor
-        accessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    const auto accessId =
-        accessor.CreateSnapshot(
-            {
-                "UnknownDomain"
-            });
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        accessor.TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_TRUE(
-        snapshot.items.empty());
-}
-
-TEST(
-    SnapshotAccessorTest,
-    EmptyDomainListReturnsEmptySnapshot)
-{
-    rim::ValueStore store;
-
-    store.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    rim::RIMSnapshotManager
-        reader(
-            store);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::SnapshotAccessor
-        accessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    const auto accessId =
-        accessor.CreateSnapshot(
-            {});
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        accessor.TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_TRUE(
-        snapshot.items.empty());
-}
-
-TEST(
-    SnapshotAccessorTest,
-    DuplicateDomainIgnored)
-{
-    rim::ValueStore store;
-
-    store.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    rim::RIMSnapshotManager
-        reader(
-            store);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::SnapshotAccessor
-        accessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    const auto accessId =
-        accessor.CreateSnapshot(
-            {
-                "Environment",
-                "Environment"
-            });
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        accessor.TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_EQ(
-        snapshot.items.size(),
-        1u);
 }

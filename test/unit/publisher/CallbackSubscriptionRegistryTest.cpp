@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "rim_capability_id.h"
+#include "printer_a.h"
 
 #include "CallbackSubscriptionRegistry.hpp"
 #include "SubscriptionStore.hpp"

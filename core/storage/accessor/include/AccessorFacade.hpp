@@ -6,7 +6,6 @@
 #include "CapabilityAccessor.hpp"
 #include "DataAccessor.hpp"
 #include "SnapshotAccessor.hpp"
-#include "rim_data_id.h"
 
 namespace rim
 {

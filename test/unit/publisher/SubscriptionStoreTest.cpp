@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
+
 #include "SubscriptionStore.hpp"
 #include "NotificationTargetType.hpp"
-#include "rim_capability_id.h"
 
 namespace rim
 {

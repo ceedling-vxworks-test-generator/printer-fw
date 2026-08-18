@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rim_data_id.h"
+#include "RIId.hpp"
 
 namespace rim
 {
@@ -9,7 +9,7 @@ struct DeviceEvent
 {
     RIDataId id;
 
-    double value;
+    int value;
 };
 
 } // namespace rim

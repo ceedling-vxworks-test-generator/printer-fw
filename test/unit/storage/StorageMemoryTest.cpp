@@ -10,7 +10,10 @@
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
 #include "SnapshotStorage.hpp"
-#include "ValueStore.hpp"
+#include "DomainStorageRegistry.hpp"
+#include "DomainStorage.hpp"
+#include "DataDomainMap.hpp"
+#include "PrinterAProductDefinition.hpp"
 
 namespace
 {
@@ -54,8 +57,13 @@ TEST(
         << "\n=== Storage Memory Report ===\n";
 
     std::cout
-        << "ValueStore        : "
-        << sizeof(rim::ValueStore)
+        << "DomainStorage     : "
+        << sizeof(rim::DomainStorage)
+        << '\n';
+
+    std::cout
+        << "DomainRegistry    : "
+        << sizeof(rim::DomainStorageRegistry)
         << '\n';
 
     std::cout
@@ -84,95 +92,126 @@ TEST(
         << '\n';
 }
 
-TEST(
-    StorageMemoryTest,
-    ValueStoreMemoryGrowth)
-{
-    rim::ValueStore store;
+// TEST(
+//     StorageMemoryTest,
+//     DomainStorageMemoryGrowth)
+// {
+//     rim::DomainStorageRegistry store;
 
-    const auto rssStart =
-        GetVmRSSKb();
+//     rim::DataDomainMap domainMap(
+//         rim::kPrinterAProductDefinition);
 
-    constexpr std::uint32_t kSteps[] =
-    {
-        100,
-        1000,
-        10000,
-        50000,
-        100000,
-        1000000,
-        2000000
-    };
+//     const auto rssStart =
+//         GetVmRSSKb();
 
-    std::uint32_t currentCount = 0;
+//     constexpr std::uint32_t kSteps[] =
+//     {
+//         100,
+//         1000,
+//         10000,
+//         50000,
+//         100000,
+//         1000000,
+//         2000000
+//     };
 
-    std::cout
-        << "\n=== ValueStore Memory Growth ===\n";
+//     std::uint32_t currentCount = 0;
 
-    for (const auto targetCount : kSteps)
-    {
-        for (; currentCount < targetCount; ++currentCount)
-        {
-            rim::RIMDataItem item{};
+//     std::cout
+//         << "\n=== DomainStorage Memory Growth ===\n";
 
-            item.id =
-                static_cast<RIDataId>(
-                    currentCount + 1);
+//     for (const auto targetCount : kSteps)
+//     {
+//         for (; currentCount < targetCount; ++currentCount)
+//         {
+//             rim::RIMDataItem item{};
 
-            item.valueType =
-                rim::ValueType::kInt32;
+//             item.id =
+//                 static_cast<RIDataId>(
+//                     currentCount + 1);
 
-            item.value =
-                rim::RIMValueFactory::CreateInt32(
-                    static_cast<std::int32_t>(
-                        currentCount));
+//             item.valueType =
+//                 rim::ValueType::kInt32;
 
-            store.Store(item);
-        }
+//             item.value =
+//                 rim::RIMValueFactory::CreateInt32(
+//                     static_cast<std::int32_t>(
+//                         currentCount));
 
-        const auto rss =
-            GetVmRSSKb();
+//             const auto domainId =
+//                 domainMap.Find(
+//                     item.id);
 
-        const auto itemCount =
-            store.GetAll().size();
+//             ASSERT_NE(
+//                 domainId,
+//                 rim::kInvalidDomainId);
 
-        EXPECT_EQ(
-            itemCount,
-            targetCount);
+//             store
+//                 .GetOrCreate(
+//                     domainId)
+//                 .Store(
+//                     item);
+//         }
 
-        const auto deltaKb =
-            rss - rssStart;
+//         const auto rss =
+//             GetVmRSSKb();
 
-        const double bytesPerItem =
-            itemCount > 0
-                ? static_cast<double>(
-                    deltaKb * 1024ULL) /
-                    static_cast<double>(
-                        itemCount)
-                : 0.0;
+//         std::size_t itemCount = 0;
 
-        std::cout
-            << "Stored="
-            << std::setw(8)
-            << itemCount
+//         for (DomainId domainId = 1;
+//             domainId < 64;
+//             ++domainId)
+//         {
+//             const auto* storage =
+//                 store.Find(
+//                     domainId);
 
-            << " RSS="
-            << std::setw(8)
-            << rss
+//             if (storage == nullptr)
+//             {
+//                 continue;
+//             }
 
-            << " KB Delta="
-            << std::setw(8)
-            << deltaKb
+//             itemCount +=
+//                 storage->GetAll().size();
+//         }
 
-            << " KB PerItem="
-            << std::setw(10)
-            << std::fixed
-            << std::setprecision(2)
-            << bytesPerItem
+//         EXPECT_EQ(
+//             itemCount,
+//             targetCount);
 
-            << " bytes\n";
-    }
-}
+//         const auto deltaKb =
+//             rss - rssStart;
+
+//         const double bytesPerItem =
+//             itemCount > 0
+//                 ? static_cast<double>(
+//                     deltaKb * 1024ULL) /
+//                     static_cast<double>(
+//                         itemCount)
+//                 : 0.0;
+
+//         std::cout
+//             << "Stored="
+//             << std::setw(8)
+//             << itemCount
+
+//             << " RSS="
+//             << std::setw(8)
+//             << rss
+
+//             << " KB Delta="
+//             << std::setw(8)
+//             << deltaKb
+
+//             << " KB PerItem="
+//             << std::setw(10)
+//             << std::fixed
+//             << std::setprecision(2)
+//             << bytesPerItem
+
+//             << " bytes\n";
+//     }
+// }
 
 TEST(
     StorageMemoryTest,

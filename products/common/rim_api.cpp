@@ -3,25 +3,18 @@
 #include <memory>
 #include <unordered_map>
 #include <cstring>
-#include <exception>
-
-#include "AdapterDispatcher.hpp"
 
 #include "CapabilityStore.hpp"
 
 #include "CapabilityAccessor.hpp"
 
 #include "StoreInputQueue.hpp"
-#include "ValueStore.hpp"
 #include "RIMSnapshotManager.hpp"
 #include "DataStoreWorker.hpp"
 #include "RIMValueFactory.hpp"
+#include "DomainStorageRegistry.hpp"
 
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
-#include "CapabilityInputQueue.hpp"
 #include "CapabilityManager.hpp"
-#include "CapabilityWorker.hpp"
 
 #include "PublisherInputQueue.hpp"
 #include "PublisherWorker.hpp"
@@ -36,6 +29,9 @@
 #include "RouteProvider.hpp"
 #include "ProductFactory.hpp"
 #include "RoutePipeline.hpp"
+#include "CallbackWorker.hpp"
+#include "CallbackQueue.hpp"
+
 
 namespace
 {
@@ -44,9 +40,6 @@ struct RIManagerContext
 {
     std::unique_ptr<rim::IProductProvider>
     productProvider;
-
-    rim::IChangeChecker*
-        changeChecker {};
 
     std::vector<std::unique_ptr<rim::RoutePipeline>> pipelines;
 
@@ -57,32 +50,18 @@ struct RIManagerContext
     rim::StoreInputQueue
         storeQueue;
 
-    rim::CapabilityInputQueue
-        capabilityQueue;
-
     rim::PublisherInputQueue
         publisherQueue;
-
-    //
-    // Adapter
-    //
-    // RIM_SetBool/SetInt32/SetDouble の受理点。DataItemDefinition::normalize を
-    // 経由してから storeQueue へ積む(storeQueue は上で宣言済みなので、下の
-    // コンストラクタ初期化子リストの並びに関わらず先に構築される)。
-    //
-
-    rim::AdapterDispatcher
-        dispatcher;
 
     //
     // Datastore
     //
 
-    rim::ValueStore
-        valueStore;
+    rim::DomainStorageRegistry
+        domainStore;
 
     rim::RIMSnapshotManager
-        snapshotReader;
+        snapshotManager;
 
     rim::RouteProvider
         routeProvider;
@@ -121,15 +100,18 @@ struct RIManagerContext
     rim::SubscriberMailboxManager
         mailboxManager;
 
+    rim::CallbackQueue
+        callbackQueue;
+
+    rim::CallbackWorker
+        callbackWorker;
+
     //
     // Worker
     //
 
     rim::DataStoreWorker
         dataStoreWorker;
-
-    rim::CapabilityWorker
-        capabilityWorker;
 
     rim::PublisherWorker
         publisherWorker;
@@ -142,35 +124,33 @@ struct RIManagerContext
         capabilityAccessor;
 
     RIManagerContext()
-        : dispatcher(
-            rim::kPrinterAProductDefinition,
-            storeQueue)
-        , snapshotReader(
-            valueStore)
+        : snapshotManager(
+            domainStore)
         , routeProvider()
         , capabilityManager(
             capabilityStore,
             rim::kPrinterAProductDefinition)
+        ,callbackWorker(
+            callbackQueue,
+            callbackRegistry)
         , notifyManager(
             subscriptionStore,
             mailboxManager,
-            callbackRegistry)
+            callbackRegistry,
+            callbackQueue)
         , receiver(
             mailboxManager)
         , publishManager(
             notifyManager,
             periodicNotifyManager,
-            subscriptionStore)
+            subscriptionStore,
+            rim::kPrinterAProductDefinition)
         , dataStoreWorker(
             rim::kPrinterAProductDefinition,
             storeQueue,
-            valueStore,
-            snapshotReader,
+            domainStore,
+            snapshotManager,
             routeProvider)
-        , capabilityWorker(
-            capabilityQueue,
-            capabilityManager,
-            publisherQueue)
         , publisherWorker(
             publisherQueue,
             publishManager)
@@ -182,17 +162,19 @@ struct RIManagerContext
     void Initialize(std::unique_ptr<rim::IProductProvider> provider)
     {
         productProvider = std::move(provider);
-        routeProvider.Initialize(productProvider->GetProfile().definition);
+        const auto& product = productProvider->GetProfile().definition;
 
-        for (const auto& route : routeProvider.GetQueues())
+        routeProvider.Initialize(product);
+        pipelines.clear();
+
+        for (const auto& [name, queues]: routeProvider.GetQueues())
         {
             pipelines.push_back(
                 std::make_unique<rim::RoutePipeline>(
-                    productProvider->GetProfile().definition,
-                    *route.second,
-                    valueStore,
-                    productProvider->GetChangeChecker(),
-                    snapshotReader,
+                    product,
+                    queues,
+                    domainStore,
+                    snapshotManager,
                     capabilityManager,
                     publisherQueue));
         }
@@ -206,6 +188,27 @@ std::unique_ptr<RIManagerContext>
 
 }
 
+namespace
+{
+
+bool TryReadDataItem(
+    RIDataId dataId,
+    rim::RIMDataItem& item)
+{
+    if (!g_context)
+    {
+        return false;
+    }
+
+    const auto snapshot =
+        g_context->snapshotManager.Read();
+
+    return snapshot.Find(
+        dataId,
+        item);
+}
+
+}
 
 extern "C"
 {
@@ -234,12 +237,15 @@ int RIM_Destroy(void)
     }
 
     g_context->publisherWorker.Stop();
+    g_context->callbackWorker.Stop();
 
     // g_context->capabilityWorker.Stop();
     for (auto& pipeline : g_context->pipelines)
     {
         pipeline->Stop();
     }
+
+    g_context->pipelines.clear();
 
     g_context->dataStoreWorker.Stop();
 
@@ -256,12 +262,12 @@ int RIM_Start(void)
     }
 
     g_context->dataStoreWorker.Run();
-    // g_context->capabilityWorker.Run();
+
     for (auto& pipeline : g_context->pipelines)
     {
         pipeline->Start();
     }
-
+    g_context->callbackWorker.Run();
     g_context->publisherWorker.Run();
 
     return RI_SUCCESS;
@@ -275,8 +281,7 @@ int RIM_Stop(void)
     }
 
     g_context->publisherWorker.Stop();
-
-    // g_context->capabilityWorker.Stop();
+    g_context->callbackWorker.Stop();
     
     for (auto& pipeline : g_context->pipelines)
     {
@@ -288,58 +293,15 @@ int RIM_Stop(void)
     return RI_SUCCESS;
 }
 
-RIStatus
-RIM_GetCapability(
-    RICapabilityId capabilityId,
-    void* capability)
+rim::CapabilityAccessor*
+RIM_GetCapabilityAccessor()
 {
     if (!g_context)
     {
-        return RI_NOT_INITIALIZED;
+        return nullptr;
     }
 
-    if (capability == nullptr)
-    {
-        return RI_INVALID_PARAMETER;
-    }
-
-    try
-    {
-        switch (capabilityId)
-        {
-        case RI_CAPABILITY_ENVIRONMENT:
-
-            *static_cast<
-                rim::EnvironmentCapability*>(
-                    capability)
-                =
-                g_context->capabilityAccessor
-                    .Get<
-                        rim::EnvironmentCapability>(
-                            RI_CAPABILITY_ENVIRONMENT);
-
-            return RI_SUCCESS;
-
-        case RI_CAPABILITY_PRINT_READY:
-
-            *static_cast<
-                rim::PrintReadyCapability*>(
-                    capability)
-                =
-                g_context->capabilityAccessor
-                    .Get<
-                        rim::PrintReadyCapability>(
-                            RI_CAPABILITY_PRINT_READY);
-
-            return RI_SUCCESS;
-        }
-    }
-    catch (const std::exception&)
-    {
-        return RI_NO_DATA;
-    }
-
-    return RI_INVALID_PARAMETER;
+    return &g_context->capabilityAccessor;
 }
 
 RIStatus
@@ -535,192 +497,6 @@ int RIM_Unsubscribe(
         : RI_NO_DATA;
 }
 
-int RIM_TestInjectTemperature(
-    double temperature)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_TEMPERATURE_SENSOR_A;
-
-    item.valueType =
-        rim::ValueType::kDouble;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateDouble(
-                temperature);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-int RIM_TestInjectUpperDoorOpen(
-    int opened)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_UPPER_DOOR_OPEN;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateBool(
-                opened != 0);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-int RIM_TestInjectRightDoorOpen(
-    int opened)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_RIGHT_DOOR_OPEN;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateBool(
-                opened != 0);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-int RIM_TestInjectLeftDoorOpen(
-    int opened)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_LEFT_DOOR_OPEN;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateBool(
-                opened != 0);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-int RIM_TestInjectStapleLevel(
-    std::int32_t level)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_STAPLE_LEVEL;
-
-    item.valueType =
-        rim::ValueType::kInt32;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateInt32(
-                level);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-int RIM_TestInjectJobActive(
-    int active)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_JOB_ACTIVE;
-
-    item.value =
-        rim::RIMValueFactory::CreateBool(
-            active != 0);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-int RIM_TestInjectJobId(
-    int jobId)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    rim::RIMDataItem item{};
-
-    item.id =
-        RI_DATA_JOB_ID;
-
-    item.value =
-        rim::RIMValueFactory::CreateInt32(
-            jobId);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
-}
-
-
-
-
-
-
 RIStatus
 RIM_GetBool(
     RIDataId dataId,
@@ -738,7 +514,7 @@ RIM_GetBool(
 
     rim::RIMDataItem item{};
 
-    if (!g_context->valueStore.Find(
+    if (!TryReadDataItem(
             dataId,
             item))
     {
@@ -770,15 +546,23 @@ RIM_SetBool(
         return RI_NOT_INITIALIZED;
     }
 
-    const rim::RIMValue rawValue =
-        rim::RIMValueFactory::CreateBool(
-            value != 0);
+    rim::RIMDataItem item{};
 
-    return g_context->dispatcher.Dispatch(
-               dataId,
-               rawValue)
-           ? RI_SUCCESS
-           : RI_INVALID_PARAMETER;
+    item.id =
+        dataId;
+
+    item.valueType =
+        rim::ValueType::kBool;
+
+    item.value =
+        rim::RIMValueFactory::
+            CreateBool(
+                value != 0);
+
+    g_context->storeQueue.Push(
+        item);
+
+    return RI_SUCCESS;
 }
 
 RIStatus
@@ -798,7 +582,7 @@ RIM_GetInt32(
 
     rim::RIMDataItem item{};
 
-    if (!g_context->valueStore.Find(
+    if (!TryReadDataItem(
             dataId,
             item))
     {
@@ -829,15 +613,23 @@ RIM_SetInt32(
         return RI_NOT_INITIALIZED;
     }
 
-    const rim::RIMValue rawValue =
-        rim::RIMValueFactory::CreateInt32(
-            value);
+    rim::RIMDataItem item{};
 
-    return g_context->dispatcher.Dispatch(
-               dataId,
-               rawValue)
-           ? RI_SUCCESS
-           : RI_INVALID_PARAMETER;
+    item.id =
+        dataId;
+
+    item.valueType =
+        rim::ValueType::kInt32;
+
+    item.value =
+        rim::RIMValueFactory::
+            CreateInt32(
+                value);
+
+    g_context->storeQueue.Push(
+        item);
+
+    return RI_SUCCESS;
 }
 
 RIStatus
@@ -857,7 +649,7 @@ RIM_GetDouble(
 
     rim::RIMDataItem item{};
 
-    if (!g_context->valueStore.Find(
+    if (!TryReadDataItem(
             dataId,
             item))
     {
@@ -888,15 +680,23 @@ RIM_SetDouble(
         return RI_NOT_INITIALIZED;
     }
 
-    const rim::RIMValue rawValue =
-        rim::RIMValueFactory::CreateDouble(
-            value);
+    rim::RIMDataItem item{};
 
-    return g_context->dispatcher.Dispatch(
-               dataId,
-               rawValue)
-           ? RI_SUCCESS
-           : RI_INVALID_PARAMETER;
+    item.id =
+        dataId;
+
+    item.valueType =
+        rim::ValueType::kDouble;
+
+    item.value =
+        rim::RIMValueFactory::
+            CreateDouble(
+                value);
+
+    g_context->storeQueue.Push(
+        item);
+
+    return RI_SUCCESS;
 }
 
 RIStatus
@@ -914,11 +714,25 @@ RIM_GetBinary(
         return RI_NOT_INITIALIZED;
     }
 
-    rim::BinaryStoreValue* value{};
+    rim::RIMDataItem item{};
 
-    if (!g_context->valueStore.FindBinary(
+    if (!TryReadDataItem(
             dataId,
+            item))
+    {
+        return RI_NO_DATA;
+    }
+
+    const rim::BinaryStoreValue* value{};
+
+    if (!rim::RIMValueAccessor::GetBinary(
+            item.value,
             value))
+    {
+        return RI_INTERNAL_ERROR;
+    }
+
+    if (value == nullptr)
     {
         return RI_NO_DATA;
     }
@@ -979,76 +793,5 @@ int RIM_SetBinary(
 
     return RI_SUCCESS;
 }
-
-RIStatus
-RIM_SetErrorList(
-    const RI_FAULT_INFO_LIST* list)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    if (list == nullptr)
-    {
-        return RI_INVALID_PARAMETER;
-    }
-
-    RI_BINARY binary{};
-
-    binary.data =
-        reinterpret_cast<const std::uint8_t*>(
-            list);
-
-    binary.size =
-        sizeof(RI_FAULT_INFO_LIST);
-
-    return static_cast<RIStatus>(
-        RIM_SetBinary(
-            RI_DATA_ERROR_LIST,
-            list,
-            sizeof(RI_FAULT_INFO_LIST)));
-}
-
-RIStatus
-RIM_GetErrorList(
-    RI_FAULT_INFO_LIST* list)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    if (list == nullptr)
-    {
-        return RI_INVALID_PARAMETER;
-    }
-
-    RI_BINARY binary{};
-
-    const auto result =
-        RIM_GetBinary(
-            RI_DATA_ERROR_LIST,
-            &binary);
-
-    if (result != RI_SUCCESS)
-    {
-        return result;
-    }
-
-    if (binary.size !=
-        sizeof(RI_FAULT_INFO_LIST))
-    {
-        return RI_INTERNAL_ERROR;
-    }
-
-    std::memcpy(
-        list,
-        binary.data,
-        sizeof(RI_FAULT_INFO_LIST));
-
-    return RI_SUCCESS;
-}
-
 
 }

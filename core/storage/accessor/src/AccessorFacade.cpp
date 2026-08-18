@@ -10,8 +10,9 @@ AccessId
 AccessorFacade::CreateSnapshotByDomains(
     const std::vector<std::string_view>& domains)
 {
-    return snapshotAccessor_.CreateSnapshot(
-        domains);
+    // return snapshotAccessor_.CreateSnapshot(
+    //     domains);
+    return {};
 }
 
 AccessId
@@ -27,48 +28,28 @@ AccessorFacade::CreateSnapshotByDataId(
         return {};
     }
 
-    return snapshotAccessor_.CreateSnapshot(
-        {
-            domain
-        });
+    // return snapshotAccessor_.CreateSnapshot(
+    //     {
+    //         domain
+    //     });
+    return snapshotAccessor_
+        .CreateSnapshot(id)
+        .accessId;
 }
 
 AccessId
 AccessorFacade::CreateSnapshotByDataIds(
     const std::vector<RIDataId>& ids)
 {
-    std::vector<std::string_view>
-        domains;
-
-    for (const auto id : ids)
-    {
-        std::string_view domain;
-
-        if (!dataAccessor_.TryGetDomain(
-                id,
-                domain))
-        {
-            continue;
-        }
-
-        if (std::find(
-                domains.begin(),
-                domains.end(),
-                domain)
-            == domains.end())
-        {
-            domains.push_back(
-                domain);
-        }
-    }
-
-    if (domains.empty())
+    if (ids.empty())
     {
         return {};
     }
 
-    return snapshotAccessor_.CreateSnapshot(
-        domains);
+    return snapshotAccessor_
+        .CreateSnapshot(
+            ids)
+        .accessId;
 }
 
 } // namespace rim

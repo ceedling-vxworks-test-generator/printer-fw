@@ -1,73 +1,93 @@
-#include "SnapshotAccessor.hpp"
+#include <algorithm>
 
+#include "SnapshotAccessor.hpp"
+#include "DomainId.hpp"
 #include "DataItemDefinition.hpp"
+
+namespace
+{
+
+void
+AppendUniqueDomains(
+    std::vector<rim::DomainId>& destination,
+    const std::vector<rim::DomainId>& source)
+{
+    for (const auto& domain : source)
+    {
+        if (std::find(
+                destination.begin(),
+                destination.end(),
+                domain)
+            == destination.end())
+        {
+            destination.push_back(
+                domain);
+        }
+    }
+}
+
+}
 
 namespace rim
 {
 
-AccessId
-SnapshotAccessor::CreateSnapshot()
-{
-    return storage_.Store(
-        CreateFilteredSnapshot(
-            nullptr));
-}
-
-AccessId
+SnapshotResult
 SnapshotAccessor::CreateSnapshot(
-    const std::vector<std::string_view>& domains)
+    RIDataId changedDataId)
 {
-    return storage_.Store(
-        CreateFilteredSnapshot(
-            &domains));
+    return CreateSnapshot(
+        std::vector<RIDataId>
+        {
+            changedDataId
+        });
 }
 
-RIMSnapshot
-SnapshotAccessor::CreateFilteredSnapshot(
-    const std::vector<std::string_view>* domains) const
+SnapshotResult
+SnapshotAccessor::CreateSnapshot(
+    const std::vector<RIDataId>& changedDataIds)
 {
-    const auto source =
-        reader_.Read();
+    SnapshotResult result;
 
-    if (domains == nullptr)
+    RIMSnapshot snapshot;
+
+    for (const auto dataId :
+         changedDataIds)
     {
-        return source;
-    }
+        const auto& capabilities =
+            dependencyMap_.Find(
+                dataId);
 
-    RIMSnapshot filtered;
-
-    for (const auto& item : source.items)
-    {
-        const auto* definition =
-            rim::FindDataItem(
-                product_,
-                item.id);
-
-        if (definition == nullptr)
+        for (const auto* capability :
+             capabilities)
         {
-            continue;
-        }
+            const auto domains =
+                domainResolver_.
+                    ResolveDomains(
+                        *capability);
 
-        bool matched = false;
-
-        for (const auto& domain : *domains)
-        {
-            if (definition->domain ==
-                domain)
-            {
-                matched = true;
-                break;
-            }
-        }
-
-        if (matched)
-        {
-            filtered.items.push_back(
-                item);
+            AppendUniqueDomains(
+                snapshot.domains,
+                domains);
         }
     }
 
-    return filtered;
+    if (snapshot.domains.empty())
+    {
+        return result;
+    }
+
+    snapshotBuilder_.
+        UpdateSnapshot(
+            snapshot);
+
+    result.accessId =
+        storage_.Store(
+            snapshot);
+
+    result.snapshot =
+        snapshot;
+
+    return result;
 }
 
 bool

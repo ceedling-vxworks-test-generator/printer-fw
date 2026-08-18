@@ -6,25 +6,33 @@ namespace rim
 {
 
 inline constexpr RouteDefinition
-kValue
+kValueRoute
 {
-    "Value",
-    QueuePolicy::Buffered
-    
+    "ValueRoute",
+    QueuePolicy::Buffered,
+    QueuePolicy::Buffered,
+    CompressionPolicy::KeepLatest,
+    100
 };
 
 inline constexpr RouteDefinition
-kData
+kDataRoute
 {
-    "Data",
-    QueuePolicy::Buffered
+    "DataRoute",
+    QueuePolicy::Buffered,
+    QueuePolicy::Buffered,
+    CompressionPolicy::KeepOldest,
+    100
 };
 
 inline constexpr RouteDefinition
-kError
+kErrorRoute
 {
-    "Error",
-    QueuePolicy::Coalescing
+    "ErrorRoute",
+    QueuePolicy::Coalescing,
+    QueuePolicy::Buffered,
+    CompressionPolicy::None,
+    0
 };
 
 }

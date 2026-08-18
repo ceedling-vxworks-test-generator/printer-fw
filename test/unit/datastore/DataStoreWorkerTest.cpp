@@ -4,8 +4,7 @@
 #include "RIMSnapshotManager.hpp"
 #include "BinaryStoreValue.hpp"
 #include "RIMValueFactory.hpp"
-
-#include "CapabilityInputQueue.hpp"
+#include "DomainStorageRegistry.hpp"
 
 #include "PrinterAProductDefinition.hpp"
 #include "RouteProvider.hpp"
@@ -20,14 +19,12 @@ TEST(
 {
     rim::StoreInputQueue queue;
 
-    rim::ValueStore store;
+    rim::DomainStorageRegistry domainStore;
 
     rim::RIMSnapshotManager reader(
-        store);
+        domainStore);
 
     rim::RouteProvider routeProvider;
-
-    rim::CapabilityInputQueue capabilityQueue;
 
     auto productProvider = rim::CreatePrinterAProvider();
 
@@ -36,7 +33,7 @@ TEST(
     rim::DataStoreWorker worker(
         rim::kPrinterAProductDefinition,
         queue,
-        store,
+        domainStore,
         reader,
         routeProvider);
 
@@ -58,14 +55,12 @@ TEST(
 {
     rim::StoreInputQueue queue;
 
-    rim::ValueStore store;
+    rim::DomainStorageRegistry domainStore;
 
     rim::RIMSnapshotManager reader(
-        store);
+        domainStore);
 
     rim::RouteProvider routeProvider;
-
-    rim::CapabilityInputQueue capabilityQueue;
 
     auto productProvider = rim::CreatePrinterAProvider();
 
@@ -74,7 +69,7 @@ TEST(
     rim::DataStoreWorker worker(
         rim::kPrinterAProductDefinition,
         queue,
-        store,
+        domainStore,
         reader,
         routeProvider);
 

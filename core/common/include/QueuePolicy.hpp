@@ -7,6 +7,14 @@
 namespace rim
 {
 
+    enum class QueuePolicy
+    {
+        Buffered,
+        Coalescing,
+        // Priority,
+        // PriorityCompression,
+    };
+
     struct FifoPolicy
     {
         template<typename T>
@@ -16,6 +24,24 @@ namespace rim
         {
             events.push_back(
                 event);
+        }
+    };
+
+    struct CoalescingPolicy
+    {
+        template<typename T>
+        void Insert(std::list<T>& events, const T& event)
+        {
+            for (auto it = events.begin(); it != events.end(); ++it)
+            {
+                if (it->CompressionKey() == event.CompressionKey())
+                {
+                    events.erase(it);
+                    break;
+                }
+            }
+
+            events.push_back(event);
         }
     };
 

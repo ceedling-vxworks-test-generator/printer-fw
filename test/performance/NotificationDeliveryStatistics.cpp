@@ -55,7 +55,8 @@ TEST_F(
          ++i)
     {
         ASSERT_EQ(
-            RIM_TestInjectTemperature(
+            RIM_SetDouble(
+                RI_DATA_TEMPERATURE_SENSOR_A,
                 static_cast<double>(i)),
             RI_SUCCESS);
     }

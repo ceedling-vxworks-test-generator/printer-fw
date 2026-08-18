@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include "rim_capability_id.h"
 
 namespace rim
 {

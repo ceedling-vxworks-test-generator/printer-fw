@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IRIMSnapshotReader.hpp"
-#include "ValueStore.hpp"
+#include "DomainStorageRegistry.hpp"
 
 namespace rim
 {
@@ -12,13 +12,14 @@ class RIMSnapshotManager
 public:
 
     explicit RIMSnapshotManager(
-        const ValueStore& store);
+        const DomainStorageRegistry& store);
 
     RIMSnapshot Read() const override;
 
 private:
 
-    const ValueStore& store_;
+    const DomainStorageRegistry&
+        store_;
 };
 
 }

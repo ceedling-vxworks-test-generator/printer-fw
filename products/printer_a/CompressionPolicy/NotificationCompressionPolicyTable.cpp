@@ -1,6 +1,6 @@
 #include "NotificationCompressionPolicyTable.hpp"
 
-#include "rim_capability_id.h"
+#include "../printer_a_capability_id.h"
 
 namespace
 {

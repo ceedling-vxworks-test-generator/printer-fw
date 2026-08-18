@@ -5,23 +5,58 @@
 #include "RIMValueAccessor.hpp"
 #include "BinaryStoreValue.hpp"
 
+#include "DomainStorageRegistry.hpp"
+#include "DataDomainMap.hpp"
+#include "PrinterAProductDefinition.hpp"
+
+namespace
+{
+
+rim::RIMDataItem GetItem(
+    rim::DomainStorageRegistry& store,
+    RIDataId dataId)
+{
+    rim::DataDomainMap map(
+        rim::kPrinterAProductDefinition);
+
+    const auto domainId =
+        map.Find(
+            dataId);
+
+    EXPECT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    rim::RIMDataItem item{};
+
+    EXPECT_TRUE(
+        store
+            .GetOrCreate(
+                domainId)
+            .Find(
+                dataId,
+                item));
+
+    return item;
+}
+
+} // namespace
+
 TEST(
     EndToEndDataToStoreTest,
     TemperatureSensorA)
 {
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     rim::TestDataProcessor::
         ProcessTemperatureA(
             27.0,
             store);
 
-    rim::RIMDataItem item{};
-
-    ASSERT_TRUE(
-        store.Find(
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            item));
+    auto item =
+        GetItem(
+            store,
+            RI_DATA_TEMPERATURE_SENSOR_A);
 
     double value{};
 
@@ -39,19 +74,17 @@ TEST(
     EndToEndDataToStoreTest,
     TemperatureSensorB)
 {
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     rim::TestDataProcessor::
         ProcessTemperatureB(
             300.15,
             store);
 
-    rim::RIMDataItem item{};
-
-    ASSERT_TRUE(
-        store.Find(
-            RI_DATA_TEMPERATURE_SENSOR_B,
-            item));
+    auto item =
+        GetItem(
+            store,
+            RI_DATA_TEMPERATURE_SENSOR_B);
 
     double value{};
 
@@ -69,19 +102,17 @@ TEST(
     EndToEndDataToStoreTest,
     HumiditySensor)
 {
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     rim::TestDataProcessor::
         ProcessHumidity(
             60.0,
             store);
 
-    rim::RIMDataItem item{};
-
-    ASSERT_TRUE(
-        store.Find(
-            RI_DATA_HUMIDITY_SENSOR,
-            item));
+    auto item =
+        GetItem(
+            store,
+            RI_DATA_HUMIDITY_SENSOR);
 
     double value{};
 
@@ -99,7 +130,7 @@ TEST(
     EndToEndDataToStoreTest,
     UpperDoorOpen)
 {
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     rim::TestDataProcessor::
         StoreData(
@@ -108,12 +139,10 @@ TEST(
                 true),
             store);
 
-    rim::RIMDataItem item{};
-
-    ASSERT_TRUE(
-        store.Find(
-            RI_DATA_UPPER_DOOR_OPEN,
-            item));
+    auto item =
+        GetItem(
+            store,
+            RI_DATA_UPPER_DOOR_OPEN);
 
     bool opened{};
 
@@ -125,4 +154,3 @@ TEST(
     EXPECT_TRUE(
         opened);
 }
-

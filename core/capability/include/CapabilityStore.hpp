@@ -4,7 +4,7 @@
 #include <new>
 #include <unordered_map>
 
-#include "rim_capability_id.h"
+#include "RIId.hpp"
 
 namespace rim
 {

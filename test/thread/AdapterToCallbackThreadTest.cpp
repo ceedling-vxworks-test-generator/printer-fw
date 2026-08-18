@@ -5,13 +5,13 @@
 #include <atomic>
 
 #include "AdapterDispatcher.hpp"
-#include "RIMValueFactory.hpp"
+#include "products/printer_a/Adapter/PrinterAAdapter.hpp"
 
 #include "StoreInputQueue.hpp"
 #include "DataStoreWorker.hpp"
 #include "RIMSnapshotManager.hpp"
+#include "DomainStorageRegistry.hpp"
 
-#include "CapabilityInputQueue.hpp"
 #include "CapabilityWorker.hpp"
 #include "CapabilityManager.hpp"
 #include "CapabilityStore.hpp"
@@ -40,6 +40,9 @@
 
 #include "ProductFactory.hpp"
 #include "IProductProvider.hpp"
+#include "CallbackQueue.hpp"
+#include "CallbackWorker.hpp"
+#include "PrinterAProductDefinition.hpp"
 
 TEST(
     AdapterToCallbackThreadTest,
@@ -47,16 +50,17 @@ TEST(
 {
     rim::StoreInputQueue storeQueue;
 
-    rim::CapabilityInputQueue capabilityQueue;
+    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
     rim::RouteProvider routeProvider;
 
     rim::PublisherInputQueue publisherQueue;
 
-    rim::ValueStore valueStore;
+    rim::DomainStorageRegistry
+        domainStore;
 
     rim::RIMSnapshotManager reader(
-        valueStore);
+        domainStore);
 
     rim::CapabilityStore capabilityStore;
 
@@ -112,10 +116,18 @@ TEST(
     subscriptionStore.Register(
         info);
 
-    rim::ChangeNotifyManager notifyManager(
-        subscriptionStore,
-        mailboxManager,
-        callbackRegistry);
+        rim::CallbackQueue callbackQueue; 
+        rim::CallbackWorker
+            callbackWorker(
+            callbackQueue,
+            callbackRegistry);
+
+        rim::ChangeNotifyManager
+            notifyManager(
+                subscriptionStore,
+                mailboxManager,
+                callbackRegistry,
+                callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -123,7 +135,8 @@ TEST(
     rim::PublishManager publishManager(
         notifyManager,
         periodicNotifyManager,
-        subscriptionStore);
+        subscriptionStore,
+        rim::kPrinterAProductDefinition);
 
     auto productProvider = rim::CreatePrinterAProvider();
 
@@ -132,20 +145,19 @@ TEST(
     rim::DataStoreWorker dataStoreWorker(
         rim::kPrinterAProductDefinition,
         storeQueue,
-        valueStore,
+        domainStore,
         reader,
         routeProvider);
 
     std::vector<std::unique_ptr<rim::RoutePipeline>> pipelines;
 
-    for (const auto& route : routeProvider.GetQueues())
+    for (const auto& [name, queues]: routeProvider.GetQueues())
     {
         pipelines.push_back(
             std::make_unique<rim::RoutePipeline>(
                 rim::kPrinterAProductDefinition,
-                *route.second,
-                valueStore,
-                productProvider->GetChangeChecker(),
+                queues,
+                domainStore,
                 reader,
                 capabilityManager,
                 publisherQueue));
@@ -162,17 +174,18 @@ TEST(
         pipeline->Start();
     }
 
+    callbackWorker.Run();
     publisherWorker.Run();
 
     rim::AdapterDispatcher dispatcher(
         rim::kPrinterAProductDefinition,
         storeQueue);
 
+    rim::PrinterAAdapter adapter(
+        dispatcher);
+
     ASSERT_TRUE(
-        dispatcher.Dispatch(
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::RIMValueFactory::CreateDouble(
-                30)));
+        adapter.Poll());
 
     EXPECT_TRUE(
         WaitUntil(
@@ -183,6 +196,7 @@ TEST(
             std::chrono::seconds(1)));
 
     publisherWorker.Stop();
+    callbackWorker.Stop();
 
     for (auto& pipeline : pipelines)
     {

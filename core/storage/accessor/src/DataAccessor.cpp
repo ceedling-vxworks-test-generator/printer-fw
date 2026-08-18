@@ -1,5 +1,6 @@
 #include "DataAccessor.hpp"
 
+#include "DataDomainMap.hpp"
 #include "DataItemDefinition.hpp"
 #include "DomainDefinition.hpp"
 
@@ -11,7 +12,29 @@ DataAccessor::TryGetData(
     RIDataId id,
     RIMDataItem& item) const
 {
-    return store_.Find(
+    DataDomainMap map(
+        product_);
+
+    const DomainId domainId =
+        map.Find(
+            id);
+
+    if (domainId ==
+        kInvalidDomainId)
+    {
+        return false;
+    }
+
+    const auto* storage =
+        store_.Find(
+            domainId);
+
+    if (storage == nullptr)
+    {
+        return false;
+    }
+
+    return storage->Find(
         id,
         item);
 }
@@ -32,7 +55,7 @@ DataAccessor::TryGetDomain(
     }
 
     domain =
-        definition->domain;
+        definition->domain->name;
 
     return true;
 }
@@ -81,9 +104,9 @@ DataAccessor::TryGetDomain(
     }
 
     domain =
-        definition->domain;
+        definition->domain->name;
 
     return true;
 }
 
-} // namespace rim
+}

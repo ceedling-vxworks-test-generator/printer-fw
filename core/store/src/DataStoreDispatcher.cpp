@@ -3,28 +3,23 @@
 #include "DataStoreDispatcher.hpp"
 #include "DataItemDefinition.hpp"
 #include "RIMDataItem.hpp"
-#include "DataStoreQueue.hpp"
-#include "ValueStore.hpp"
-#include "IChangeChecker.hpp"
 
 namespace rim
 {
 
 DataStoreDispatcher::DataStoreDispatcher(
     const ProductDefinition& product,
-    DataStoreQueue& queue,
-    ValueStore& store,
-    const IChangeChecker& changeChecker,
+    IQueue<RIMDataItem>& queue,
+    DomainStorageRegistry& domainStore,
     IRIMSnapshotReader& reader,
-    CapabilityInputQueue& capabilityQueue,
-    uint32_t priority)
-    : product_(product)
-    , queue_(queue)
-    , store_(store)
-    , changeChecker_(changeChecker)
-    , reader_(reader)
-    , capabilityQueue_(capabilityQueue)
-    , priority_(priority)
+    IQueue<CapabilityInput>& capabilityQueue)
+    :
+    product_(product),
+    queue_(queue),
+    domainStore_(domainStore),
+    capabilityQueue_(capabilityQueue),
+    reader_(reader),
+    dataDomainMap_(product)
 {
 }
 
@@ -33,7 +28,8 @@ DataStoreDispatcher::~DataStoreDispatcher()
     stop();
 }
 
-void DataStoreDispatcher::start()
+void
+DataStoreDispatcher::start()
 {
     if (running_)
     {
@@ -41,10 +37,15 @@ void DataStoreDispatcher::start()
     }
 
     running_ = true;
-    workerThread_ = std::thread(&DataStoreDispatcher::run, this);
+
+    workerThread_ =
+        std::thread(
+            &DataStoreDispatcher::run,
+            this);
 }
 
-void DataStoreDispatcher::stop()
+void
+DataStoreDispatcher::stop()
 {
     if (!running_)
     {
@@ -52,7 +53,8 @@ void DataStoreDispatcher::stop()
     }
 
     running_ = false;
-    queue_.shutdown();
+
+    queue_.Shutdown();
 
     if (workerThread_.joinable())
     {
@@ -60,90 +62,71 @@ void DataStoreDispatcher::stop()
     }
 }
 
-void DataStoreDispatcher::run()
+void
+DataStoreDispatcher::run()
 {
     while (running_)
     {
-        RIMDataItem oldItem{};
-        RIMDataItem newItem{};
+        RIMDataItem item{};
 
-        if (!queue_.Pop(newItem))
+        if (!queue_.WaitAndPop(item))
         {
             break;
         }
-        
-        const RIMValue* oldValue = nullptr;
 
-        if (store_.Find(newItem.id, oldItem))
+        if (ProcessItem(item))
         {
-            oldValue = &oldItem.value;
+            CapabilityInput input{};
+
+            input.snapshot =
+                reader_.Read();
+
+            input.changedDataId =
+                item.id;
+
+            capabilityQueue_.Push(
+                input);
         }
-
-        if( !changeChecker_.isChanged(oldValue, newItem))
-        {
-            continue;
-        }
-
-        ProcessItem(newItem);
-
-        const auto* definition = FindDataItem(product_, newItem.id);
-
-        if (definition == nullptr)
-        {
-            continue;
-        }
-
-        CapabilityInput input{};
-
-        input.snapshot = reader_.Read();
-        input.changedDataId = newItem.id;
-        capabilityQueue_.Push(input);
     }
 }
 
-bool DataStoreDispatcher::ExecuteOnce()
+bool
+DataStoreDispatcher::ExecuteOnce()
 {
-    RIMDataItem oldItem{};
-    RIMDataItem newItem{};
+    RIMDataItem item{};
 
-    if (!queue_.TryPop(newItem))
+    if (!queue_.TryPop(item))
     {
         return false;
     }
 
-    const RIMValue* oldValue = nullptr;
-
-    if (store_.Find(newItem.id, oldItem))
+    if (ProcessItem(item))
     {
-        oldValue = &oldItem.value;
+        CapabilityInput input{};
+
+        input.snapshot =
+            reader_.Read();
+
+        input.changedDataId =
+            item.id;
+
+        capabilityQueue_.Push(
+            input);
     }
-
-    if (!changeChecker_.isChanged(oldValue, newItem))
-    {
-        return true;
-    }
-
-    ProcessItem(newItem);
-
-    const auto* definition = FindDataItem(product_, newItem.id);
-
-    if (definition == nullptr)
-    {
-        return false;
-    }
-
-    CapabilityInput input{};
-
-    input.snapshot = reader_.Read();
-    input.changedDataId = newItem.id;
-    capabilityQueue_.Push(input);
 
     return true;
 }
 
-void DataStoreDispatcher::ProcessItem(
+bool
+DataStoreDispatcher::ProcessItem(
     RIMDataItem& item)
 {
+    bool result = false;
+
+    const auto domainId =
+        dataDomainMap_.Find(
+            item.id);
+
     const auto* definition =
         FindDataItem(
             product_,
@@ -155,12 +138,28 @@ void DataStoreDispatcher::ProcessItem(
 
         RIMValue currentValue{};
 
-        if (store_.Find(
-                item.id,
-                currentItem))
+        bool exists = false;
+
+        if (domainId !=
+            kInvalidDomainId)
         {
-            currentValue =
-                currentItem.value;
+            const auto* storage =
+                domainStore_.Find(
+                    domainId);
+
+            if (storage != nullptr)
+            {
+                exists =
+                    storage->Find(
+                        item.id,
+                        currentItem);
+
+                if (exists)
+                {
+                    currentValue =
+                        currentItem.value;
+                }
+            }
         }
 
         item.value =
@@ -171,10 +170,32 @@ void DataStoreDispatcher::ProcessItem(
 
         item.valueType =
             definition->storeValueType;
+
+        if (exists &&
+            definition->diff != nullptr)
+        {
+            result =
+                definition->diff(
+                    currentValue,
+                    item.value);
+        }
+        else
+        {
+            result = true;
+        }
     }
 
-    store_.Store(
-        item);
+    if (domainId !=
+        kInvalidDomainId)
+    {
+        domainStore_
+            .GetOrCreate(
+                domainId)
+            .Store(
+                item);
+    }
+
+    return result;
 }
 
 } // namespace rim

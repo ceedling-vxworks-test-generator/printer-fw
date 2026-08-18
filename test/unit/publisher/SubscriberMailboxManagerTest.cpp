@@ -41,5 +41,53 @@ TEST(
         &mailbox2);
 }
 
+TEST(
+    SubscriberMailboxManagerTest,
+    RemoveMailbox)
+{
+    rim::SubscriberMailboxManager manager;
+
+    auto& mailbox =
+        manager.GetMailbox(100);
+
+    EXPECT_TRUE(
+        manager.RemoveMailbox(100));
+
+    EXPECT_FALSE(
+        manager.RemoveMailbox(100));
+}
+
+TEST(
+    SubscriberMailboxManagerTest,
+    GetOverflowCountUnknownMailbox)
+{
+    rim::SubscriberMailboxManager manager;
+
+    EXPECT_EQ(
+        manager.GetOverflowCount(999),
+        0U);
+}
+
+TEST(
+    SubscriberMailboxManagerTest,
+    GetOverflowCount)
+{
+    rim::SubscriberMailboxManager manager;
+
+    auto& mailbox =
+        manager.GetMailbox(100);
+
+    rim::NotificationMessage msg{};
+
+    for (int i = 0; i < 1001; ++i)
+    {
+        mailbox.Push(msg);
+    }
+
+    EXPECT_EQ(
+        manager.GetOverflowCount(100),
+        1U);
+}
+
 } // namespace
 } // namespace rim

@@ -34,14 +34,14 @@ void DataStoreWorker::Run()
                         break;
                     }
 
-                    auto queue = routeProvider_.find(item.id);
+                    auto queue = routeProvider_.Find(item.id);
 
                     if (queue == nullptr)
                     {
                         continue;
                     }
 
-                    queue->push(item);
+                    queue->storeQueue->Push(item);
 
                 }
             });
@@ -69,14 +69,14 @@ bool DataStoreWorker::ExecuteOnce()
         return false;
     }
 
-    auto queue = routeProvider_.find(item.id);
+    auto queue = routeProvider_.Find(item.id);
 
-    if (queue== nullptr)
+    if (queue == nullptr)
     {
         return false;
     }
 
-    queue->push(item);
+    queue->storeQueue->Push(item);
 
     return true;
 }

@@ -1,36 +1,56 @@
 #include <gtest/gtest.h>
 
-#include <any>
-
 #include "CapabilityAccessor.hpp"
 #include "CapabilityStore.hpp"
-
 #include "EnvironmentCapability.hpp"
 
-#include "rim_capability_id.h"
+#include "printer_a.h"
 
-TEST(
+namespace
+{
+
+class CapabilityAccessorTest :
+    public ::testing::Test
+{
+protected:
+
+    void StoreEnvironment(
+        double temperature = 35.0,
+        double humidity = 60.0)
+    {
+        rim::EnvironmentCapability env{};
+
+        env.temperature =
+            temperature;
+
+        env.humidity =
+            humidity;
+
+        store.Store(
+            RI_CAPABILITY_ENVIRONMENT,
+            env);
+    }
+
+    rim::CapabilityStore store;
+};
+
+} // namespace
+
+TEST_F(
     CapabilityAccessorTest,
     GetEnvironment)
 {
-    rim::CapabilityStore store;
-
-    rim::EnvironmentCapability env{};
-
-    env.temperature = 35.0;
-    env.humidity = 60.0;
-
-    store.Store(
-        RI_CAPABILITY_ENVIRONMENT,
-        env);
+    StoreEnvironment();
 
     rim::CapabilityAccessor accessor(
         store);
 
-    const auto result =
-        accessor.Get<
-            rim::EnvironmentCapability>(
-                RI_CAPABILITY_ENVIRONMENT);
+    rim::EnvironmentCapability result{};
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
 
     EXPECT_DOUBLE_EQ(
         result.temperature,
@@ -41,51 +61,119 @@ TEST(
         60.0);
 }
 
-// TEST(
-//     CapabilityAccessorTest,
-//     GetJob)
-// {
-//     rim::CapabilityStore store;
-
-//     rim::JobCapability capability{};
-
-//     capability.jobActive = true;
-//     capability.jobId = 123;
-
-//     store.Store(
-//         RI_CAPABILITY_JOB,
-//         capability);
-
-//     rim::CapabilityAccessor accessor(
-//         store);
-
-//     const auto result =
-//         accessor.Get<
-//             rim::JobCapability>(
-//                 RI_CAPABILITY_JOB);
-
-//     EXPECT_TRUE(
-//         result.jobActive);
-
-//     EXPECT_EQ(
-//         result.jobId,
-//         123);
-// }
-
-TEST(
+TEST_F(
     CapabilityAccessorTest,
-    ThrowWhenCapabilityNotFound)
+    RepeatedReadReturnsSameValue)
 {
-    rim::CapabilityStore store;
+    StoreEnvironment();
 
     rim::CapabilityAccessor accessor(
         store);
 
-    EXPECT_THROW(
-        (
-            accessor.Get<
-                rim::EnvironmentCapability>(
-                    RI_CAPABILITY_ENVIRONMENT)
-        ),
-        std::exception);
+    rim::EnvironmentCapability first{};
+    rim::EnvironmentCapability second{};
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            first));
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            second));
+
+    EXPECT_DOUBLE_EQ(
+        first.temperature,
+        second.temperature);
+
+    EXPECT_DOUBLE_EQ(
+        first.humidity,
+        second.humidity);
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    OverwriteCapability)
+{
+    StoreEnvironment(
+        10.0,
+        20.0);
+
+    StoreEnvironment(
+        30.0,
+        40.0);
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    rim::EnvironmentCapability result{};
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
+
+    EXPECT_DOUBLE_EQ(
+        result.temperature,
+        30.0);
+
+    EXPECT_DOUBLE_EQ(
+        result.humidity,
+        40.0);
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    ReturnFalseWhenCapabilityNotFound)
+{
+    rim::CapabilityAccessor accessor(
+        store);
+
+    rim::EnvironmentCapability result{};
+
+    EXPECT_FALSE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    ReturnFalseWhenCapabilityTypeMismatch)
+{
+    StoreEnvironment();
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    int result{};
+
+    EXPECT_FALSE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    TypeMismatchStillDetectedAfterOverwrite)
+{
+    StoreEnvironment(
+        10.0,
+        20.0);
+
+    StoreEnvironment(
+        30.0,
+        40.0);
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    int result{};
+
+    EXPECT_FALSE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
 }

@@ -4,6 +4,7 @@
 #include <list>
 #include <chrono>
 #include <condition_variable>
+#include "IQueue.hpp"
 
 namespace rim
 {
@@ -12,19 +13,29 @@ template<
     typename T,
     typename TPolicy>
 class EventQueue
+    : public IQueue<T>
 {
 public:
 
-    void Push(
+    bool Push(
         const T& event)
     {
-        std::lock_guard<std::mutex>
-            lock(mutex_);
+        {
+            std::lock_guard<std::mutex>
+                lock(mutex_);
 
-        policy_.Insert(
-            events_,event);
+            if (shutdown_)
+            {
+                return false;
+            }
+
+            policy_.Insert(
+                events_,event);
+        }
 
         cv_.notify_one();
+
+        return true;
     }
 
     bool TryPop(
@@ -38,8 +49,7 @@ public:
             return false;
         }
 
-        event =
-            events_.front();
+        event = std::move(events_.front());
 
         events_.pop_front();
 
@@ -66,8 +76,7 @@ public:
             return false;
         }
 
-        event =
-            events_.front();
+        event = std::move(events_.front());
 
         events_.pop_front();
 
@@ -102,8 +111,7 @@ public:
             return false;
         }
 
-        event =
-            events_.front();
+        event = std::move(events_.front());
 
         events_.pop_front();
 

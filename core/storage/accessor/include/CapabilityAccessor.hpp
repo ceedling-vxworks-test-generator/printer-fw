@@ -1,9 +1,8 @@
 #pragma once
 
 #include <any>
-#include <new>
-#include <stdexcept>
 
+#include "RIId.hpp"
 #include "CapabilityStore.hpp"
 
 namespace rim
@@ -20,21 +19,31 @@ public:
     }
 
     template<typename T>
-    T Get(
-        RICapabilityId capabilityId) const
+    bool TryGet(
+        RICapabilityId capabilityId,
+        T& value) const
     {
-        const auto* value =
+        const auto* anyValue =
             store_.Find(
                 capabilityId);
 
-        if (value == nullptr)
+        if (anyValue == nullptr)
         {
-            throw std::runtime_error(
-                "Capability not found");
+            return false;
         }
 
-        return std::any_cast<T>(
-            *value);
+        const auto* typedValue =
+            std::any_cast<T>(
+                anyValue);
+
+        if (typedValue == nullptr)
+        {
+            return false;
+        }
+
+        value = *typedValue;
+
+        return true;
     }
 
 private:

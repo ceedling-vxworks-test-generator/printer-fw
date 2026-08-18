@@ -1,7 +1,5 @@
 #pragma once
 
-#include "rim_capability_id.h"
-
 #include "EventPriority.hpp"
 #include "CompressionPolicy.hpp"
 #include "NotificationTarget.hpp"

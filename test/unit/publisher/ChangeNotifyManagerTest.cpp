@@ -1,12 +1,56 @@
 #include <gtest/gtest.h>
+#include <atomic>
+
+#include "printer_a.h"
 
 #include "ChangeNotifyManager.hpp"
 #include "CallbackSubscriptionRegistry.hpp"
 
 #include "DeliveryMethod.hpp"
 #include "NotificationTrigger.hpp"
-#include "rim_capability_id.h"
 #include "NotificationTargetType.hpp"
+#include "ICustomDeliveryHandler.hpp"
+#include "CallbackWorker.hpp"
+#include "CallbackQueue.hpp"
+
+#include "test/support/TestWaitHelper.hpp"
+
+namespace
+{
+
+    class FailingCustomDeliveryHandler
+        : public rim::ICustomDeliveryHandler
+    {
+    public:
+
+        bool Deliver(
+            const rim::SubscriptionInfo&,
+            const rim::NotificationMessage&)
+            override
+        {
+            //MessageSend,EventSend�Ȃǒǉ��������z�M���@������
+            return false;
+        }
+    };
+
+}
+
+class SuccessfulCustomDeliveryHandler
+    : public rim::ICustomDeliveryHandler
+{
+public:
+
+    bool Deliver(
+        const rim::SubscriptionInfo&,
+        const rim::NotificationMessage&)
+        override
+    {
+        called_ = true;
+        return true;
+    }
+
+    bool called_{false};
+};
 
 
 TEST(
@@ -18,6 +62,7 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
     const auto id =
         store.CreateSubscriptionId();
@@ -42,7 +87,8 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry
+        ,callbackQueue);
 
     manager.Notify(
     {
@@ -74,129 +120,81 @@ TEST(
     ChangeNotifyManagerTest,
     NotifyErrorCallback)
 {
-    rim::SubscriptionStore store;
+    rim::SubscriptionStore
+        subscriptionStore;
 
-    rim::SubscriberMailboxManager mailboxManager;
+    rim::SubscriberMailboxManager
+        mailboxManager;
 
-    rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackSubscriptionRegistry
+        callbackRegistry;
 
-    bool called = false;
+    rim::CallbackQueue
+        callbackQueue;
 
-    const auto id =
-        store.CreateSubscriptionId();
+    rim::CallbackWorker
+        callbackWorker(
+            callbackQueue,
+            callbackRegistry);
+
+    std::atomic<bool>
+        called{false};
+
+    const auto subscriptionId =
+        subscriptionStore.CreateSubscriptionId();
 
     callbackRegistry.Subscribe(
-        id,
+        subscriptionId,
         [&](rim::SubscriptionId subscriptionId,
             const rim::NotificationMessage& message)
         {
-            EXPECT_EQ(
-                message.target.type,
-                rim::NotificationTargetType::Capability);
-
-            EXPECT_EQ(
-                message.target.id,
-                static_cast<std::uint32_t>(
-                    RI_CAPABILITY_ERROR));
-
             called = true;
         });
 
     rim::SubscriptionInfo info{};
 
-    info.id = id;
+    info.id =
+        subscriptionId;
+
     info.target =
     {
         rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_ERROR)
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ERROR)
     };
 
     info.method =
         rim::DeliveryMethod::Callback;
+
     info.trigger =
         rim::NotificationTrigger::OnChange;
 
-    store.Register(
+    subscriptionStore.Register(
         info);
 
-    rim::ChangeNotifyManager manager(
-        store,
-        mailboxManager,
-        callbackRegistry);
+    rim::ChangeNotifyManager
+        manager(
+            subscriptionStore,
+            mailboxManager,
+            callbackRegistry,
+            callbackQueue);
+
+    callbackWorker.Run();
 
     manager.Notify(
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_ERROR)
-    },
-    rim::NotificationTrigger::OnChange);
+        info.target,
+        rim::NotificationTrigger::OnChange);
 
     EXPECT_TRUE(
-        called);
-}
+        WaitUntil(
+            [&]
+            {
+                return called.load();
+            },
+            std::chrono::milliseconds(
+                100)));
 
-TEST(
-    ChangeNotifyManagerTest,
-    NotifyPrintReadyCallback)
-{
-    rim::SubscriptionStore store;
-
-    rim::SubscriberMailboxManager mailboxManager;
-
-    rim::CallbackSubscriptionRegistry callbackRegistry;
-
-    bool called = false;
-
-    const auto id =
-        store.CreateSubscriptionId();
-
-    callbackRegistry.Subscribe(
-        id,
-        [&](rim::SubscriptionId subscriptionId,
-            const rim::NotificationMessage& message)
-        {
-            EXPECT_EQ(
-                message.target.type,
-                rim::NotificationTargetType::Capability);
-
-            EXPECT_EQ(
-                message.target.id,
-                static_cast<std::uint32_t>(
-                    RI_CAPABILITY_PRINT_READY));
-
-            called = true;
-        });
-
-    rim::SubscriptionInfo info{};
-
-    info.id = id;
-    info.target =
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_PRINT_READY)
-    };
-
-    info.method =
-        rim::DeliveryMethod::Callback;
-    info.trigger =
-        rim::NotificationTrigger::OnChange;
-
-    store.Register(
-        info);
-
-    rim::ChangeNotifyManager manager(
-        store,
-        mailboxManager,
-        callbackRegistry);
-
-    manager.Notify(
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_PRINT_READY)
-    },
-    rim::NotificationTrigger::OnChange);
-    EXPECT_TRUE(
-        called);
+    callbackWorker.Stop();
 }
 
 TEST(
@@ -208,8 +206,13 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
-    bool called = false;
+    rim::CallbackWorker callbackWorker(
+        callbackQueue,
+        callbackRegistry);
+
+    std::atomic<bool> called{false};
 
     const auto id =
         store.CreateSubscriptionId();
@@ -256,7 +259,10 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
+
+    callbackWorker.Run();
 
     manager.Notify(
     {
@@ -266,21 +272,34 @@ TEST(
     },
     rim::NotificationTrigger::OnChange);
 
-    EXPECT_TRUE(called);
+    EXPECT_TRUE(
+        WaitUntil(
+            [&]
+            {
+                return called.load();
+            },
+            std::chrono::milliseconds(100)));
+
+    callbackWorker.Stop();
 }
+
 
 TEST(
     ChangeNotifyManagerTest,
     NotifyJobCallback)
 {
-
     rim::SubscriptionStore store;
 
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
-    bool called = false;
+    rim::CallbackWorker callbackWorker(
+        callbackQueue,
+        callbackRegistry);
+
+    std::atomic<bool> called{false};
 
     const auto id =
         store.CreateSubscriptionId();
@@ -308,11 +327,13 @@ TEST(
     info.target =
     {
         rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_JOB)
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_JOB)
     };
 
     info.method =
         rim::DeliveryMethod::Callback;
+
     info.trigger =
         rim::NotificationTrigger::OnChange;
 
@@ -322,83 +343,28 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
+
+    callbackWorker.Run();
 
     manager.Notify(
     {
         rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_JOB)
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_JOB)
     },
     rim::NotificationTrigger::OnChange);
 
     EXPECT_TRUE(
-        called);
-}
+        WaitUntil(
+            [&]
+            {
+                return called.load();
+            },
+            std::chrono::milliseconds(100)));
 
-TEST(
-    ChangeNotifyManagerTest,
-    NotifyEnvironmentCallback)
-{
-
-    rim::SubscriptionStore store;
-
-    rim::SubscriberMailboxManager mailboxManager;
-
-    rim::CallbackSubscriptionRegistry callbackRegistry;
-
-    bool called = false;
-
-    const auto id =
-        store.CreateSubscriptionId();
-
-    callbackRegistry.Subscribe(
-        id,
-        [&](rim::SubscriptionId subscriptionId,
-            const rim::NotificationMessage& message)
-        {
-            EXPECT_EQ(
-                message.target.type,
-                rim::NotificationTargetType::Capability);
-
-            EXPECT_EQ(
-                message.target.id,
-                static_cast<std::uint32_t>(
-                    RI_CAPABILITY_ENVIRONMENT));
-
-            called = true;
-        });
-
-    rim::SubscriptionInfo info{};
-
-    info.id = id;
-    info.target =
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_ENVIRONMENT)
-    };
-
-    info.method =
-        rim::DeliveryMethod::Callback;
-    info.trigger =
-        rim::NotificationTrigger::OnChange;
-
-    store.Register(
-        info);
-
-    rim::ChangeNotifyManager manager(
-        store,
-        mailboxManager,
-        callbackRegistry);
-
-    manager.Notify(
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_ENVIRONMENT)
-    },
-    rim::NotificationTrigger::OnChange);
-
-    EXPECT_TRUE(
-        called);
+    callbackWorker.Stop();
 }
 
 TEST(
@@ -410,6 +376,7 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
     bool called = false;
 
@@ -444,7 +411,8 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
 
     manager.Notify(
     {
@@ -466,6 +434,7 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
     bool called = false;
 
@@ -500,7 +469,8 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
 
     manager.Notify(
     {
@@ -521,8 +491,13 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
-    bool called = false;
+    rim::CallbackWorker callbackWorker(
+        callbackQueue,
+        callbackRegistry);
+
+    std::atomic<bool> called{false};
 
     const auto id =
         store.CreateSubscriptionId();
@@ -550,11 +525,13 @@ TEST(
     info.target =
     {
         rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_ENVIRONMENT)
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT)
     };
 
     info.method =
         rim::DeliveryMethod::Callback;
+
     info.trigger =
         rim::NotificationTrigger::OnChange;
 
@@ -564,18 +541,30 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
+
+    callbackWorker.Run();
 
     manager.Notify(
     {
         rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(RI_CAPABILITY_ENVIRONMENT)
+        static_cast<std::uint32_t>(
+            RI_CAPABILITY_ENVIRONMENT)
     },
     rim::NotificationTrigger::OnChange);
 
     EXPECT_TRUE(
-        called);
+        WaitUntil(
+            [&]
+            {
+                return called.load();
+            },
+            std::chrono::milliseconds(100)));
+
+    callbackWorker.Stop();
 }
+
 
 TEST(
     ChangeNotifyManagerTest,
@@ -586,6 +575,7 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
     store.Register(
     {
@@ -601,7 +591,8 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
 
     manager.Notify(
     {
@@ -629,7 +620,7 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
-
+    rim::CallbackQueue callbackQueue;
     bool called = false;
 
     const auto id =
@@ -665,7 +656,8 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
 
     manager.Notify(
     {
@@ -687,9 +679,14 @@ TEST(
     rim::SubscriberMailboxManager mailboxManager;
 
     rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
 
-    bool called1 = false;
-    bool called2 = false;
+    rim::CallbackWorker callbackWorker(
+        callbackQueue,
+        callbackRegistry);
+
+    std::atomic<bool> called1{false};
+    std::atomic<bool> called2{false};
 
     const auto id1 =
         store.CreateSubscriptionId();
@@ -738,7 +735,10 @@ TEST(
     rim::ChangeNotifyManager manager(
         store,
         mailboxManager,
-        callbackRegistry);
+        callbackRegistry,
+        callbackQueue);
+
+    callbackWorker.Run();
 
     manager.Notify(
     {
@@ -747,6 +747,176 @@ TEST(
     },
     rim::NotificationTrigger::OnChange);
 
-    EXPECT_TRUE(called1);
-    EXPECT_TRUE(called2);
+    EXPECT_TRUE(
+        WaitUntil(
+            [&]
+            {
+                return
+                    called1.load()
+                    &&
+                    called2.load();
+            },
+            std::chrono::milliseconds(100)));
+
+    callbackWorker.Stop();
 }
+
+TEST(
+    ChangeNotifyManagerTest,
+    CustomDeliveryWithoutHandler)
+{
+    rim::SubscriptionStore store;
+
+    rim::SubscriberMailboxManager mailboxManager;
+
+    rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
+
+    const auto id =
+        store.CreateSubscriptionId();
+
+    store.Register(
+    {
+        id,
+        {
+            rim::NotificationTargetType::Capability,
+            RI_CAPABILITY_ENVIRONMENT
+        },
+        rim::DeliveryMethod::Custom,
+        rim::NotificationTrigger::OnChange
+    });
+
+    rim::ChangeNotifyManager manager(
+        store,
+        mailboxManager,
+        callbackRegistry,
+        callbackQueue);
+
+    EXPECT_NO_THROW(
+        manager.Notify(
+        {
+            rim::NotificationTargetType::Capability,
+            RI_CAPABILITY_ENVIRONMENT
+        },
+        rim::NotificationTrigger::OnChange));
+
+    EXPECT_EQ(
+        manager.GetCustomDeliveryFailureCount(),
+        0U);
+}
+
+TEST(
+    ChangeNotifyManagerTest,
+    CustomDeliverySucceeded)
+{
+    rim::SubscriptionStore store;
+
+    rim::SubscriberMailboxManager mailboxManager;
+
+    rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
+
+    SuccessfulCustomDeliveryHandler handler;
+
+    rim::ChangeNotifyManager manager(
+        store,
+        mailboxManager,
+        callbackRegistry,
+        callbackQueue);
+
+    manager.SetCustomDeliveryHandler(
+        &handler);
+
+    const auto id =
+        store.CreateSubscriptionId();
+
+    store.Register(
+    {
+        id,
+        {
+            rim::NotificationTargetType::Capability,
+            RI_CAPABILITY_ENVIRONMENT
+        },
+        rim::DeliveryMethod::Custom,
+        rim::NotificationTrigger::OnChange
+    });
+
+    manager.Notify(
+    {
+        rim::NotificationTargetType::Capability,
+        RI_CAPABILITY_ENVIRONMENT
+    },
+    rim::NotificationTrigger::OnChange);
+
+    EXPECT_TRUE(
+        handler.called_);
+
+    EXPECT_EQ(
+        manager.GetCustomDeliveryFailureCount(),
+        0U);
+}
+
+TEST(
+    ChangeNotifyManagerTest,
+    CustomDeliveryFailedCountAccumulates)
+{
+    rim::SubscriptionStore store;
+
+    rim::SubscriberMailboxManager mailboxManager;
+
+    rim::CallbackSubscriptionRegistry callbackRegistry;
+    rim::CallbackQueue callbackQueue;
+
+    FailingCustomDeliveryHandler handler;
+
+    rim::ChangeNotifyManager manager(
+        store,
+        mailboxManager,
+        callbackRegistry,
+        callbackQueue);
+
+    manager.SetCustomDeliveryHandler(
+        &handler);
+
+    const auto id =
+        store.CreateSubscriptionId();
+
+    store.Register(
+    {
+        id,
+        {
+            rim::NotificationTargetType::Capability,
+            RI_CAPABILITY_ENVIRONMENT
+        },
+        rim::DeliveryMethod::Custom,
+        rim::NotificationTrigger::OnChange
+    });
+
+    manager.Notify(
+    {
+        rim::NotificationTargetType::Capability,
+        RI_CAPABILITY_ENVIRONMENT
+    },
+    rim::NotificationTrigger::OnChange);
+
+    manager.Notify(
+    {
+        rim::NotificationTargetType::Capability,
+        RI_CAPABILITY_ENVIRONMENT
+    },
+    rim::NotificationTrigger::OnChange);
+
+    manager.Notify(
+    {
+        rim::NotificationTargetType::Capability,
+        RI_CAPABILITY_ENVIRONMENT
+    },
+    rim::NotificationTrigger::OnChange);
+
+    EXPECT_EQ(
+        manager.GetCustomDeliveryFailureCount(),
+        3U);
+}
+
+
+

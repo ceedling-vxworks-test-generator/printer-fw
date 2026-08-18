@@ -4,7 +4,7 @@
 #include <thread>
 #include <chrono>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 namespace
 {

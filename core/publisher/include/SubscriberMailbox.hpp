@@ -4,7 +4,6 @@
 #include <mutex>
 
 #include "NotificationMessage.hpp"
-#include "rim_capability_id.h"
 
 namespace rim
 {
@@ -13,14 +12,28 @@ class SubscriberMailbox
 {
 public:
 
-    void Push(
+    explicit SubscriberMailbox(
+    std::size_t maxSize = 1000)
+    : maxSize_(maxSize)
+    {
+    }
+
+    bool Push(
         const NotificationMessage& message)
     {
         std::lock_guard<std::mutex>
             lock(mutex_);
 
+        if (notificationQueue_.size() >= maxSize_)
+        {
+            ++overflowCount_;
+            return false;
+        }
+
         notificationQueue_.push(
             message);
+
+        return true;
     }
 
     bool Pop(
@@ -50,11 +63,21 @@ public:
         return static_cast<uint32_t>(
             notificationQueue_.size());
     }
+
+    uint64_t GetOverflowCount() const
+    {
+        std::lock_guard<std::mutex>
+            lock(mutex_);
+
+        return overflowCount_;
+    }
     
 private:
+    std::size_t maxSize_;
 
-    mutable std::mutex
-        mutex_;
+    uint64_t overflowCount_{0};
+
+    mutable std::mutex mutex_;
 
     std::queue<NotificationMessage>
         notificationQueue_;

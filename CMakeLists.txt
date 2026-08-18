@@ -8,19 +8,6 @@ project(
     RIManager_Impl
     LANGUAGES CXX)
 
-#
-# mainFW へ add_subdirectory() で組み込まれた場合(=このプロジェクトがトップレベルで
-# ない場合)は、既定でテストをビルドしない。rimanager 自身の gtest/FetchContent が
-# mainFW 側のビルドを巻き込まないようにするため(ネットワーク制限下でも
-# rimanager 本体は問題なく組み込める)。
-#
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(RIMANAGER_IS_TOP_LEVEL ON)
-else()
-    set(RIMANAGER_IS_TOP_LEVEL OFF)
-endif()
-
-option(RIMANAGER_BUILD_TESTS "Build rimanager's own gtest-based tests" ${RIMANAGER_IS_TOP_LEVEL})
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 
 if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -51,8 +38,6 @@ add_subdirectory(
 
 include(CTest)
 enable_testing()
-
-if(RIMANAGER_BUILD_TESTS)
 
 include(FetchContent)
 
@@ -202,6 +187,4 @@ if(ENABLE_COVERAGE
         COMMENT "Generating code coverage report"
     )
 endif()
-
-endif() # RIMANAGER_BUILD_TESTS
 

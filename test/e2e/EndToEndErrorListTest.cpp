@@ -4,14 +4,13 @@
 #include <thread>
 #include <cstring>
 
-#include "rim_api.h"
-#include "rim_types.h"
+#include "printer_a.h"
 
-#include "ValueStore.hpp"
 #include "BinaryStoreValue.hpp"
 
 #include "RIMSnapshotManager.hpp"
 #include "RIMValueFactory.hpp"
+#include "DomainStorageRegistry.hpp"
 
 TEST(
     EndToEndErrorListTest,
@@ -29,7 +28,7 @@ TEST(
         std::uint32_t count;
     };
 
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     FaultInfoList input{};
 
@@ -62,8 +61,13 @@ TEST(
         rim::RIMValueFactory::CreateBinary(
             binary.release());
 
-    store.Store(
-        item);
+    constexpr rim::DomainId kTestDomainId = 1U;
+
+    store
+        .GetOrCreate(
+            kTestDomainId)
+        .Store(
+            item);
 
     rim::RIMSnapshotManager reader(
         store);

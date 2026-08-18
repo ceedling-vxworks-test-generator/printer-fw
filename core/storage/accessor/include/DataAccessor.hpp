@@ -3,11 +3,10 @@
 #include <string_view>
 #include <vector>
 
-#include "rim_data_id.h"
-
 #include "ProductDefinition.hpp"
 #include "RIMDataItem.hpp"
-#include "ValueStore.hpp"
+#include "DomainStorageRegistry.hpp"
+#include "DomainRegistry.hpp"
 
 namespace rim
 {
@@ -17,7 +16,7 @@ class DataAccessor
 public:
 
     DataAccessor(
-        const ValueStore& store,
+        const DomainStorageRegistry& store,
         const ProductDefinition& product)
         :
         store_(store),
@@ -51,9 +50,14 @@ public:
 
 private:
 
-    const ValueStore& store_;
+    const DomainStorageRegistry&
+        store_;
 
-    const ProductDefinition& product_;
+    const ProductDefinition&
+        product_;
+
+    DomainRegistry
+        domainRegistry_;
 };
 
-} // namespace rim
+}

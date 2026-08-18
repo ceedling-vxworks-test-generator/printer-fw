@@ -3,7 +3,7 @@
 #include <chrono>
 #include <thread>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 TEST(
     RIManagerValueApiTest,

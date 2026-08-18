@@ -3,9 +3,9 @@
 #include <chrono>
 #include <iostream>
 
-#include "PublisherInputQueue.hpp"
+#include "printer_a.h"
 
-#include "rim_capability_id.h"
+#include "PublisherInputQueue.hpp"
 
 TEST(
     PublisherInputQueuePerformanceTest,

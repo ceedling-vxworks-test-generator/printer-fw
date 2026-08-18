@@ -3,7 +3,7 @@
 #include <chrono>
 #include <thread>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 #include "EnvironmentCapability.hpp"
 #include "PrintReadyCapability.hpp"
@@ -56,7 +56,8 @@ TEST_F(
     GetEnvironment)
 {
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             30.0),
         RI_SUCCESS);
 
@@ -66,7 +67,7 @@ TEST_F(
         capability{};
 
     ASSERT_EQ(
-        RIM_GetCapability(
+        PrinterA_GetCapability(
             RI_CAPABILITY_ENVIRONMENT,
             &capability),
         RI_SUCCESS);
@@ -81,7 +82,8 @@ TEST_F(
     CapabilityCanBeReadMultipleTimes)
 {
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             35.0),
         RI_SUCCESS);
 
@@ -94,13 +96,13 @@ TEST_F(
         second{};
 
     ASSERT_EQ(
-        RIM_GetCapability(
+        PrinterA_GetCapability(
             RI_CAPABILITY_ENVIRONMENT,
             &first),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIM_GetCapability(
+        PrinterA_GetCapability(
             RI_CAPABILITY_ENVIRONMENT,
             &second),
         RI_SUCCESS);
@@ -119,14 +121,16 @@ TEST_F(
     CapabilityReturnsLatestEnvironmentValue)
 {
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             30.0),
         RI_SUCCESS);
 
     WaitPipeline();
 
     ASSERT_EQ(
-        RIM_TestInjectTemperature(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
             40.0),
         RI_SUCCESS);
 
@@ -136,7 +140,7 @@ TEST_F(
         capability{};
 
     ASSERT_EQ(
-        RIM_GetCapability(
+        PrinterA_GetCapability(
             RI_CAPABILITY_ENVIRONMENT,
             &capability),
         RI_SUCCESS);
@@ -151,17 +155,20 @@ TEST_F(
     GetPrintReady)
 {
     ASSERT_EQ(
-        RIM_TestInjectUpperDoorOpen(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIM_TestInjectRightDoorOpen(
+        RIM_SetBool(
+            RI_DATA_RIGHT_DOOR_OPEN,
             0),
         RI_SUCCESS);
 
     ASSERT_EQ(
-        RIM_TestInjectLeftDoorOpen(
+        RIM_SetBool(
+            RI_DATA_LEFT_DOOR_OPEN,
             0),
         RI_SUCCESS);
 
@@ -171,7 +178,7 @@ TEST_F(
         capability{};
 
     ASSERT_EQ(
-        RIM_GetCapability(
+        PrinterA_GetCapability(
             RI_CAPABILITY_PRINT_READY,
             &capability),
         RI_SUCCESS);
@@ -195,7 +202,7 @@ TEST_F(
 //         capability{};
 
 //     ASSERT_EQ(
-//         RIM_GetCapability(
+//         PrinterA_GetCapability(
 //             RI_CAPABILITY_CONSUMABLE,
 //             &capability),
 //         RI_SUCCESS);
@@ -225,7 +232,7 @@ TEST_F(
 //         capability{};
 
 //     ASSERT_EQ(
-//         RIM_GetCapability(
+//         PrinterA_GetCapability(
 //             RI_CAPABILITY_JOB,
 //             &capability),
 //         RI_SUCCESS);

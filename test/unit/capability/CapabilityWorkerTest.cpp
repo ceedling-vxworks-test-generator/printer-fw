@@ -17,7 +17,7 @@ TEST(
     CapabilityWorkerTest,
     ExecuteOnce)
 {
-    rim::CapabilityInputQueue queue;
+    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
     rim::CapabilityStore store;
 
@@ -62,7 +62,7 @@ TEST(
     CapabilityWorkerTest,
     ReturnFalseWhenQueueEmpty)
 {
-    rim::CapabilityInputQueue queue;
+    rim::EventQueue<rim::CapabilityInput, rim::CoalescingPolicy> queue;
 
     rim::CapabilityStore store;
 
@@ -85,7 +85,7 @@ TEST(
     CapabilityWorkerTest,
     PublishDataAndCapabilityEvents)
 {
-    rim::CapabilityInputQueue queue;
+    rim::EventQueue<rim::CapabilityInput, rim::CoalescingPolicy> queue;
 
     rim::PublisherInputQueue publisherQueue;
 

@@ -2,434 +2,194 @@
 
 #include "AccessorFacade.hpp"
 
-#include "RIMSnapshotManager.hpp"
 #include "CapabilityAccessor.hpp"
-#include "DataAccessor.hpp"
 #include "CapabilityStore.hpp"
+#include "DataAccessor.hpp"
 #include "PrinterAProductDefinition.hpp"
 #include "RIMValueFactory.hpp"
 #include "SnapshotAccessor.hpp"
 #include "SnapshotStorage.hpp"
-#include "ValueStore.hpp"
 
-TEST(
-    AccessorFacadeTest,
-    ExposeDataAccessor)
+#include "DomainStorageRegistry.hpp"
+#include "DomainStorage.hpp"
+#include "DataDomainMap.hpp"
+
+namespace
 {
-    rim::ValueStore valueStore;
 
-    rim::CapabilityStore capabilityStore;
+constexpr RIDataId kUnknownDataId =
+    static_cast<RIDataId>(
+        99999);
 
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
+class AccessorFacadeTest :
+    public ::testing::Test
+{
+protected:
+
+    AccessorFacadeTest()
+        :
+        dataAccessor(
+            domainStore,
+            rim::kPrinterAProductDefinition),
+        capabilityAccessor(
+            capabilityStore),
+        snapshotAccessor(
+            domainStore,
+            snapshotStorage,
+            rim::kPrinterAProductDefinition),
+        facade(
+            dataAccessor,
+            capabilityAccessor,
+            snapshotAccessor),
+        dataDomainMap(
+            rim::kPrinterAProductDefinition)
+    {
+    }
+
+    void StoreItem(
+        const rim::RIMDataItem& item)
+    {
+        const auto domainId =
+            dataDomainMap.Find(
+                item.id);
+
+        ASSERT_NE(
+            domainId,
+            rim::kInvalidDomainId);
+
+        domainStore
+            .GetOrCreate(
+                domainId)
+            .Store(
+                item);
+    }
+
+    void
+    StoreTemperatureA(
+        double value = 25.0)
+    {
+        StoreItem(
+            {
+                RI_DATA_TEMPERATURE_SENSOR_A,
+                rim::ValueType::kDouble,
+                rim::RIMValueFactory::CreateDouble(
+                    value)
+            });
+    }
+
+    void
+    StoreTemperatureB(
+        double value = 26.0)
+    {
+        StoreItem(
+            {
+                RI_DATA_TEMPERATURE_SENSOR_B,
+                rim::ValueType::kDouble,
+                rim::RIMValueFactory::CreateDouble(
+                    value)
+            });
+    }
+
+    void
+    StoreHumidity(
+        double value = 50.0)
+    {
+        StoreItem(
+            {
+                RI_DATA_HUMIDITY_SENSOR,
+                rim::ValueType::kDouble,
+                rim::RIMValueFactory::CreateDouble(
+                    value)
+            });
+    }
+
+    rim::RIMSnapshot
+    GetSnapshot(
+        const uint64_t accessId)
+    {
+        rim::RIMSnapshot snapshot;
+
+        EXPECT_TRUE(
+            facade.Snapshot().TryGetSnapshot(
+                accessId,
+                snapshot));
+
+        return snapshot;
+    }
+
+    rim::DomainStorageRegistry
+        domainStore;
+
+    rim::CapabilityStore
+        capabilityStore;
 
     rim::SnapshotStorage
         snapshotStorage;
 
+    rim::DataDomainMap
+        dataDomainMap;
+
     rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
+        dataAccessor;
 
     rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
+        capabilityAccessor;
 
     rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
+        snapshotAccessor;
 
     rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
+        facade;
+};
 
+} // namespace
+
+TEST_F(
+    AccessorFacadeTest,
+    ExposeDataAccessor)
+{
     EXPECT_NE(
         &facade.Data(),
         nullptr);
 }
 
-TEST(
+TEST_F(
     AccessorFacadeTest,
     ExposeCapabilityAccessor)
 {
-    rim::ValueStore valueStore;
-
-    rim::CapabilityStore capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
-
     EXPECT_NE(
         &facade.Capability(),
         nullptr);
 }
 
-TEST(
+TEST_F(
     AccessorFacadeTest,
     ExposeSnapshotAccessor)
 {
-    rim::ValueStore valueStore;
-
-    rim::CapabilityStore capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
-
     EXPECT_NE(
         &facade.Snapshot(),
         nullptr);
 }
 
-TEST(
-    AccessorFacadeTest,
-    CreateSnapshotByDomains)
-{
-    rim::ValueStore valueStore;
-
-    valueStore.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
-
-    const auto accessId =
-        facade.CreateSnapshotByDomains(
-            {
-                "Environment"
-            });
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        facade.Snapshot().TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_EQ(
-        snapshot.items.size(),
-        1u);
-}
-
-TEST(
-    AccessorFacadeTest,
-    CreateSnapshotByDataId)
-{
-    rim::ValueStore valueStore;
-
-    valueStore.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
-
-    const auto accessId =
-        facade.CreateSnapshotByDataId(
-            RI_DATA_TEMPERATURE_SENSOR_A);
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        facade.Snapshot().TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_EQ(
-        snapshot.items.size(),
-        1u);
-}
-
-TEST(
+TEST_F(
     AccessorFacadeTest,
     CreateSnapshotByUnknownDataId)
 {
-    rim::ValueStore valueStore;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
-
     const auto accessId =
         facade.CreateSnapshotByDataId(
-            static_cast<RIDataId>(
-                99999));
+            kUnknownDataId);
 
     EXPECT_EQ(
         accessId,
         0u);
 }
 
-TEST(
-    AccessorFacadeTest,
-    CreateSnapshotByDataIds)
-{
-    rim::ValueStore valueStore;
-
-    valueStore.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    valueStore.Store(
-        {
-            RI_DATA_HUMIDITY_SENSOR,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                50.0)
-        });
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
-
-    const auto accessId =
-        facade.CreateSnapshotByDataIds(
-            {
-                RI_DATA_TEMPERATURE_SENSOR_A,
-                RI_DATA_HUMIDITY_SENSOR
-            });
-
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        facade.Snapshot().TryGetSnapshot(
-            accessId,
-            snapshot));
-
-    EXPECT_EQ(
-        snapshot.items.size(),
-        2u);
-}
-
-TEST(
+TEST_F(
     AccessorFacadeTest,
     CreateSnapshotByDuplicateDomainDataIds)
 {
-    rim::ValueStore valueStore;
-
-    valueStore.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_A,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                25.0)
-        });
-
-    valueStore.Store(
-        {
-            RI_DATA_TEMPERATURE_SENSOR_B,
-            rim::ValueType::kDouble,
-            rim::RIMValueFactory::CreateDouble(
-                26.0)
-        });
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
+    StoreTemperatureA();
+    StoreTemperatureB();
 
     const auto accessId =
         facade.CreateSnapshotByDataIds(
@@ -438,60 +198,159 @@ TEST(
                 RI_DATA_TEMPERATURE_SENSOR_B
             });
 
-    rim::RIMSnapshot snapshot;
-
-    EXPECT_TRUE(
-        facade.Snapshot().TryGetSnapshot(
-            accessId,
-            snapshot));
+    const auto snapshot =
+        GetSnapshot(
+            accessId);
 
     EXPECT_EQ(
         snapshot.items.size(),
         2u);
 }
 
-TEST(
+TEST_F(
     AccessorFacadeTest,
-    CreateSnapshotByDataIdsReturnsZeroWhenNoValidDataId)
+    CreateSnapshotByDataIds)
 {
-    rim::ValueStore valueStore;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::RIMSnapshotManager
-        reader(
-            valueStore);
-
-    rim::SnapshotStorage
-        snapshotStorage;
-
-    rim::DataAccessor
-        dataAccessor(
-            valueStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilityAccessor
-        capabilityAccessor(
-            capabilityStore);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            reader,
-            snapshotStorage,
-            rim::kPrinterAProductDefinition);
-
-    rim::AccessorFacade
-        facade(
-            dataAccessor,
-            capabilityAccessor,
-            snapshotAccessor);
+    StoreTemperatureA();
+    StoreHumidity();
 
     const auto accessId =
         facade.CreateSnapshotByDataIds(
             {
+                RI_DATA_TEMPERATURE_SENSOR_A,
+                RI_DATA_HUMIDITY_SENSOR
+            });
+
+    const auto snapshot =
+        GetSnapshot(
+            accessId);
+
+    EXPECT_EQ(
+        snapshot.items.size(),
+        2u);
+}
+
+TEST_F(
+    AccessorFacadeTest,
+    CreateSnapshotByDataIdsReturnsZeroWhenEmpty)
+{
+    const auto accessId =
+        facade.CreateSnapshotByDataIds(
+            {});
+
+    EXPECT_EQ(
+        accessId,
+        0u);
+}
+
+TEST_F(
+    AccessorFacadeTest,
+    CreateSnapshotByDataIdContainsExpectedData)
+{
+    constexpr double kExpectedValue =
+        25.0;
+
+    StoreTemperatureA(
+        kExpectedValue);
+
+    const auto accessId =
+        facade.CreateSnapshotByDataId(
+            RI_DATA_TEMPERATURE_SENSOR_A);
+
+    const auto snapshot =
+        GetSnapshot(
+            accessId);
+
+    ASSERT_EQ(
+        snapshot.items.size(),
+        1u);
+
+    EXPECT_EQ(
+        snapshot.items[0].id,
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    double value{};
+
+    ASSERT_TRUE(
+        snapshot.TryGetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            value));
+
+    EXPECT_DOUBLE_EQ(
+        value,
+        kExpectedValue);
+}
+
+TEST_F(
+    AccessorFacadeTest,
+    CreateSnapshotByDataIdsIgnoresUnknownDataId)
+{
+    constexpr double kExpectedValue =
+        25.0;
+
+    StoreTemperatureA(
+        kExpectedValue);
+
+    const auto accessId =
+        facade.CreateSnapshotByDataIds(
+            {
+                RI_DATA_TEMPERATURE_SENSOR_A,
+                kUnknownDataId
+            });
+
+    const auto snapshot =
+        GetSnapshot(
+            accessId);
+
+    ASSERT_EQ(
+        snapshot.items.size(),
+        1u);
+
+    EXPECT_EQ(
+        snapshot.items[0].id,
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    double value{};
+
+    ASSERT_TRUE(
+        snapshot.TryGetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            value));
+
+    EXPECT_DOUBLE_EQ(
+        value,
+        kExpectedValue);
+}
+
+TEST_F(
+    AccessorFacadeTest,
+    CreateSnapshotReturnsIncreasingAccessId)
+{
+    StoreTemperatureA();
+
+    const auto accessId1 =
+        facade.CreateSnapshotByDataId(
+            RI_DATA_TEMPERATURE_SENSOR_A);
+
+    const auto accessId2 =
+        facade.CreateSnapshotByDataId(
+            RI_DATA_TEMPERATURE_SENSOR_A);
+
+    EXPECT_GT(
+        accessId2,
+        accessId1);
+}
+
+TEST_F(
+    AccessorFacadeTest,
+    CreateSnapshotByDataIdsWithOnlyUnknownIdsReturnsZero)
+{
+    const auto accessId =
+        facade.CreateSnapshotByDataIds(
+            {
+                kUnknownDataId,
                 static_cast<RIDataId>(
-                    99999)
+                    88888)
             });
 
     EXPECT_EQ(

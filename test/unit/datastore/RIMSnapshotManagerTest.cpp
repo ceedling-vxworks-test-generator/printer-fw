@@ -10,7 +10,7 @@ TEST(
     RIMSnapshotManagerTest,
     BuildSnapshot)
 {
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     {
         rim::RIMDataItem item{};
@@ -25,7 +25,11 @@ TEST(
             rim::RIMValueFactory::CreateDouble(
                 300.15);
 
-        store.Store(item);
+        constexpr rim::DomainId domainId = 1;
+
+        store
+            .GetOrCreate(domainId)
+            .Store(item);
     }
 
     {
@@ -41,7 +45,11 @@ TEST(
             rim::RIMValueFactory::CreateDouble(
                 60.0);
 
-        store.Store(item);
+        constexpr rim::DomainId domainId = 1;
+
+        store
+            .GetOrCreate(domainId)
+            .Store(item);
     }
 
     rim::RIMDataItem item{};
@@ -57,7 +65,11 @@ TEST(
             rim::RIMValueFactory::CreateInt32(
                 80);
 
-        store.Store(item);
+        constexpr rim::DomainId domainId = 1;
+
+        store
+            .GetOrCreate(domainId)
+            .Store(item);
     }
 
     rim::RIMSnapshotManager reader(
@@ -129,7 +141,7 @@ TEST(
     RIMSnapshotManagerTest,
     ReadBinary)
 {
-    rim::ValueStore store;
+    rim::DomainStorageRegistry store;
 
     auto binary =
         std::make_unique<
@@ -154,8 +166,11 @@ TEST(
         rim::RIMValueFactory::CreateBinary(
             binary.release());
 
-    store.Store(
-        item);
+    constexpr rim::DomainId domainId = 1;
+
+    store
+        .GetOrCreate(domainId)
+        .Store(item);
 
     rim::RIMSnapshotManager reader(
         store);

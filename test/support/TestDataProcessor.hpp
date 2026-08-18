@@ -5,7 +5,9 @@
 #include "ProductDefinition.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueFactory.hpp"
-#include "ValueStore.hpp"
+
+#include "DomainStorageRegistry.hpp"
+#include "DataDomainMap.hpp"
 
 namespace rim
 {
@@ -17,7 +19,7 @@ public:
     static bool StoreData(
         RIDataId id,
         const RIMValue& value,
-        ValueStore& store)
+        DomainStorageRegistry& store)
     {
         const auto* definition =
             FindDataItem(
@@ -53,15 +55,32 @@ public:
         item.value =
             storeValue;
 
-        store.Store(
-            item);
+        static const DataDomainMap
+            dataDomainMap(
+                kPrinterAProductDefinition);
+
+        const auto domainId =
+            dataDomainMap.Find(
+                id);
+
+        if (domainId ==
+            kInvalidDomainId)
+        {
+            return false;
+        }
+
+        store
+            .GetOrCreate(
+                domainId)
+            .Store(
+                item);
 
         return true;
     }
 
     static void ProcessTemperatureA(
         double value,
-        ValueStore& store)
+        DomainStorageRegistry& store)
     {
         StoreData(
             RI_DATA_TEMPERATURE_SENSOR_A,
@@ -72,7 +91,7 @@ public:
 
     static void ProcessTemperatureB(
         double value,
-        ValueStore& store)
+        DomainStorageRegistry& store)
     {
         StoreData(
             RI_DATA_TEMPERATURE_SENSOR_B,
@@ -83,7 +102,7 @@ public:
 
     static void ProcessHumidity(
         double value,
-        ValueStore& store)
+        DomainStorageRegistry& store)
     {
         StoreData(
             RI_DATA_HUMIDITY_SENSOR,
@@ -94,7 +113,7 @@ public:
 
     static void ProcessUpperDoor(
         bool value,
-        ValueStore& store)
+        DomainStorageRegistry& store)
     {
         StoreData(
             RI_DATA_UPPER_DOOR_OPEN,

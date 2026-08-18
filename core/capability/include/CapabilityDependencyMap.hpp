@@ -3,9 +3,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "rim_data_id.h"
-
-#include "CapabilityItem/CapabilityItemDefinition.hpp"
+#include "RIId.hpp"
+#include "CapabilityItemDefinition.hpp"
 
 namespace rim
 {

@@ -17,7 +17,8 @@
 #include "SubscriptionInfo.hpp"
 #include "DeliveryMethod.hpp"
 
-#include "rim_capability_id.h"
+#include "printer_a.h"
+#include "PrinterAProductDefinition.hpp"
 
 TEST(
     PublisherToReactiveInfoManagerTest,
@@ -32,10 +33,14 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    rim::ChangeNotifyManager notifyManager(
-        subscriptionStore,
-        mailboxManager,
-        callbackRegistry);
+    rim::CallbackQueue callbackQueue; 
+
+    rim::ChangeNotifyManager
+        notifyManager(
+            subscriptionStore,
+            mailboxManager,
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
@@ -43,7 +48,8 @@ TEST(
     rim::PublishManager publishManager(
         notifyManager,
         periodicNotifyManager,
-        subscriptionStore);
+        subscriptionStore,
+        rim::kPrinterAProductDefinition);
 
     const rim::SubscriptionId
         subscriptionId =

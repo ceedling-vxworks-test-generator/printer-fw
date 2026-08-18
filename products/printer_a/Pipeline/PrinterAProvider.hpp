@@ -4,7 +4,7 @@
 #include "../PrinterAProductProfile.hpp"
 
 #include "../PrinterAProductDefinition.hpp"
-#include "../ChangeChecker.hpp"
+#include "DeliveryHandler/PrinterACustomDeliveryHandler.hpp"
 
 namespace rim
 {
@@ -19,17 +19,16 @@ public:
     {
         return kPrinterAProductProfile;
     }
-
-    const IChangeChecker&
-    GetChangeChecker() const override
+    ICustomDeliveryHandler*
+    GetCustomDeliveryHandler() override
     {
-        return changeChecker_;
+        return &customDeliveryHandler_;
     }
 
 private:
 
-    ChangeChecker
-        changeChecker_;
+    PrinterACustomDeliveryHandler
+        customDeliveryHandler_;
 
 };
 

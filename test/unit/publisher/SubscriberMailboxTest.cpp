@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
+
 #include "SubscriberMailbox.hpp"
 
 #include "NotificationMessage.hpp"
@@ -108,4 +110,34 @@ TEST(
     EXPECT_EQ(
         output.trigger,
         rim::NotificationTrigger::OnChange);
+}
+
+TEST(
+    SubscriberMailboxTest,
+    OverflowDetected)
+{
+    rim::SubscriberMailbox
+        mailbox(1);
+
+    const rim::NotificationMessage
+        message{
+            {
+                rim::NotificationTargetType::Capability,
+                static_cast<uint32_t>(
+                    RI_CAPABILITY_ENVIRONMENT)
+            },
+            rim::NotificationTrigger::OnChange
+        };
+
+    EXPECT_TRUE(
+        mailbox.Push(
+            message));
+
+    EXPECT_FALSE(
+        mailbox.Push(
+            message));
+
+    EXPECT_EQ(
+        mailbox.GetOverflowCount(),
+        1U);
 }

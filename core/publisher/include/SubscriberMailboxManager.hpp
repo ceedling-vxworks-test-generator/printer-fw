@@ -20,6 +20,9 @@ public:
     bool RemoveMailbox(
         SubscriptionId id);
 
+    uint64_t GetOverflowCount(
+    SubscriptionId id);
+
 private:
 
     std::unordered_map

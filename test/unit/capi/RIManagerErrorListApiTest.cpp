@@ -3,7 +3,7 @@
 #include <thread>
 #include <chrono>
 
-#include "rim_api.h"
+#include "printer_a.h"
 
 TEST(
     RIManagerErrorListApiTest,
@@ -14,7 +14,7 @@ TEST(
         RI_SUCCESS);
 
     EXPECT_EQ(
-        RIM_SetErrorList(
+        PrinterA_SetErrorList(
             nullptr),
         RI_INVALID_PARAMETER);
 
@@ -30,7 +30,7 @@ TEST(
         RI_SUCCESS);
 
     EXPECT_EQ(
-        RIM_GetErrorList(
+        PrinterA_GetErrorList(
             nullptr),
         RI_INVALID_PARAMETER);
 
@@ -60,7 +60,7 @@ TEST(
     input.entries[1].state = 2;
 
     EXPECT_EQ(
-        RIM_SetErrorList(
+        PrinterA_SetErrorList(
             &input),
         RI_SUCCESS);
 
@@ -71,7 +71,7 @@ TEST(
     RI_FAULT_INFO_LIST output{};
 
     EXPECT_EQ(
-        RIM_GetErrorList(
+        PrinterA_GetErrorList(
             &output),
         RI_SUCCESS);
 
