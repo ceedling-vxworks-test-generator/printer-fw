@@ -1,12 +1,19 @@
 #pragma once
 
-#include "DeviceEvent.hpp"
+#include "rim_data_id.h"
+
+#include "RIMValue.hpp"
 #include "StoreInputQueue.hpp"
 #include "ProductDefinition.hpp"
 
 namespace rim
 {
 
+// Adapterレイヤの受付窓口。
+// 「RIDataIdごとに定義された正しい型のRIMValue」を受け取り、
+// DataItemDefinition::normalizeで正規化した上でStoreレイヤ(StoreInputQueue)へ
+// 引き渡す。製品固有の知識(PrinterA/センサー名など)は一切持たず、
+// ProductDefinitionを介してのみDataItemの型・正規化規則を参照する。
 class AdapterDispatcher
 {
 public:
@@ -19,8 +26,11 @@ public:
     {
     }
 
+    // value は呼び出し側が id の DataItemDefinition::rawValueType 通りに
+    // 型付け済みであることを前提とする(型が一致しない場合は拒否してfalseを返す)。
     bool Dispatch(
-        const DeviceEvent& event);
+        RIDataId id,
+        const RIMValue& value);
 
 private:
 

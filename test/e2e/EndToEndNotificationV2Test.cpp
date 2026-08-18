@@ -3,7 +3,7 @@
 #include "test/support/TestWaitHelper.hpp"
 
 #include "AdapterDispatcher.hpp"
-#include "PrinterAdapter.hpp"
+#include "RIMValueFactory.hpp"
 
 #include "StoreInputQueue.hpp"
 #include "DataStoreWorker.hpp"
@@ -156,11 +156,11 @@ TEST(
         rim::kPrinterAProductDefinition,
         storeQueue);
 
-    rim::PrinterAdapter adapter(
-        dispatcher);
-
     ASSERT_TRUE(
-        adapter.Poll());
+        dispatcher.Dispatch(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            rim::RIMValueFactory::CreateDouble(
+                30)));
 
     ASSERT_TRUE(
         dataStoreWorker.ExecuteOnce());

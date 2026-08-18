@@ -5,6 +5,8 @@
 #include <cstring>
 #include <exception>
 
+#include "AdapterDispatcher.hpp"
+
 #include "CapabilityStore.hpp"
 
 #include "CapabilityAccessor.hpp"
@@ -60,6 +62,17 @@ struct RIManagerContext
 
     rim::PublisherInputQueue
         publisherQueue;
+
+    //
+    // Adapter
+    //
+    // RIM_SetBool/SetInt32/SetDouble の受理点。DataItemDefinition::normalize を
+    // 経由してから storeQueue へ積む(storeQueue は上で宣言済みなので、下の
+    // コンストラクタ初期化子リストの並びに関わらず先に構築される)。
+    //
+
+    rim::AdapterDispatcher
+        dispatcher;
 
     //
     // Datastore
@@ -129,7 +142,10 @@ struct RIManagerContext
         capabilityAccessor;
 
     RIManagerContext()
-        : snapshotReader(
+        : dispatcher(
+            rim::kPrinterAProductDefinition,
+            storeQueue)
+        , snapshotReader(
             valueStore)
         , routeProvider()
         , capabilityManager(
@@ -754,23 +770,15 @@ RIM_SetBool(
         return RI_NOT_INITIALIZED;
     }
 
-    rim::RIMDataItem item{};
+    const rim::RIMValue rawValue =
+        rim::RIMValueFactory::CreateBool(
+            value != 0);
 
-    item.id =
-        dataId;
-
-    item.valueType =
-        rim::ValueType::kBool;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateBool(
-                value != 0);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(
+               dataId,
+               rawValue)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus
@@ -821,23 +829,15 @@ RIM_SetInt32(
         return RI_NOT_INITIALIZED;
     }
 
-    rim::RIMDataItem item{};
+    const rim::RIMValue rawValue =
+        rim::RIMValueFactory::CreateInt32(
+            value);
 
-    item.id =
-        dataId;
-
-    item.valueType =
-        rim::ValueType::kInt32;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateInt32(
-                value);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(
+               dataId,
+               rawValue)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus
@@ -888,23 +888,15 @@ RIM_SetDouble(
         return RI_NOT_INITIALIZED;
     }
 
-    rim::RIMDataItem item{};
+    const rim::RIMValue rawValue =
+        rim::RIMValueFactory::CreateDouble(
+            value);
 
-    item.id =
-        dataId;
-
-    item.valueType =
-        rim::ValueType::kDouble;
-
-    item.value =
-        rim::RIMValueFactory::
-            CreateDouble(
-                value);
-
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(
+               dataId,
+               rawValue)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
 }
 
 RIStatus

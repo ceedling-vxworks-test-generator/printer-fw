@@ -9,7 +9,7 @@ struct DeviceEvent
 {
     RIDataId id;
 
-    int value;
+    double value;
 };
 
 } // namespace rim
