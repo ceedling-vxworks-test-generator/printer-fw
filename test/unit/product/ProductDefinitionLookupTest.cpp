@@ -24,16 +24,6 @@ TEST(ProductDefinitionLookupTest,
 }
 
 TEST(ProductDefinitionLookupTest,
-     FindExistingPipeline)
-{
-    EXPECT_NE(
-        rim::FindPipeline(
-            rim::kPrinterAProductDefinition,
-            "EnvironmentPipeline"),
-        nullptr);
-}
-
-TEST(ProductDefinitionLookupTest,
      FindExistingDomain)
 {
     EXPECT_NE(
@@ -56,21 +46,6 @@ TEST(ProductDefinitionLookupTest,
 
     EXPECT_GT(count, 0u);
     EXPECT_NE(capabilities, nullptr);
-}
-
-TEST(ProductDefinitionLookupTest,
-     EnumeratePipelines)
-{
-    const auto* pipelines =
-        rim::GetPipelines(
-            rim::kPrinterAProductDefinition);
-
-    const auto count =
-        rim::GetPipelineCount(
-            rim::kPrinterAProductDefinition);
-
-    EXPECT_GT(count, 0u);
-    EXPECT_NE(pipelines, nullptr);
 }
 
 TEST(ProductDefinitionLookupTest,

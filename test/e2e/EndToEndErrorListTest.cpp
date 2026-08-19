@@ -7,10 +7,12 @@
 #include "printer_a.h"
 
 #include "BinaryStoreValue.hpp"
+#include "DataDomainMap.hpp"
 
-#include "RIMSnapshotManager.hpp"
 #include "RIMValueFactory.hpp"
 #include "DomainStorageRegistry.hpp"
+#include "SnapshotBuilder.hpp"
+#include "PrinterAProductDefinition.hpp"
 
 TEST(
     EndToEndErrorListTest,
@@ -54,26 +56,39 @@ TEST(
     item.id =
         RI_DATA_ERROR_LIST;
 
-    item.valueType =
-        rim::ValueType::kBinary;
+    // item.value.type =
+    //     rim::ValueType::kBinary;
 
     item.value =
         rim::RIMValueFactory::CreateBinary(
             binary.release());
 
-    constexpr rim::DomainId kTestDomainId = 1U;
+    const rim::DataDomainMap domainMap(
+        rim::kPrinterAProductDefinition);
+
+    const rim::DomainId domainId =
+        domainMap.Find(
+            RI_DATA_ERROR_LIST);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
 
     store
         .GetOrCreate(
-            kTestDomainId)
+            domainId)
         .Store(
             item);
 
-    rim::RIMSnapshotManager reader(
-        store);
+    rim::SnapshotBuilder builder(
+        store,
+        rim::kPrinterAProductDefinition);
 
     auto snapshot =
-        reader.Read();
+        builder.Build(
+            {
+                domainId
+            });
 
     const rim::BinaryStoreValue* found{};
 

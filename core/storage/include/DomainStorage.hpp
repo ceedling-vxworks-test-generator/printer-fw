@@ -28,7 +28,7 @@ public:
         binaries_.erase(
             item.id);
 
-        if (item.valueType ==
+        if (item.value.type ==
             ValueType::kBinary)
         {
             BinaryStoreValue* binary{};

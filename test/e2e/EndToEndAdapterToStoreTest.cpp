@@ -28,8 +28,8 @@ TEST(
 
     item.id = event.id;
 
-    item.valueType =
-        rim::ValueType::kInt32;
+    // item.valueType =
+    //     rim::ValueType::kInt32;
 
     item.value =
         rim::RIMValueFactory::CreateInt32(

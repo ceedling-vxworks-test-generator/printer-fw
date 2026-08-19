@@ -123,7 +123,7 @@ TEST(
 
     EXPECT_DOUBLE_EQ(
         value,
-        36.5);
+        36.5 + 273.15);
 
     ASSERT_EQ(
         RIM_Stop(),

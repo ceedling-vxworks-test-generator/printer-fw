@@ -1,5 +1,8 @@
 #include "SnapshotBuilder.hpp"
 
+#include <algorithm>
+#include <iostream>
+
 namespace rim
 {
 
@@ -13,11 +16,11 @@ SnapshotBuilder::SnapshotBuilder(
 {
 }
 
-void
-SnapshotBuilder::UpdateSnapshot(
-    RIMSnapshot& snapshot) const
+RIMSnapshot
+SnapshotBuilder::Build(
+    const std::vector<DomainId>& domains) const
 {
-    snapshot.items.clear();
+    RIMSnapshot snapshot;
 
     const auto items =
         store_.GetAll();
@@ -34,19 +37,18 @@ SnapshotBuilder::UpdateSnapshot(
             continue;
         }
 
-        for (const auto domain :
-             snapshot.domains)
+        if (std::find(
+                domains.begin(),
+                domains.end(),
+                itemDomainId)
+            != domains.end())
         {
-            if (itemDomainId ==
-                domain)
-            {
-                snapshot.items.push_back(
-                    item);
-
-                break;
-            }
+            snapshot.items.push_back(
+                item);
         }
     }
+
+    return snapshot;
 }
 
 } // namespace rim

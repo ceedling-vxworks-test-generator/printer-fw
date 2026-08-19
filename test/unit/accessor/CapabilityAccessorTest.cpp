@@ -3,6 +3,7 @@
 #include "CapabilityAccessor.hpp"
 #include "CapabilityStore.hpp"
 #include "EnvironmentCapability.hpp"
+#include "PrintReadyCapability.hpp"
 
 #include "printer_a.h"
 
@@ -177,3 +178,103 @@ TEST_F(
             RI_CAPABILITY_ENVIRONMENT,
             result));
 }
+
+TEST_F(
+    CapabilityAccessorTest,
+    EnvironmentCapabilityContainsExpectedValues)
+{
+    StoreEnvironment(
+        123.45,
+        67.89);
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    rim::EnvironmentCapability result{};
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
+
+    EXPECT_DOUBLE_EQ(
+        123.45,
+        result.temperature);
+
+    EXPECT_DOUBLE_EQ(
+        67.89,
+        result.humidity);
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    GetPrintReadyCapability)
+{
+    rim::PrintReadyCapability capability{};
+
+    capability.ready =
+        true;
+
+    store.Store(
+        RI_CAPABILITY_PRINT_READY,
+        capability);
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    rim::PrintReadyCapability result{};
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_PRINT_READY,
+            result));
+
+    EXPECT_TRUE(
+        result.ready);
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    EnvironmentTypeMismatch)
+{
+    rim::PrintReadyCapability capability{};
+
+    capability.ready =
+        true;
+
+    store.Store(
+        RI_CAPABILITY_ENVIRONMENT,
+        capability);
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    rim::EnvironmentCapability result{};
+
+    EXPECT_FALSE(
+        accessor.TryGet(
+            RI_CAPABILITY_ENVIRONMENT,
+            result));
+}
+
+TEST_F(
+    CapabilityAccessorTest,
+    PrintReadyTypeMismatch)
+{
+    rim::EnvironmentCapability capability{};
+
+    store.Store(
+        RI_CAPABILITY_PRINT_READY,
+        capability);
+
+    rim::CapabilityAccessor accessor(
+        store);
+
+    rim::PrintReadyCapability result{};
+
+    EXPECT_FALSE(
+        accessor.TryGet(
+            RI_CAPABILITY_PRINT_READY,
+            result));
+}
+

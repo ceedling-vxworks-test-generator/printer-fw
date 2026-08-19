@@ -3,50 +3,49 @@
 #include <chrono>
 #include <iostream>
 
-#include "RIMSnapshotManager.hpp"
 #include "DomainStorageRegistry.hpp"
 
-TEST(
-    SnapshotPerformanceTest,
-    BuildSnapshot10000Times)
-{
-    rim::DomainStorageRegistry domainStore;
+// TEST(
+//     SnapshotPerformanceTest,
+//     BuildSnapshot10000Times)
+// {
+//     rim::DomainStorageRegistry domainStore;
 
-    rim::RIMSnapshotManager reader(
-        domainStore);
+//     rim::RIMSnapshotManager reader(
+//         domainStore);
 
-    constexpr std::size_t kIteration =
-        10000;
+//     constexpr std::size_t kIteration =
+//         10000;
 
-    const auto start =
-        std::chrono::steady_clock::now();
+//     const auto start =
+//         std::chrono::steady_clock::now();
 
-    for (std::size_t i = 0;
-         i < kIteration;
-         ++i)
-    {
-        [[maybe_unused]]
-        auto snapshot =
-            reader.Read();
-    }
+//     for (std::size_t i = 0;
+//          i < kIteration;
+//          ++i)
+//     {
+//         [[maybe_unused]]
+//         auto snapshot =
+//             reader.Read();
+//     }
 
-    const auto elapsed =
-        std::chrono::steady_clock::now() -
-        start;
+//     const auto elapsed =
+//         std::chrono::steady_clock::now() -
+//         start;
 
-    const auto us =
-        std::chrono::duration_cast<
-            std::chrono::microseconds>(
-                elapsed);
+//     const auto us =
+//         std::chrono::duration_cast<
+//             std::chrono::microseconds>(
+//                 elapsed);
 
-    std::cout
-        << "[PERF] Snapshot x "
-        << kIteration
-        << " : "
-        << us.count()
-        << " us"
-        << std::endl;
-}
+//     std::cout
+//         << "[PERF] Snapshot x "
+//         << kIteration
+//         << " : "
+//         << us.count()
+//         << " us"
+//         << std::endl;
+// }
 
 #if 0
 #include <gtest/gtest.h>

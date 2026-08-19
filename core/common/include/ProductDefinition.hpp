@@ -12,7 +12,6 @@ struct DomainDefinition;
 struct RouteDefinition;
 struct DataItemDefinition;
 struct CapabilityItemDefinition;
-struct PipelineDefinition;
 
 struct ProductDefinition
 {
@@ -27,9 +26,6 @@ struct ProductDefinition
 
     const CapabilityItemDefinition* capabilities;
     std::size_t capabilityCount;
-
-    const PipelineDefinition* pipelines;
-    std::size_t pipelineCount;
 };
 
 const DomainDefinition*
@@ -62,11 +58,6 @@ FindCapability(
     const ProductDefinition& product,
     RICapabilityId id);
 
-const PipelineDefinition*
-FindPipeline(
-    const ProductDefinition& product,
-    std::string_view name);
-
 const RouteDefinition*
 GetRoutes(
     const ProductDefinition& product);
@@ -81,14 +72,6 @@ GetCapabilities(
 
 std::size_t
 GetCapabilityCount(
-    const ProductDefinition& product);
-
-const PipelineDefinition*
-GetPipelines(
-    const ProductDefinition& product);
-
-std::size_t
-GetPipelineCount(
     const ProductDefinition& product);
 
 const DataItemDefinition*

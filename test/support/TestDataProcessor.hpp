@@ -35,7 +35,7 @@ public:
 
         item.id = id;
 
-        item.valueType =
+        item.value.type =
             definition->setValueType;
 
         const RIMValue setValue =
@@ -49,7 +49,7 @@ public:
                 setValue,
                 nullptr);
 
-        item.valueType =
+        item.value.type =
             definition->storeValueType;
 
         item.value =

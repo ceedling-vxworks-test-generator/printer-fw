@@ -1,6 +1,5 @@
 #include "PublishManager.hpp"
 #include "RouteDefinition.hpp"
-#include "RouteResolver.hpp"
 
 namespace rim
 {
@@ -37,8 +36,7 @@ void PublishManager::Publish(
     {
 
         const auto* route =
-            RouteResolver::Resolve(
-                product_,
+            routeProvider_.FindRoute(
                 target);
 
         if (route == nullptr)

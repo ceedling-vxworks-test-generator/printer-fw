@@ -3,7 +3,6 @@
 #include "CapabilityStore.hpp"
 #include "PrinterAProductDefinition.hpp"
 #include "RIMValueFactory.hpp"
-#include "SnapshotStorage.hpp"
 
 #include "DomainStorageRegistry.hpp"
 #include "DataDomainMap.hpp"
@@ -53,7 +52,7 @@ protected:
         StoreItem(
             {
                 RI_DATA_TEMPERATURE_SENSOR_A,
-                rim::ValueType::kDouble,
+                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
@@ -67,7 +66,7 @@ protected:
         StoreItem(
             {
                 RI_DATA_TEMPERATURE_SENSOR_B,
-                rim::ValueType::kDouble,
+                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
@@ -81,7 +80,7 @@ protected:
         StoreItem(
             {
                 RI_DATA_HUMIDITY_SENSOR,
-                rim::ValueType::kDouble,
+                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
@@ -97,9 +96,6 @@ protected:
 
     rim::CapabilityStore
         capabilityStore;
-
-    rim::SnapshotStorage
-        snapshotStorage;
 };
 
 } // namespace rim::test

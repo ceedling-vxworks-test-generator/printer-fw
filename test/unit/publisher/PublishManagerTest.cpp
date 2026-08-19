@@ -39,12 +39,17 @@ TEST(
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
+    rim::RouteProvider routeProvider;
+
+    routeProvider.Initialize(
+    rim::kPrinterAProductDefinition);
+
     rim::PublishManager
         publishManager(
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            rim::kPrinterAProductDefinition);
+            routeProvider);
 
     subscriptionStore.Register(
     {
@@ -113,12 +118,17 @@ TEST(
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
+    rim::RouteProvider routeProvider;
+
+    routeProvider.Initialize(
+    rim::kPrinterAProductDefinition);
+
     rim::PublishManager
         publishManager(
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            rim::kPrinterAProductDefinition);
+            routeProvider);
 
     subscriptionStore.Register(
     {
@@ -171,12 +181,17 @@ TEST(
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
+    rim::RouteProvider routeProvider;
+
+    routeProvider.Initialize(
+    rim::kPrinterAProductDefinition);
+
     rim::PublishManager
         publishManager(
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            rim::kPrinterAProductDefinition);
+            routeProvider);
 
     EXPECT_NO_THROW(
         publishManager.Publish(
@@ -213,12 +228,17 @@ TEST(
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
+    rim::RouteProvider routeProvider;
+
+    routeProvider.Initialize(
+    rim::kPrinterAProductDefinition);
+
     rim::PublishManager
         publishManager(
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            rim::kPrinterAProductDefinition);
+            routeProvider);
 
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();

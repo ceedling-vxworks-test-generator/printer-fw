@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "DomainId.hpp"
 #include "BinaryStoreValue.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueAccessor.hpp"
@@ -13,8 +12,6 @@ namespace rim
 
 struct RIMSnapshot
 {
-    std::vector<DomainId>
-        domains;
     std::vector<RIMDataItem> items;
 
     bool Find(
@@ -39,7 +36,9 @@ struct RIMSnapshot
     {
         RIMDataItem item{};
 
-        if (!Find(id, item))
+        if (!Find(
+                id,
+                item))
         {
             return false;
         }
@@ -55,7 +54,9 @@ struct RIMSnapshot
     {
         RIMDataItem item{};
 
-        if (!Find(id, item))
+        if (!Find(
+                id,
+                item))
         {
             return false;
         }
@@ -65,14 +66,15 @@ struct RIMSnapshot
             value);
     }
 
-
     bool TryGetInt32(
         RIDataId id,
         std::int32_t& value) const
     {
         RIMDataItem item{};
 
-        if (!Find(id, item))
+        if (!Find(
+                id,
+                item))
         {
             return false;
         }
@@ -106,7 +108,9 @@ struct RIMSnapshot
     {
         RIMDataItem item{};
 
-        if (!Find(id, item))
+        if (!Find(
+                id,
+                item))
         {
             return false;
         }
@@ -115,7 +119,6 @@ struct RIMSnapshot
             item.value,
             value);
     }
-
-    };
+};
 
 } // namespace rim

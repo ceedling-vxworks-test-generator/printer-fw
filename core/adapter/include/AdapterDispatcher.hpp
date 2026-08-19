@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RIMDataItem.hpp"
-#include "StoreInputQueue.hpp"
+#include "RouteProvider.hpp"
 #include "ProductDefinition.hpp"
 
 namespace rim
@@ -13,9 +13,9 @@ public:
 
     AdapterDispatcher(
         const ProductDefinition& product,
-        StoreInputQueue& queue)
+        RouteProvider& routeProvider)
         : product_(product),
-          queue_(queue)
+          routeProvider_(routeProvider)
     {
     }
 
@@ -28,7 +28,7 @@ private:
 
     const ProductDefinition& product_;
 
-    StoreInputQueue& queue_;
+    RouteProvider& routeProvider_;
 };
 
 } // namespace rim

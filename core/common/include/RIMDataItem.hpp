@@ -11,7 +11,7 @@ struct RIMDataItem
 {
     RIDataId id;
 
-    ValueType valueType;
+    //ValueType valueType;
 
     RIMValue value;
 

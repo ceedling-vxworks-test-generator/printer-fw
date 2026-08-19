@@ -1,17 +1,33 @@
-#include <cstdio>
 #include <iostream>
-#include <cassert>
-#include "DataStoreWorker.hpp"
 
+#include "DataStoreWorker.hpp"
 #include "DataItemDefinition.hpp"
-#include "ProductDefinition.hpp"
-#include "BinaryStoreValue.hpp"
-#include "BinaryInput.hpp"
+#include "RIMDataItem.hpp"
 
 namespace rim
 {
 
-void DataStoreWorker::Run()
+DataStoreWorker::DataStoreWorker(
+    const ProductDefinition& product,
+    IQueue<RIMDataItem>& queue,
+    DomainStorageRegistry& domainStore,
+    IQueue<CapabilityInput>& capabilityQueue)
+    :
+    product_(product),
+    queue_(queue),
+    domainStore_(domainStore),
+    capabilityQueue_(capabilityQueue),
+    dataDomainMap_(product)
+{
+}
+
+DataStoreWorker::~DataStoreWorker()
+{
+    stop();
+}
+
+void
+DataStoreWorker::start()
 {
     if (running_)
     {
@@ -22,33 +38,18 @@ void DataStoreWorker::Run()
 
     workerThread_ =
         std::thread(
-            [this]
-            {
-                while (running_)
-                {
-                    RIMDataItem item{};
-
-                    if (!queue_.WaitAndPop(
-                            item))
-                    {
-                        break;
-                    }
-
-                    auto queue = routeProvider_.Find(item.id);
-
-                    if (queue == nullptr)
-                    {
-                        continue;
-                    }
-
-                    queue->storeQueue->Push(item);
-
-                }
-            });
+            &DataStoreWorker::run,
+            this);
 }
 
-void DataStoreWorker::Stop()
+void
+DataStoreWorker::stop()
 {
+    if (!running_)
+    {
+        return;
+    }
+
     running_ = false;
 
     queue_.Shutdown();
@@ -59,26 +60,134 @@ void DataStoreWorker::Stop()
     }
 }
 
-bool DataStoreWorker::ExecuteOnce()
+void
+DataStoreWorker::run()
+{
+    while (running_)
+    {
+        RIMDataItem item{};
+
+        if (!queue_.WaitAndPop(item))
+        {
+            break;
+        }
+
+        if (ProcessItem(item))
+        {
+            CapabilityInput input{};
+
+            input.changedDataId =
+                item.id;
+
+            capabilityQueue_.Push(
+                input);
+        }
+    }
+}
+
+bool
+DataStoreWorker::ExecuteOnce()
 {
     RIMDataItem item{};
 
-    if (!queue_.TryPop(
-            item))
+    if (!queue_.TryPop(item))
     {
         return false;
     }
 
-    auto queue = routeProvider_.Find(item.id);
-
-    if (queue == nullptr)
+    if (ProcessItem(item))
     {
-        return false;
-    }
+        CapabilityInput input{};
 
-    queue->storeQueue->Push(item);
+        input.changedDataId =
+            item.id;
+
+        capabilityQueue_.Push(
+            input);
+    }
 
     return true;
+}
+
+bool
+DataStoreWorker::ProcessItem(
+    RIMDataItem& item)
+{
+    bool result = false;
+
+    const auto domainId =
+        dataDomainMap_.Find(
+            item.id);
+
+    const auto* definition =
+        FindDataItem(
+            product_,
+            item.id);
+
+    if (definition != nullptr)
+    {
+        RIMDataItem currentItem{};
+
+        RIMValue currentValue{};
+
+        bool exists = false;
+
+        if (domainId !=
+            kInvalidDomainId)
+        {
+            const auto* storage =
+                domainStore_.Find(
+                    domainId);
+
+            if (storage != nullptr)
+            {
+                exists =
+                    storage->Find(
+                        item.id,
+                        currentItem);
+
+                if (exists)
+                {
+                    currentValue =
+                        currentItem.value;
+                }
+            }
+        }
+
+        item.value =
+            definition->store(
+                currentValue,
+                item.value,
+                nullptr);
+
+        item.value.type =
+            definition->storeValueType;
+
+        if (exists &&
+            definition->diff != nullptr)
+        {
+            result =
+                definition->diff(
+                    currentValue,
+                    item.value);
+        }
+        else
+        {
+            result = true;
+        }
+    }
+
+    if (domainId !=
+        kInvalidDomainId)
+    {
+        domainStore_
+            .GetOrCreate(
+                domainId)
+            .Store(
+                item);
+    }
+
+    return result;
 }
 
 } // namespace rim

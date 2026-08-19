@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "../printer_a_data_id.h"
 
 #include "PrinterACapabilityBuilders.hpp"

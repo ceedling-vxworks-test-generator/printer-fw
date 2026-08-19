@@ -27,8 +27,8 @@ bool PrinterAAdapter::Poll()
     item.id =
         RI_DATA_TEMPERATURE_SENSOR_A;
 
-    item.valueType =
-        ValueType::kDouble;
+    // item.valueType =
+    //     ValueType::kDouble;
 
     item.value =
         RIMValueFactory::CreateDouble(

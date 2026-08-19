@@ -40,7 +40,7 @@ TEST(
 
     EXPECT_DOUBLE_EQ(
         capability.temperature,
-        30.0);
+        30.0 + 273.15);
 
     ASSERT_EQ(
         RIM_Stop(),

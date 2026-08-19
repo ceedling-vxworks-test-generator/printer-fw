@@ -1,12 +1,9 @@
-// #include <iostream>
-
 #include "ProductDefinition.hpp"
 
 #include "DomainDefinition.hpp"
 #include "RouteDefinition.hpp"
 #include "DataItemDefinition.hpp"
 #include "CapabilityItemDefinition.hpp"
-#include "PipelineDefinition.hpp"
 
 namespace
 {
@@ -150,27 +147,6 @@ FindCapability(
     return nullptr;
 }
 
-const PipelineDefinition*
-FindPipeline(
-    const ProductDefinition& product,
-    std::string_view name)
-{
-    for (std::size_t i = 0;
-         i < product.pipelineCount;
-         ++i)
-    {
-        const auto& pipeline =
-            product.pipelines[i];
-
-        if (pipeline.name == name)
-        {
-            return &pipeline;
-        }
-    }
-
-    return nullptr;
-}
-
 bool ValidateProductDefinition(
     const ProductDefinition& product)
 {
@@ -299,25 +275,6 @@ bool ValidateProductDefinition(
         return false;
     }
 
-    //
-    // Pipeline uniqueness
-    //
-
-    if (HasDuplicate(
-            product.pipelines,
-            product.pipelineCount,
-            [&](const PipelineDefinition& item)
-            {
-                return item.name;
-            }))
-    {
-        return false;
-    }
-
-    //
-    // Capability → DataItem
-    //
-
     for (std::size_t i = 0;
          i < product.capabilityCount;
          ++i)
@@ -338,44 +295,6 @@ bool ValidateProductDefinition(
             {
                 return false;
             }
-        }
-    }
-    
-    //
-    // Pipeline → Domain
-    //
-
-    for (std::size_t i = 0;
-         i < product.pipelineCount;
-         ++i)
-    {
-        const auto& pipeline =
-            product.pipelines[i];
-
-        for (std::size_t j = 0;
-             j < pipeline.triggerDomainCount;
-             ++j)
-        {
-            if (!FindDomain(
-                    product,
-                    pipeline.triggerDomains[j]))
-            {
-                // std::cout
-                //     << "Missing Domain: "
-                //     << pipeline.triggerDomains[j]
-                //     << std::endl;
-
-                return false;
-            }
-        }
-
-        if (!FindCapability(
-                product,
-                pipeline.outputCapability))
-        {
-
-            
-            return false;
         }
     }
 
@@ -408,20 +327,6 @@ GetCapabilityCount(
     const ProductDefinition& product)
 {
     return product.capabilityCount;
-}
-
-const PipelineDefinition*
-GetPipelines(
-    const ProductDefinition& product)
-{
-    return product.pipelines;
-}
-
-std::size_t
-GetPipelineCount(
-    const ProductDefinition& product)
-{
-    return product.pipelineCount;
 }
 
 const DataItemDefinition*

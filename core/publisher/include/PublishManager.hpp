@@ -3,7 +3,7 @@
 #include "ChangeNotifyManager.hpp"
 #include "PeriodicNotifyManager.hpp"
 #include "NotificationRateLimiter.hpp"
-#include "ProductDefinition.hpp"
+#include "RouteProvider.hpp"
 
 namespace rim
 {
@@ -16,11 +16,11 @@ public:
         ChangeNotifyManager& notifyManager,
         PeriodicNotifyManager& periodicNotifyManager,
         SubscriptionStore& subscriptionStore,
-        const ProductDefinition& product)
+        RouteProvider& routeProvider)
         : notifyManager_(notifyManager)
         , periodicNotifyManager_(periodicNotifyManager)
         , subscriptionStore_(subscriptionStore)
-        ,product_(product)
+        , routeProvider_(routeProvider)
     {
     }
 
@@ -31,14 +31,10 @@ public:
 private:
 
     ChangeNotifyManager& notifyManager_;
-
     PeriodicNotifyManager& periodicNotifyManager_;
-    
     SubscriptionStore& subscriptionStore_;
-    
     NotificationRateLimiter rateLimiter_;
-
-    const ProductDefinition& product_;
+    RouteProvider& routeProvider_;
     
 };
 

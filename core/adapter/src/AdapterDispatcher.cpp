@@ -38,14 +38,20 @@ bool AdapterDispatcher::Dispatch(
 
     outItem.id = item.id;
 
-    outItem.valueType =
+    outItem.value.type =
         definition->setValueType;
 
     outItem.value =
         setValue;
 
-    queue_.Push(
-        outItem);
+    auto queue = routeProvider_.Find(outItem.id);
+
+    if (queue == nullptr)
+    {
+        return false;
+    }
+
+    queue->storeQueue->Push(outItem);
 
     return true;
 }

@@ -10,9 +10,6 @@
 
 #include "CapabilityAccessor.hpp"
 
-#include "StoreInputQueue.hpp"
-#include "RIMSnapshotManager.hpp"
-#include "DataStoreWorker.hpp"
 #include "RIMValueFactory.hpp"
 #include "DomainStorageRegistry.hpp"
 
@@ -30,10 +27,12 @@
 #include "IProductProvider.hpp"
 #include "RouteProvider.hpp"
 #include "ProductFactory.hpp"
-#include "RoutePipeline.hpp"
+#include "RouteExecutor.hpp"
 #include "CallbackWorker.hpp"
 #include "CallbackQueue.hpp"
 
+#include "SnapshotAccessor.hpp"
+#include "CapabilitySnapshotProvider.hpp"
 
 namespace
 {
@@ -43,14 +42,12 @@ struct RIManagerContext
     std::unique_ptr<rim::IProductProvider>
     productProvider;
 
-    std::vector<std::unique_ptr<rim::RoutePipeline>> pipelines;
+    std::vector<std::unique_ptr<rim::RouteExecutor>> routeExecutor;
+    rim::RouteProvider routeProvider;
 
     //
     // Queue
     //
-
-    rim::StoreInputQueue
-        storeQueue;
 
     rim::PublisherInputQueue
         publisherQueue;
@@ -69,12 +66,6 @@ struct RIManagerContext
     rim::DomainStorageRegistry
         domainStore;
 
-    rim::RIMSnapshotManager
-        snapshotManager;
-
-    rim::RouteProvider
-        routeProvider;
-
     //
     // Capability
     //
@@ -84,6 +75,9 @@ struct RIManagerContext
 
     rim::CapabilityManager
         capabilityManager;
+
+    rim::CapabilitySnapshotResolver
+        capabilitySnapshotResolver;
 
     //
     // Publisher
@@ -119,9 +113,6 @@ struct RIManagerContext
     // Worker
     //
 
-    rim::DataStoreWorker
-        dataStoreWorker;
-
     rim::PublisherWorker
         publisherWorker;
 
@@ -129,19 +120,31 @@ struct RIManagerContext
     // Accessor
     //
 
+    rim::SnapshotAccessor
+        snapshotAccessor;
+
+    rim::CapabilitySnapshotProvider
+        capabilitySnapshotProvider;
+
     rim::CapabilityAccessor
         capabilityAccessor;
 
     RIManagerContext()
-        : dispatcher(
+        : routeProvider()
+        ,dispatcher(
             rim::kPrinterAProductDefinition,
-            storeQueue)
-        , snapshotManager(
-            domainStore)
-        , routeProvider()
+            routeProvider)
         , capabilityManager(
             capabilityStore,
             rim::kPrinterAProductDefinition)
+        , capabilitySnapshotResolver(
+            rim::kPrinterAProductDefinition)
+        , snapshotAccessor(
+            domainStore,
+            rim::kPrinterAProductDefinition)
+        , capabilitySnapshotProvider(
+            capabilitySnapshotResolver,
+            snapshotAccessor)
         ,callbackWorker(
             callbackQueue,
             callbackRegistry)
@@ -156,12 +159,6 @@ struct RIManagerContext
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            rim::kPrinterAProductDefinition)
-        , dataStoreWorker(
-            rim::kPrinterAProductDefinition,
-            storeQueue,
-            domainStore,
-            snapshotManager,
             routeProvider)
         , publisherWorker(
             publisherQueue,
@@ -177,18 +174,18 @@ struct RIManagerContext
         const auto& product = productProvider->GetProfile().definition;
 
         routeProvider.Initialize(product);
-        pipelines.clear();
+        routeExecutor.clear();
 
         for (const auto& [name, queues]: routeProvider.GetQueues())
         {
-            pipelines.push_back(
-                std::make_unique<rim::RoutePipeline>(
+            routeExecutor.push_back(
+                std::make_unique<rim::RouteExecutor>(
                     product,
                     queues,
                     domainStore,
-                    snapshotManager,
                     capabilityManager,
-                    publisherQueue));
+                    publisherQueue,
+                    capabilitySnapshotProvider));
         }
     }
 
@@ -212,14 +209,12 @@ bool TryReadDataItem(
         return false;
     }
 
-    const auto snapshot =
-        g_context->snapshotManager.Read();
-
-    return snapshot.Find(
-        dataId,
-        item);
+    return g_context
+        ->domainStore
+        .FindData(
+            dataId,
+            item);
 }
-
 }
 
 extern "C"
@@ -252,14 +247,12 @@ int RIM_Destroy(void)
     g_context->callbackWorker.Stop();
 
     // g_context->capabilityWorker.Stop();
-    for (auto& pipeline : g_context->pipelines)
+    for (auto& route : g_context->routeExecutor)
     {
-        pipeline->Stop();
+        route->Stop();
     }
 
-    g_context->pipelines.clear();
-
-    g_context->dataStoreWorker.Stop();
+    g_context->routeExecutor.clear();
 
     g_context.reset();
 
@@ -273,11 +266,9 @@ int RIM_Start(void)
         return RI_NOT_INITIALIZED;
     }
 
-    g_context->dataStoreWorker.Run();
-
-    for (auto& pipeline : g_context->pipelines)
+    for (auto& route : g_context->routeExecutor)
     {
-        pipeline->Start();
+        route->Start();
     }
     g_context->callbackWorker.Run();
     g_context->publisherWorker.Run();
@@ -295,12 +286,10 @@ int RIM_Stop(void)
     g_context->publisherWorker.Stop();
     g_context->callbackWorker.Stop();
     
-    for (auto& pipeline : g_context->pipelines)
+    for (auto& route : g_context->routeExecutor)
     {
-        pipeline->Stop();
+        route->Stop();
     }
-
-    g_context->dataStoreWorker.Stop();
 
     return RI_SUCCESS;
 }
@@ -563,18 +552,17 @@ RIM_SetBool(
     item.id =
         dataId;
 
-    item.valueType =
-        rim::ValueType::kBool;
+    // item.valueType =
+    //     rim::ValueType::kBool;
 
     item.value =
         rim::RIMValueFactory::
             CreateBool(
                 value != 0);
 
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(item)
+       ? RI_SUCCESS
+       : RI_INVALID_PARAMETER;
 }
 
 RIStatus
@@ -630,8 +618,8 @@ RIM_SetInt32(
     item.id =
         dataId;
 
-    item.valueType =
-        rim::ValueType::kInt32;
+    // item.valueType =
+    //     rim::ValueType::kInt32;
 
     item.value =
         rim::RIMValueFactory::
@@ -696,18 +684,17 @@ RIM_SetDouble(
     item.id =
         dataId;
 
-    item.valueType =
-        rim::ValueType::kDouble;
+    // item.valueType =
+    //     rim::ValueType::kDouble;
 
     item.value =
         rim::RIMValueFactory::
             CreateDouble(
                 value);
 
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(item)
+       ? RI_SUCCESS
+       : RI_INVALID_PARAMETER;
 }
 
 RIStatus
@@ -791,18 +778,17 @@ int RIM_SetBinary(
     item.id =
         dataId;
 
-    item.valueType =
-        rim::ValueType::kBinary;
+    // item.valueType =
+    //     rim::ValueType::kBinary;
 
     item.value =
         rim::RIMValueFactory::
             CreateBinary(
                 binary.release());
 
-    g_context->storeQueue.Push(
-        item);
-
-    return RI_SUCCESS;
+    return g_context->dispatcher.Dispatch(item)
+       ? RI_SUCCESS
+       : RI_INVALID_PARAMETER;
 }
 
 }

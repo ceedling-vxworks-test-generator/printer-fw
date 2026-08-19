@@ -6,7 +6,6 @@
 #include "ProductDefinition.hpp"
 #include "RIMDataItem.hpp"
 #include "DomainStorageRegistry.hpp"
-#include "DomainRegistry.hpp"
 
 namespace rim
 {
@@ -56,8 +55,6 @@ private:
     const ProductDefinition&
         product_;
 
-    DomainRegistry
-        domainRegistry_;
 };
 
 }

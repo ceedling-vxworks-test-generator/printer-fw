@@ -23,7 +23,7 @@ void AddBoolItem(
     rim::RIMDataItem item{};
 
     item.id = id;
-    item.valueType = rim::ValueType::kBool;
+    // item.valueType = rim::ValueType::kBool;
 
     item.value =
         rim::RIMValueFactory::CreateBool(
@@ -47,8 +47,8 @@ TEST(
         item.id =
             RI_DATA_TEMPERATURE_SENSOR_A;
 
-        item.valueType =
-            rim::ValueType::kDouble;
+        // item.valueType =
+        //     rim::ValueType::kDouble;
 
         item.value =
             rim::RIMValueFactory::CreateDouble(
@@ -64,8 +64,8 @@ TEST(
         item.id =
             RI_DATA_HUMIDITY_SENSOR;
 
-        item.valueType =
-            rim::ValueType::kDouble;
+        // item.valueType =
+        //     rim::ValueType::kDouble;
 
         item.value =
             rim::RIMValueFactory::CreateDouble(

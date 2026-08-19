@@ -2,7 +2,6 @@
 
 #include "ProductDefinition.hpp"
 #include "DataItemDefinition.hpp"
-#include "DomainRegistry.hpp"
 
 #include <unordered_map>
 

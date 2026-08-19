@@ -11,9 +11,6 @@
 #include "CapabilityItemDefinition.hpp"
 #include "CapabilityItem/PrinterACapabilities.hpp"
 
-#include "PipelineDefinition.hpp"
-#include "Pipeline/PrinterAPipelines.hpp"
-
 #include "ProductDefinition.hpp"
 
 namespace rim
@@ -62,14 +59,6 @@ inline constexpr std::array kCapabilities =
     // kJobCapability,
 };
 
-inline constexpr std::array kPipelines =
-{
-    kEnvironmentPipeline,
-    kPrintReadyPipeline,
-    // kConsumablePipeline,
-    // kJobPipeline,
-};
-
 inline constexpr ProductDefinition
 kPrinterAProductDefinition
 {
@@ -84,9 +73,6 @@ kPrinterAProductDefinition
 
     kCapabilities.data(),
     kCapabilities.size(),
-
-    kPipelines.data(),
-    kPipelines.size()
 };
 
 }

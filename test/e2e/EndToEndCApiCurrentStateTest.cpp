@@ -42,7 +42,7 @@ protected:
             RI_SUCCESS);
     }
 
-    void WaitPipeline()
+    void WaitRoute()
     {
         std::this_thread::sleep_for(
             kWaitTime);
@@ -61,7 +61,7 @@ TEST_F(
             30.0),
         RI_SUCCESS);
 
-    WaitPipeline();
+    WaitRoute();
 
     rim::EnvironmentCapability
         capability{};
@@ -74,7 +74,7 @@ TEST_F(
 
     EXPECT_DOUBLE_EQ(
         capability.temperature,
-        30.0);
+        30.0 + 273.15);
 }
 
 TEST_F(
@@ -87,7 +87,7 @@ TEST_F(
             35.0),
         RI_SUCCESS);
 
-    WaitPipeline();
+    WaitRoute();
 
     rim::EnvironmentCapability
         first{};
@@ -109,11 +109,11 @@ TEST_F(
 
     EXPECT_DOUBLE_EQ(
         first.temperature,
-        35.0);
+        35.0 + 273.15);
 
     EXPECT_DOUBLE_EQ(
         second.temperature,
-        35.0);
+        35.0 + 273.15);
 }
 
 TEST_F(
@@ -126,7 +126,7 @@ TEST_F(
             30.0),
         RI_SUCCESS);
 
-    WaitPipeline();
+    WaitRoute();
 
     ASSERT_EQ(
         RIM_SetDouble(
@@ -134,7 +134,7 @@ TEST_F(
             40.0),
         RI_SUCCESS);
 
-    WaitPipeline();
+    WaitRoute();
 
     rim::EnvironmentCapability
         capability{};
@@ -147,7 +147,7 @@ TEST_F(
 
     EXPECT_DOUBLE_EQ(
         capability.temperature,
-        40.0);
+        40.0 + 273.15);
 }
 
 TEST_F(
@@ -172,7 +172,7 @@ TEST_F(
             0),
         RI_SUCCESS);
 
-    WaitPipeline();
+    WaitRoute();
 
     rim::PrintReadyCapability
         capability{};
@@ -196,7 +196,7 @@ TEST_F(
 //             80),
 //         RI_SUCCESS);
 
-//     WaitPipeline();
+//     WaitRoute();
 
 //     rim::ConsumableCapability
 //         capability{};
@@ -226,7 +226,7 @@ TEST_F(
 //             123),
 //         RI_SUCCESS);
 
-//     WaitPipeline();
+//     WaitRoute();
 
 //     rim::JobCapability
 //         capability{};
@@ -244,3 +244,98 @@ TEST_F(
 //         capability.jobId,
 //         123);
 // }
+
+TEST_F(
+    EndToEndCApiCurrentStateTest,
+    EnvironmentContainsExpectedValues)
+{
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            30.0),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            60.0),
+        RI_SUCCESS);
+
+    WaitRoute();
+
+    rim::EnvironmentCapability
+        capability{};
+
+    ASSERT_EQ(
+        PrinterA_GetCapability(
+            RI_CAPABILITY_ENVIRONMENT,
+            &capability),
+        RI_SUCCESS);
+
+    EXPECT_DOUBLE_EQ(
+        capability.temperature,
+        30.0 + 273.15);
+
+    EXPECT_DOUBLE_EQ(
+        capability.humidity,
+        60.0);
+}
+
+TEST_F(
+    EndToEndCApiCurrentStateTest,
+    PrintReadyBecomesFalseWhenDoorOpen)
+{
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
+            1),
+        RI_SUCCESS);
+
+    WaitRoute();
+
+    rim::PrintReadyCapability
+        capability{};
+
+    ASSERT_EQ(
+        PrinterA_GetCapability(
+            RI_CAPABILITY_PRINT_READY,
+            &capability),
+        RI_SUCCESS);
+
+    EXPECT_FALSE(
+        capability.ready);
+}
+
+TEST_F(
+    EndToEndCApiCurrentStateTest,
+    CapabilityReturnsLatestHumidityValue)
+{
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            50.0),
+        RI_SUCCESS);
+
+    WaitRoute();
+
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            70.0),
+        RI_SUCCESS);
+
+    WaitRoute();
+
+    rim::EnvironmentCapability
+        capability{};
+
+    ASSERT_EQ(
+        PrinterA_GetCapability(
+            RI_CAPABILITY_ENVIRONMENT,
+            &capability),
+        RI_SUCCESS);
+
+    EXPECT_DOUBLE_EQ(
+        capability.humidity,
+        70.0);
+}

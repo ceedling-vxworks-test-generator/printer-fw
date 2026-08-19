@@ -8,8 +8,8 @@
 
 #include "BinaryStoreValue.hpp"
 
-#include "RIMSnapshotManager.hpp"
 #include "RIMValueFactory.hpp"
+
 TEST(
     EndToEndCApiErrorListTest,
     RoundTrip)

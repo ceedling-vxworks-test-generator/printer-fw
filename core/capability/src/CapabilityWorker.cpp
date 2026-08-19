@@ -8,10 +8,13 @@ namespace rim
     CapabilityWorker::CapabilityWorker(
         IQueue<CapabilityInput>& queue,
         CapabilityManager& manager,
-        PublisherInputQueue& publisherQueue)
-        : queue_(queue)
-        , manager_(manager)
-        , publisherQueue_(publisherQueue)
+        PublisherInputQueue& publisherQueue,
+        const ICapabilitySnapshotProvider& snapshotProvider)
+        :
+        queue_(queue),
+        manager_(manager),
+        publisherQueue_(publisherQueue),
+        snapshotProvider_(snapshotProvider)
     {
     }
 
@@ -41,9 +44,13 @@ void CapabilityWorker::Process(
     publisherQueue_.Push(
         dataInput);
 
+    const auto snapshot =
+        snapshotProvider_.Create(
+            capabilityInput.changedDataId);
+
     const auto changes =
         manager_.Evaluate(
-            capabilityInput.snapshot,
+            snapshot,
             capabilityInput.changedDataId);
 
     PublishCapabilityChanges(

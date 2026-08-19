@@ -16,8 +16,8 @@ TEST(
     source.id =
         RI_DATA_TEMPERATURE_SENSOR_A;
 
-    source.valueType =
-        rim::ValueType::kDouble;
+    // source.valueType =
+    //     rim::ValueType::kDouble;
 
     source.value =
         rim::RIMValueFactory::CreateDouble(
@@ -70,8 +70,8 @@ TEST(
     item.id =
         RI_DATA_TEMPERATURE_SENSOR_A;
 
-    item.valueType =
-        rim::ValueType::kDouble;
+    // item.valueType =
+    //     rim::ValueType::kDouble;
 
     item.value =
         rim::RIMValueFactory::CreateDouble(

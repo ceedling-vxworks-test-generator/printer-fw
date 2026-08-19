@@ -62,8 +62,8 @@ TEST(
         nullptr,
         0,
 
-        nullptr,
-        0
+        // nullptr,
+        // 0
     };
 
     EXPECT_FALSE(
@@ -139,8 +139,8 @@ TEST(
         capabilities,
         2,
 
-        nullptr,
-        0
+        // nullptr,
+        // 0
     };
 
     EXPECT_FALSE(
@@ -200,8 +200,8 @@ TEST(
         nullptr,
         0,
 
-        nullptr,
-        0
+        // nullptr,
+        // 0
     };
 
     EXPECT_FALSE(
@@ -261,56 +261,8 @@ TEST(
         nullptr,
         0,
 
-        nullptr,
-        0
-    };
-
-    EXPECT_FALSE(
-        rim::ValidateProductDefinition(
-            product));
-}
-
-TEST(
-    ProductDefinitionTest,
-    RejectDuplicatePipeline)
-{
-    const std::string_view domains[]
-    {
-        "DomainA"
-    };
-
-    const rim::PipelineDefinition pipelines[]
-    {
-        {
-            "PipelineA",
-            domains,
-            1,
-            "CapabilityA"
-        },
-        {
-            "PipelineA",
-            domains,
-            1,
-            "CapabilityB"
-        }
-    };
-
-    const rim::ProductDefinition product
-    {
-        nullptr,
-        0,
-
-        nullptr,
-        0,
-
-        nullptr,
-        0,
-
-        nullptr,
-        0,
-
-        pipelines,
-        2
+        // nullptr,
+        // 0
     };
 
     EXPECT_FALSE(
@@ -386,8 +338,8 @@ TEST(
         capabilities,
         2,
 
-        nullptr,
-        0
+        // nullptr,
+        // 0
     };
 
     EXPECT_FALSE(
@@ -439,8 +391,8 @@ TEST(
         nullptr,
         0,
 
-        nullptr,
-        0
+        // nullptr,
+        // 0
     };
 
     EXPECT_FALSE(

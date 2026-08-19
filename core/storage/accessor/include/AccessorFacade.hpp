@@ -16,12 +16,10 @@ public:
 
     AccessorFacade(
         DataAccessor& dataAccessor,
-        CapabilityAccessor& capabilityAccessor,
-        SnapshotAccessor& snapshotAccessor)
+        CapabilityAccessor& capabilityAccessor)
         :
         dataAccessor_(dataAccessor),
-        capabilityAccessor_(capabilityAccessor),
-        snapshotAccessor_(snapshotAccessor)
+        capabilityAccessor_(capabilityAccessor)
     {
     }
 
@@ -49,38 +47,6 @@ public:
         return capabilityAccessor_;
     }
 
-    SnapshotAccessor&
-    Snapshot()
-    {
-        return snapshotAccessor_;
-    }
-
-    const SnapshotAccessor&
-    Snapshot() const
-    {
-        return snapshotAccessor_;
-    }
-
-    AccessId
-    CreateSnapshotByDomains(
-        const std::vector<std::string_view>& domains);
-
-    AccessId
-    CreateSnapshotByDataId(
-        RIDataId id);
-
-    AccessId
-    CreateSnapshotByDataIds(
-        const std::vector<RIDataId>& ids);
-
-    // AccessId
-    // CreateSnapshotByCapability(
-    //     std::string_view capability);
-
-    // AccessId
-    // CreateSnapshotByCapabilities(
-    //     const std::vector<std::string_view>& capabilities);        
-
 private:
 
     DataAccessor&
@@ -88,9 +54,6 @@ private:
 
     CapabilityAccessor&
         capabilityAccessor_;
-
-    SnapshotAccessor&
-        snapshotAccessor_;
 };
 
 } // namespace rim

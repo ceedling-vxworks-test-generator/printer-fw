@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "ProductDefinition.hpp"
 #include "RIMSnapshot.hpp"
 #include "DomainStorageRegistry.hpp"
@@ -16,9 +18,9 @@ public:
         const DomainStorageRegistry& store,
         const ProductDefinition& product);
 
-    void
-    UpdateSnapshot(
-        RIMSnapshot& snapshot) const;
+    RIMSnapshot
+    Build(
+        const std::vector<DomainId>& domains) const;
 
 private:
 

@@ -1,0 +1,13 @@
+#pragma once
+
+#include "RIId.hpp"
+
+enum
+{
+    RI_CAPABILITY_ENVIRONMENT = 0,
+    RI_CAPABILITY_PRINT_READY,
+    RI_CAPABILITY_CONSUMABLE,
+    RI_CAPABILITY_JOB,
+    RI_CAPABILITY_ERROR
+
+};

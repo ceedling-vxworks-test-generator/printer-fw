@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "printer_a.h"
 #include "CapabilityStorage.hpp"
 
 namespace

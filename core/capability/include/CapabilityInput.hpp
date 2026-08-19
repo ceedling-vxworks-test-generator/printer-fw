@@ -1,15 +1,14 @@
 #pragma once
 
-#include "RIMSnapshot.hpp"
+#include "RIId.hpp"
 
 namespace rim
 {
 
 struct CapabilityInput
 {
-    RIMSnapshot snapshot;
-
-    RIDataId changedDataId{
+    RIDataId changedDataId
+    {
         RI_INVALID_DATA_ID
     };
 
@@ -19,4 +18,4 @@ struct CapabilityInput
     }
 };
 
-}
+} // namespace rim

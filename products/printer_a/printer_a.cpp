@@ -4,40 +4,14 @@
 #include <unordered_map>
 #include <cstring>
 
-#include "CapabilityStore.hpp"
-
-#include "CapabilityAccessor.hpp"
-
-#include "StoreInputQueue.hpp"
-#include "RIMSnapshotManager.hpp"
-#include "DataStoreWorker.hpp"
-#include "RIMValueFactory.hpp"
-#include "DomainStorageRegistry.hpp"
-
-#include "CapabilityManager.hpp"
-#include "CapabilityWorker.hpp"
 #include "CapabilityAccessor.hpp"
 
 #include "EnvironmentCapability.hpp"
 #include "PrintReadyCapability.hpp"
 
-#include "PublisherInputQueue.hpp"
-#include "PublisherWorker.hpp"
-#include "PublishManager.hpp"
-#include "CallbackSubscriptionRegistry.hpp"
-#include "ChangeNotifyManager.hpp"
-
 #include "PrinterAProductDefinition.hpp"
 
-#include "NotificationReceiver.hpp"
-#include "IProductProvider.hpp"
-#include "RouteProvider.hpp"
-#include "ProductFactory.hpp"
-#include "RoutePipeline.hpp"
-#include "CallbackWorker.hpp"
-#include "CallbackQueue.hpp"
-
-#include "printer_a_types.h"
+#include "printer_a.h"
 
 namespace
 {

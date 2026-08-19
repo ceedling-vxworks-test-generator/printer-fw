@@ -58,12 +58,17 @@ TEST(
         rim::PeriodicNotifyManager
             periodicNotifyManager;
 
-        rim::PublishManager
-            publishManager(
-                notifyManager,
-                periodicNotifyManager,
-                subscriptionStore,
-                rim::kPrinterAProductDefinition);
+    rim::RouteProvider routeProvider;
+
+    routeProvider.Initialize(
+    rim::kPrinterAProductDefinition);
+
+    rim::PublishManager
+        publishManager(
+            notifyManager,
+            periodicNotifyManager,
+            subscriptionStore,
+            routeProvider);
 
         for (std::size_t i = 0;
              i < subscriberCount;

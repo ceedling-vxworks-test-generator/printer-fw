@@ -7,9 +7,6 @@
 #include "AdapterDispatcher.hpp"
 #include "products/printer_a/Adapter/PrinterAAdapter.hpp"
 
-#include "StoreInputQueue.hpp"
-#include "DataStoreWorker.hpp"
-#include "RIMSnapshotManager.hpp"
 #include "DomainStorageRegistry.hpp"
 
 #include "CapabilityWorker.hpp"
@@ -36,7 +33,7 @@
 
 #include "PrinterAProductDefinition.hpp"
 #include "RouteProvider.hpp"
-#include "RoutePipeline.hpp"
+#include "RouteExecutor.hpp"
 
 #include "ProductFactory.hpp"
 #include "IProductProvider.hpp"
@@ -44,11 +41,14 @@
 #include "CallbackWorker.hpp"
 #include "PrinterAProductDefinition.hpp"
 
+#include "CapabilitySnapshotResolver.hpp"
+#include "SnapshotAccessor.hpp"
+#include "CapabilitySnapshotProvider.hpp"
+
 TEST(
     AdapterToCallbackThreadTest,
     NotificationReceived)
 {
-    rim::StoreInputQueue storeQueue;
 
     rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
@@ -58,9 +58,6 @@ TEST(
 
     rim::DomainStorageRegistry
         domainStore;
-
-    rim::RIMSnapshotManager reader(
-        domainStore);
 
     rim::CapabilityStore capabilityStore;
 
@@ -132,46 +129,57 @@ TEST(
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
-    rim::PublishManager publishManager(
-        notifyManager,
-        periodicNotifyManager,
-        subscriptionStore,
-        rim::kPrinterAProductDefinition);
+    routeProvider.Initialize(
+    rim::kPrinterAProductDefinition);
+
+    rim::PublishManager
+        publishManager(
+            notifyManager,
+            periodicNotifyManager,
+            subscriptionStore,
+            routeProvider);
 
     auto productProvider = rim::CreatePrinterAProvider();
 
-    routeProvider.Initialize(productProvider->GetProfile().definition);
+    routeProvider.Initialize(
+        productProvider->GetProfile().definition);
 
-    rim::DataStoreWorker dataStoreWorker(
-        rim::kPrinterAProductDefinition,
-        storeQueue,
-        domainStore,
-        reader,
-        routeProvider);
+    rim::CapabilitySnapshotResolver
+        snapshotResolver(
+            rim::kPrinterAProductDefinition);
 
-    std::vector<std::unique_ptr<rim::RoutePipeline>> pipelines;
+    rim::SnapshotAccessor
+        snapshotAccessor(
+            domainStore,
+            rim::kPrinterAProductDefinition);
 
-    for (const auto& [name, queues]: routeProvider.GetQueues())
+    rim::CapabilitySnapshotProvider
+        snapshotProvider(
+            snapshotResolver,
+            snapshotAccessor);
+
+    std::vector<std::unique_ptr<rim::RouteExecutor>>
+        routeExecutor;
+
+    for (const auto& [name, queues] : routeProvider.GetQueues())
     {
-        pipelines.push_back(
-            std::make_unique<rim::RoutePipeline>(
+        routeExecutor.push_back(
+            std::make_unique<rim::RouteExecutor>(
                 rim::kPrinterAProductDefinition,
                 queues,
                 domainStore,
-                reader,
                 capabilityManager,
-                publisherQueue));
+                publisherQueue,
+                snapshotProvider));
     }
 
     rim::PublisherWorker publisherWorker(
         publisherQueue,
         publishManager);
 
-    dataStoreWorker.Run();
-
-    for (auto& pipeline : pipelines)
+    for (auto& route : routeExecutor)
     {
-        pipeline->Start();
+        route->Start();
     }
 
     callbackWorker.Run();
@@ -179,7 +187,7 @@ TEST(
 
     rim::AdapterDispatcher dispatcher(
         rim::kPrinterAProductDefinition,
-        storeQueue);
+        routeProvider);
 
     rim::PrinterAAdapter adapter(
         dispatcher);
@@ -198,10 +206,9 @@ TEST(
     publisherWorker.Stop();
     callbackWorker.Stop();
 
-    for (auto& pipeline : pipelines)
+    for (auto& route : routeExecutor)
     {
-        pipeline->Stop();
+        route->Stop();
     }
 
-    dataStoreWorker.Stop();
 }

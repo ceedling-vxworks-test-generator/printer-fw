@@ -21,8 +21,8 @@ RIMDataItem CreateItem(
 
     item.id = id;
 
-    item.valueType =
-        ValueType::kInt32;
+    // item.valueType =
+    //     ValueType::kInt32;
 
     item.value.type =
         ValueType::kInt32;

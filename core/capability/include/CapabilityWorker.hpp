@@ -4,10 +4,11 @@
 #include <thread>
 
 #include "CapabilityManager.hpp"
-#include "IQueue.hpp"
 #include "CapabilityInput.hpp"
+#include "IQueue.hpp"
 #include "PublisherInput.hpp"
 #include "PublisherInputQueue.hpp"
+#include "ICapabilitySnapshotProvider.hpp"
 
 namespace rim
 {
@@ -19,8 +20,9 @@ public:
     CapabilityWorker(
         IQueue<CapabilityInput>& queue,
         CapabilityManager& manager,
-        PublisherInputQueue& publisherQueue);
-        
+        PublisherInputQueue& publisherQueue,
+        const ICapabilitySnapshotProvider& snapshotProvider);
+
     ~CapabilityWorker();
 
     void Run();
@@ -31,14 +33,31 @@ public:
 
 private:
 
-    void Process(const CapabilityInput& capabilityInput);
-    void PublishCapabilityChanges(const CapabilityChangeSet& changes);
+    void Process(
+        const CapabilityInput& capabilityInput);
 
-    IQueue<CapabilityInput>& queue_;
-    CapabilityManager& manager_;
-    PublisherInputQueue& publisherQueue_;
-    std::atomic<bool> running_{false};
-    std::thread workerThread_;
+    void PublishCapabilityChanges(
+        const CapabilityChangeSet& changes);
+
+private:
+
+    IQueue<CapabilityInput>&
+        queue_;
+
+    CapabilityManager&
+        manager_;
+
+    PublisherInputQueue&
+        publisherQueue_;
+
+    const ICapabilitySnapshotProvider&
+        snapshotProvider_;
+
+    std::atomic<bool>
+        running_{false};
+
+    std::thread
+        workerThread_;
 };
 
 } // namespace rim
