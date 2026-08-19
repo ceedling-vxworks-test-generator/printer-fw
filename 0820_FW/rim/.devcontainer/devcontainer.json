@@ -1,0 +1,27 @@
+{
+    "name": "PAD_Firm_RIM",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "ms-vscode.cpptools-extension-pack",
+                "github.vscode-github-actions"
+            ],
+            "settings": {
+                "cmake.buildDirectory": "/workspace/build",
+                "cmake.configureSettings": {
+                    "CMAKE_BUILD_TYPE": "Debug"
+                }
+            }
+        }
+    },
+    "postCreateCommand": "cmake -S . -B build",
+    "remoteUser": "developer"
+}

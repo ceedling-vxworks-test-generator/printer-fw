@@ -1,0 +1,94 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-check:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build DevContainer image
+        run: |
+          docker build \
+            --build-arg USER_ID=$(id -u) \
+            --build-arg GROUP_ID=$(id -g) \
+            -t dev \
+            -f .devcontainer/Dockerfile .
+
+      - name: Configure
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            dev \
+            bash -lc 'cmake -S . -B build'
+
+      - name: Build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            dev \
+            bash -lc 'cmake --build build --parallel'
+
+      - name: Functional Test
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            dev \
+            bash -lc './build/rimanager_functional_test --gtest_output=xml:build/results_functional.xml'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/results_*.xml
+
+  coverage:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build DevContainer image
+        run: |
+          docker build \
+            --build-arg USER_ID=$(id -u) \
+            --build-arg GROUP_ID=$(id -g) \
+            -t dev \
+            -f .devcontainer/Dockerfile .
+
+      - name: Build and generate coverage
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            dev \
+            bash -lc '
+              cmake -B build -DENABLE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+              cmake --build build --target coverage
+            '
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage_html/

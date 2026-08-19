@@ -1,0 +1,169 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "find build -mindepth 1 -delete"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                ".",
+                "-B",
+                "build"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": {
+                "owner": "cpp",
+                "fileLocation": "absolute",
+                "pattern": [
+                    {
+                        "regexp": "^(.+):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                ]
+            }
+        },
+        {
+            "label": "CTest",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--output-on-failure"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Functional Test",
+            "type": "shell",
+            "command": "./rimanager_functional_test",
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Performance Test",
+            "type": "shell",
+            "command": "./rimanager_performance_test",
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Build + Functional Test",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "CMake Configure",
+                "CMake Build",
+                "Functional Test"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Build + Performance Test",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "CMake Configure",
+                "CMake Build",
+                "Performance Test"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Build + All Tests",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "CMake Configure",
+                "CMake Build",
+                "Functional Test",
+                "Performance Test"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "CMake Configure Coverage",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B",
+                "build",
+                "-DENABLE_COVERAGE=ON",
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Coverage",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "coverage"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Coverage All",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "CMake Configure Coverage",
+                "Coverage"
+            ],
+            "problemMatcher": []
+        }
+
+   ]
+}
