@@ -1,22 +1,26 @@
 #include <gtest/gtest.h>
 
-#include "RouteResolver.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     RouteResolverTest,
     ResolveCapabilityRoute)
 {
-    rim::NotificationTarget target
-    {
-        rim::NotificationTargetType::Capability,
-        RI_CAPABILITY_ENVIRONMENT
-    };
+    rim::ProductContext context(
+        rim::kPrinterAProductDefinition);
+
+    const auto* capability =
+        context.FindCapability(
+            RI_CAPABILITY_ENVIRONMENT);
+
+    ASSERT_NE(
+        capability,
+        nullptr);
 
     const auto* route =
-        rim::RouteResolver::Resolve(
-            rim::kPrinterAProductDefinition,
-            target);
+        context.FindRoute(
+            capability->routeId);
 
     ASSERT_NE(
         route,
@@ -31,16 +35,20 @@ TEST(
     RouteResolverTest,
     ResolveDataRoute)
 {
-    rim::NotificationTarget target
-    {
-        rim::NotificationTargetType::Data,
-        RI_DATA_TEMPERATURE_SENSOR_A
-    };
+    rim::ProductContext context(
+        rim::kPrinterAProductDefinition);
+
+    const auto* dataItem =
+        context.FindDataItem(
+            RI_DATA_TEMPERATURE_SENSOR_A);
+
+    ASSERT_NE(
+        dataItem,
+        nullptr);
 
     const auto* route =
-        rim::RouteResolver::Resolve(
-            rim::kPrinterAProductDefinition,
-            target);
+        context.FindRoute(
+            dataItem->routeId);
 
     ASSERT_NE(
         route,

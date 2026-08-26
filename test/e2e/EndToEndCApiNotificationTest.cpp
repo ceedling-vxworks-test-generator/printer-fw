@@ -5,8 +5,6 @@
 
 #include "printer_a.h"
 
-#include "EnvironmentCapability.hpp"
-
 TEST(
     EndToEndCApiNotificationTest,
     StartStopAndReceiveCapability)
@@ -25,22 +23,27 @@ TEST(
             30.0),
         RI_SUCCESS);
 
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            40.0),
+        RI_SUCCESS);
+
     std::this_thread::sleep_for(
         std::chrono::milliseconds(
             100));
 
-    rim::EnvironmentCapability
-        capability{};
+    int32_t capability{};
 
     ASSERT_EQ(
-        PrinterA_GetCapability(
+        RIM_GetCapabilityInt32(
             RI_CAPABILITY_ENVIRONMENT,
             &capability),
         RI_SUCCESS);
 
-    EXPECT_DOUBLE_EQ(
-        capability.temperature,
-        30.0 + 273.15);
+    EXPECT_EQ(
+        capability,
+        1);
 
     ASSERT_EQ(
         RIM_Stop(),

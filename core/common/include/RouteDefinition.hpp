@@ -11,6 +11,7 @@ namespace rim
 
 struct RouteDefinition
 {
+    std::uint32_t id;
     std::string_view name;
     QueuePolicy storePolicy;
     QueuePolicy capabilityPolicy;

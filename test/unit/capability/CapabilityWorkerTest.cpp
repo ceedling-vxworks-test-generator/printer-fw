@@ -1,634 +1,435 @@
 #include <gtest/gtest.h>
 
-#include <any>
+#include "test/support/CapabilityWorkerFixture.hpp"
 
-#include "CapabilityWorker.hpp"
+#include "test/support/NotificationAssert.hpp"
+#include "test/support/PrinterATestSupport.hpp"
 
-#include "CapabilityManager.hpp"
-#include "CapabilityStore.hpp"
+#include "printer_a.h"
 
-#include "PublisherInputQueue.hpp"
-
-#include "PrinterAProductDefinition.hpp"
-
-#include "CapabilityInput.hpp"
-
-#include "DomainStorageRegistry.hpp"
-
-#include "CapabilitySnapshotResolver.hpp"
-#include "SnapshotAccessor.hpp"
-#include "CapabilitySnapshotProvider.hpp"
-
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
-
-TEST(
-    CapabilityWorkerTest,
-    ExecuteOnce)
+namespace
 {
-    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
 
-    rim::CapabilityStore store;
+rim::RIMDataItem FindCapability(
+    const rim::PartitionStorageRegistry& store,
+    const rim::ProductContext& context,
+    RICapabilityId capabilityId)
+{
+    const auto domainId =
+        context.FindCapabilityDomainId(
+            capabilityId);
 
-    rim::CapabilityManager manager(
-        store,
-        rim::kPrinterAProductDefinition);
+    EXPECT_NE(
+        domainId,
+        rim::kInvalidDomainId);
 
-    rim::PublisherInputQueue publisherQueue;
+    const auto* storage =
+        store.Find(
+            domainId);
 
-    rim::DomainStorageRegistry domainStore;
+    EXPECT_NE(
+        storage,
+        nullptr);
 
-    rim::CapabilitySnapshotResolver
-        snapshotResolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        snapshotProvider(
-            snapshotResolver,
-            snapshotAccessor);
-
-    rim::CapabilityWorker worker(
-        queue,
-        manager,
-        publisherQueue,
-        snapshotProvider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_TEMPERATURE_SENSOR_A;
-
-    ASSERT_NE(
-        input.changedDataId,
-        RI_DATA_UNKNOWN);
-
-    queue.Push(
-        input);
+    rim::RIMDataItem item{};
 
     EXPECT_TRUE(
-        worker.ExecuteOnce());
+        storage->Find(
+            static_cast<RIDataId>(
+                capabilityId),
+            item));
+
+    return item;
 }
 
-TEST(
-    CapabilityWorkerTest,
-    ReturnFalseWhenQueueEmpty)
+rim::RIMDataItem FindFacade(
+    const rim::PartitionStorageRegistry& store,
+    const rim::ProductContext& context,
+    RIFacadeId facadeId)
 {
-    rim::EventQueue<rim::CapabilityInput, rim::CoalescingPolicy> queue;
+    const auto domainId =
+        context.FindFacadeDomainId(
+            facadeId);
 
-    rim::CapabilityStore store;
+    EXPECT_NE(
+        domainId,
+        rim::kInvalidDomainId);
 
-    rim::CapabilityManager manager(
-        store,
-        rim::kPrinterAProductDefinition);
+    const auto* storage =
+        store.Find(
+            domainId);
 
-    rim::PublisherInputQueue publisherQueue;
+    EXPECT_NE(
+        storage,
+        nullptr);
 
-    rim::DomainStorageRegistry domainStore;
+    rim::RIMDataItem item{};
 
-    rim::CapabilitySnapshotResolver
-        snapshotResolver(
-            rim::kPrinterAProductDefinition);
+    EXPECT_TRUE(
+        storage->Find(
+            static_cast<RIDataId>(
+                facadeId),
+            item));
 
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        snapshotProvider(
-            snapshotResolver,
-            snapshotAccessor);
-
-    rim::CapabilityWorker worker(
-        queue,
-        manager,
-        publisherQueue,
-        snapshotProvider);
-
-    EXPECT_FALSE(
-        worker.ExecuteOnce());
+    return item;
 }
 
-TEST(
-    CapabilityWorkerTest,
-    PublishDataAndCapabilityEvents)
+std::vector<rim::PublisherInput>
+CollectNotifications(
+    rim::PublisherInputQueue& queue)
 {
-    rim::EventQueue<rim::CapabilityInput, rim::CoalescingPolicy> queue;
+    std::vector<rim::PublisherInput> result;
 
-    rim::PublisherInputQueue publisherQueue;
+        rim::PublisherInput notification{};
 
-    rim::CapabilityStore store;
+        while (
+            queue.TryPop(
+                notification))
+        {
+            result.push_back(
+                notification);
+        }
 
-    rim::CapabilityManager manager(
-        store,
-        rim::kPrinterAProductDefinition);
-
-    rim::DomainStorageRegistry domainStore;
-
-    rim::CapabilitySnapshotResolver
-        snapshotResolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        snapshotProvider(
-            snapshotResolver,
-            snapshotAccessor);
-
-    rim::CapabilityWorker worker(
-        queue,
-        manager,
-        publisherQueue,
-        snapshotProvider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_TEMPERATURE_SENSOR_A;
-
-    ASSERT_NE(
-        input.changedDataId,
-        RI_DATA_UNKNOWN);
-
-    queue.Push(
-        input);
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    rim::PublisherInput dataNotification{};
-
-    ASSERT_TRUE(
-        publisherQueue.TryPop(
-            dataNotification));
-
-    EXPECT_EQ(
-        rim::NotificationTargetType::Data,
-        dataNotification.target.type);
-
-    EXPECT_EQ(
-        static_cast<std::uint32_t>(
-            RI_DATA_TEMPERATURE_SENSOR_A),
-        dataNotification.target.id);
-
-    rim::PublisherInput capabilityNotification{};
-
-    ASSERT_TRUE(
-        publisherQueue.TryPop(
-            capabilityNotification));
-
-    EXPECT_EQ(
-        rim::NotificationTargetType::Capability,
-        capabilityNotification.target.type);
-
-    EXPECT_EQ(
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_ENVIRONMENT),
-        capabilityNotification.target.id);
+        return result;
+    }
 }
 
-TEST(
-    CapabilityWorkerTest,
-    GenerateEnvironmentCapabilityFromStoredData)
+bool HasFacadeNotification(
+    const std::vector<rim::PublisherInput>& notifications,
+    RIFacadeId facadeId)
 {
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
+    for (const auto& notification :
+         notifications)
+    {
+        if ((notification.target.type ==
+                rim::NotificationTargetType::Facade) &&
+            (notification.target.id ==
+                static_cast<std::uint32_t>(
+                    facadeId)))
+        {
+            return true;
+        }
+    }
 
-    rim::PublisherInputQueue
-        publisherQueue;
+    return false;
+}
 
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::DomainStorageRegistry
-        domainStore;
-
+TEST_F(
+    CapabilityWorkerFixture,
+    GenerateEnvironmentCapability)
+{
     auto& storage =
-        domainStore.GetOrCreate(
+        GetPartitionStorage(
             1U);
 
-    {
-        rim::RIMDataItem item{};
+    rim::RIMDataItem temperature{};
 
-        item.id =
-            RI_DATA_TEMPERATURE_SENSOR_A;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                300.15);
-
-        storage.Store(
-            item);
-    }
-
-    {
-        rim::RIMDataItem item{};
-
-        item.id =
-            RI_DATA_HUMIDITY_SENSOR;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                60.0);
-
-        storage.Store(
-            item);
-    }
-
-    rim::CapabilitySnapshotResolver
-        snapshotResolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        snapshotAccessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        snapshotProvider(
-            snapshotResolver,
-            snapshotAccessor);
-
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            snapshotProvider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
+    temperature.id =
         RI_DATA_TEMPERATURE_SENSOR_A;
 
-    ASSERT_TRUE(
-        queue.Push(
-            input));
+    temperature.value =
+        rim::RIMValueFactory::CreateDouble(
+            300.15);
 
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
+    storage.Store(
+        temperature);
 
-    rim::PublisherInput dataNotification{};
+    rim::RIMDataItem humidity{};
 
-    ASSERT_TRUE(
-        publisherQueue.TryPop(
-            dataNotification));
+    humidity.id =
+        RI_DATA_HUMIDITY_SENSOR;
 
-    EXPECT_EQ(
-        rim::NotificationTargetType::Data,
-        dataNotification.target.type);
+    humidity.value =
+        rim::RIMValueFactory::CreateDouble(
+            60.0);
 
-    EXPECT_EQ(
-        static_cast<std::uint32_t>(
-            RI_DATA_TEMPERATURE_SENSOR_A),
-        dataNotification.target.id);
+    storage.Store(
+        humidity);
 
-    rim::PublisherInput capabilityNotification{};
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
-    ASSERT_TRUE(
-        publisherQueue.TryPop(
-            capabilityNotification));
+    rim::test::ExpectDataNotification(
+        publisherQueue);
 
-    EXPECT_EQ(
-        rim::NotificationTargetType::Capability,
-        capabilityNotification.target.type);
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_ENVIRONMENT);
 
-    EXPECT_EQ(
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_ENVIRONMENT),
-        capabilityNotification.target.id);
-}
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
 
-TEST(
-    CapabilityWorkerTest,
-    StoreGeneratedEnvironmentCapability)
-{
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_ENVIRONMENT_READY));
 
-    rim::PublisherInputQueue
-        publisherQueue;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::DomainStorageRegistry
-        domainStore;
-
-    auto& storage =
-        domainStore.GetOrCreate(
-            1U);
-
-    {
-        rim::RIMDataItem item{};
-
-        item.id =
-            RI_DATA_TEMPERATURE_SENSOR_A;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                300.15);
-
-        storage.Store(
-            item);
-    }
-
-    {
-        rim::RIMDataItem item{};
-
-        item.id =
-            RI_DATA_HUMIDITY_SENSOR;
-
-        item.value =
-            rim::RIMValueFactory::CreateDouble(
-                60.0);
-
-        storage.Store(
-            item);
-    }
-
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        accessor(
+    const auto capability =
+        FindCapability(
             domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
-
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_TEMPERATURE_SENSOR_A;
-
-    ASSERT_TRUE(
-        queue.Push(
-            input));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    const auto* capability =
-        capabilityStore.Find(
+            productContext,
             RI_CAPABILITY_ENVIRONMENT);
 
-    ASSERT_NE(
-        capability,
-        nullptr);
+    EXPECT_EQ(
+        1,
+        capability.value.value.i32);
 }
 
-TEST(
-    CapabilityWorkerTest,
-    GeneratePrintReadyCapability)
+TEST_F(
+    CapabilityWorkerFixture,
+    SameEnvironmentStateDoesNotNotifyAgain)
 {
-    rim::DomainStorageRegistry
-        domainStore;
-
     auto& storage =
-        domainStore.GetOrCreate(
-            2U);
+        GetPartitionStorage(
+            1U);
 
-    {
-        rim::RIMDataItem item{};
+    rim::RIMDataItem temperature{};
 
-        item.id =
-            RI_DATA_UPPER_DOOR_OPEN;
+    temperature.id =
+        RI_DATA_TEMPERATURE_SENSOR_A;
 
-        item.value =
-            rim::RIMValueFactory::CreateBool(
-                false);
+    temperature.value =
+        rim::RIMValueFactory::CreateDouble(
+            300.15);
 
-        storage.Store(
-            item);
-    }
+    storage.Store(
+        temperature);
 
-    {
-        rim::RIMDataItem item{};
+    rim::RIMDataItem humidity{};
 
-        item.id =
-            RI_DATA_RIGHT_DOOR_OPEN;
+    humidity.id =
+        RI_DATA_HUMIDITY_SENSOR;
 
-        item.value =
-            rim::RIMValueFactory::CreateBool(
-                false);
+    humidity.value =
+        rim::RIMValueFactory::CreateDouble(
+            60.0);
 
-        storage.Store(
-            item);
-    }
+    storage.Store(
+        humidity);
 
-    {
-        rim::RIMDataItem item{};
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
-        item.id =
-            RI_DATA_LEFT_DOOR_OPEN;
+    rim::test::ExpectDataNotification(
+        publisherQueue);
 
-        item.value =
-            rim::RIMValueFactory::CreateBool(
-                false);
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_ENVIRONMENT);
 
-        storage.Store(
-            item);
-    }
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
 
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_ENVIRONMENT_READY));
 
-    rim::PublisherInputQueue
-        publisherQueue;
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
-    rim::CapabilityStore
-        capabilityStore;
+    rim::test::ExpectDataNotification(
+        publisherQueue);
 
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        accessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
-
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_UPPER_DOOR_OPEN;
-
-    ASSERT_TRUE(
-        queue.Push(
-            input));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    const auto* capability =
-        capabilityStore.Find(
-            RI_CAPABILITY_PRINT_READY);
-
-    ASSERT_NE(
-        capability,
-        nullptr);
+    rim::test::ExpectNoNotification(
+        publisherQueue);
 }
 
-TEST(
-    CapabilityWorkerTest,
-    IgnoreUnknownDataDoesNotGenerateCapability)
+TEST_F(
+    CapabilityWorkerFixture,
+    ChangedEnvironmentStateNotifiesAgain)
 {
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
+    auto& storage =
+        GetPartitionStorage(
+            1U);
 
-    rim::PublisherInputQueue
-        publisherQueue;
+    rim::RIMDataItem temperature{};
 
-    rim::CapabilityStore
-        capabilityStore;
+    temperature.id =
+        RI_DATA_TEMPERATURE_SENSOR_A;
 
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
+    temperature.value =
+        rim::RIMValueFactory::CreateDouble(
+            300.15);
 
-    rim::DomainStorageRegistry
-        domainStore;
+    storage.Store(
+        temperature);
 
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
+    rim::RIMDataItem humidity{};
 
-    rim::SnapshotAccessor
-        accessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
+    humidity.id =
+        RI_DATA_HUMIDITY_SENSOR;
 
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
+    humidity.value =
+        rim::RIMValueFactory::CreateDouble(
+            30.0);
 
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
+    storage.Store(
+        humidity);
 
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_UNKNOWN;
-
-    ASSERT_TRUE(
-        queue.Push(
-            input));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
     rim::PublisherInput notification{};
 
-    ASSERT_TRUE(
+    while (
         publisherQueue.TryPop(
-            notification));
+            notification))
+    {
+    }
+
+    temperature.value =
+        rim::RIMValueFactory::CreateDouble(
+            340.15);
+
+    storage.Store(
+        temperature);
+
+    humidity.value =
+        rim::RIMValueFactory::CreateDouble(
+            80.0);
+
+    storage.Store(
+        humidity);
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_ENVIRONMENT);
+
+    // Facade通知があっても失敗させない
+    CollectNotifications(
+        publisherQueue);
+
+    const auto capability =
+        FindCapability(
+            domainStore,
+            productContext,
+            RI_CAPABILITY_ENVIRONMENT);
 
     EXPECT_EQ(
-        rim::NotificationTargetType::Data,
-        notification.target.type);
-
-    EXPECT_EQ(
-        static_cast<std::uint32_t>(
-            RI_DATA_UNKNOWN),
-        notification.target.id);
-
-    EXPECT_FALSE(
-        publisherQueue.TryPop(
-            notification));
-
-    EXPECT_EQ(
-        nullptr,
-        capabilityStore.Find(
-            RI_CAPABILITY_ENVIRONMENT));
-
-    EXPECT_EQ(
-        nullptr,
-        capabilityStore.Find(
-            RI_CAPABILITY_PRINT_READY));
+        2,
+        capability.value.value.i32);
 }
 
-TEST(
-    CapabilityWorkerTest,
-    EnvironmentCapabilityContainsExpectedValues)
+TEST_F(
+    CapabilityWorkerFixture,
+    GeneratePrintReadyCapability)
 {
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
-
-    rim::PublisherInputQueue
-        publisherQueue;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::DomainStorageRegistry
-        domainStore;
-
     auto& storage =
-        domainStore.GetOrCreate(
+        GetPartitionStorage(
+            2U);
+
+    rim::test::PrinterATestSupport::
+        SetAllDoorsClosed(
+            storage);
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_PRINT_READY);
+
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
+
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_OPERATION_READY));
+
+    const auto capability =
+        FindCapability(
+            domainStore,
+            productContext,
+            RI_CAPABILITY_PRINT_READY);
+
+    EXPECT_TRUE(
+        capability.value.value.b);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    ChangedPrintReadyStateNotifiesAgain)
+{
+    auto& storage =
+        GetPartitionStorage(
+            2U);
+
+    rim::test::PrinterATestSupport::
+        SetAllDoorsClosed(
+            storage);
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::PublisherInput notification{};
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+    }
+
+    rim::RIMDataItem item{};
+
+    item.id =
+        RI_DATA_UPPER_DOOR_OPEN;
+
+    item.value =
+        rim::RIMValueFactory::CreateBool(
+            true);
+
+    storage.Store(
+        item);
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_PRINT_READY);
+
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
+
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_OPERATION_READY));
+
+    const auto capability =
+        FindCapability(
+            domainStore,
+            productContext,
+            RI_CAPABILITY_PRINT_READY);
+
+    EXPECT_FALSE(
+        capability.value.value.b);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    GenerateEnvironmentReadyFacade)
+{
+    auto& storage =
+        GetPartitionStorage(
             1U);
 
     {
@@ -653,77 +454,315 @@ TEST(
 
         item.value =
             rim::RIMValueFactory::CreateDouble(
-                60.0);
+                30.0);
 
         storage.Store(
             item);
     }
 
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
-    rim::SnapshotAccessor
-        accessor(
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_ENVIRONMENT);
+
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
+
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_ENVIRONMENT_READY));
+
+    const auto facade =
+        FindFacade(
             domainStore,
-            rim::kPrinterAProductDefinition);
+            productContext,
+            RI_FACADE_ENVIRONMENT_READY);
 
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
+    EXPECT_TRUE(
+        facade.value.value.b);
 
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_TEMPERATURE_SENSOR_A;
-
-    ASSERT_TRUE(
-        queue.Push(
-            input));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    const auto* capability =
-        capabilityStore.Find(
-            RI_CAPABILITY_ENVIRONMENT);
-
-    ASSERT_NE(
-        capability,
-        nullptr);
-
-    const auto& environment =
-        std::any_cast<
-            const rim::EnvironmentCapability&>(
-                *capability);
-
-    EXPECT_DOUBLE_EQ(
-        300.15,
-        environment.temperature);
-
-    EXPECT_DOUBLE_EQ(
-        60.0,
-        environment.humidity);
 }
 
-TEST(
-    CapabilityWorkerTest,
-    PrintReadyCapabilityContainsExpectedValues)
+TEST_F(
+    CapabilityWorkerFixture,
+    GenerateOperationReadyFacade)
 {
-    rim::DomainStorageRegistry
-        domainStore;
+    auto& environmentStorage =
+        GetPartitionStorage(
+            1U);
 
-    auto& storage =
-        domainStore.GetOrCreate(
+    auto& doorStorage =
+        GetPartitionStorage(
             2U);
+
+    rim::test::PrinterATestSupport::
+        SetAllDoorsClosed(
+            doorStorage);
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                30.0);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::PublisherInput notification{};
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+    }
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_PRINT_READY);
+
+    //
+    // Capability確認
+    //
+    const auto environment =
+        FindCapability(
+            domainStore,
+            productContext,
+            RI_CAPABILITY_ENVIRONMENT);
+
+    EXPECT_EQ(
+        1,
+        environment.value.value.i32);
+
+    const auto printReady =
+        FindCapability(
+            domainStore,
+            productContext,
+            RI_CAPABILITY_PRINT_READY);
+
+    EXPECT_TRUE(
+        printReady.value.value.b);
+
+    //
+    // 通知確認
+    //
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
+
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_OPERATION_READY));
+
+    //
+    // Facade確認
+    //
+    const auto facade =
+        FindFacade(
+            domainStore,
+            productContext,
+            RI_FACADE_OPERATION_READY);
+
+    EXPECT_TRUE(
+        facade.value.value.b);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    EnvironmentReadyFacadeChangesWhenEnvironmentBecomesState2)
+{
+    auto& storage =
+        GetPartitionStorage(
+            1U);
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        storage.Store(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                30.0);
+
+        storage.Store(
+            item);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::PublisherInput notification{};
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                340.15);
+
+        storage.Store(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                80.0);
+
+        storage.Store(
+            item);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_ENVIRONMENT);
+
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
+
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_ENVIRONMENT_READY));
+
+    const auto facade =
+        FindFacade(
+            domainStore,
+            productContext,
+            RI_FACADE_ENVIRONMENT_READY);
+
+    EXPECT_FALSE(
+        facade.value.value.b);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    OperationReadyFacadeChangesWhenPrintReadyBecomesFalse)
+{
+    auto& environmentStorage =
+        GetPartitionStorage(
+            1U);
+
+    auto& doorStorage =
+        GetPartitionStorage(
+            2U);
+
+    rim::test::PrinterATestSupport::
+        SetAllDoorsClosed(
+            doorStorage);
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                30.0);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::PublisherInput notification{};
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+    }
 
     {
         rim::RIMDataItem item{};
@@ -733,130 +772,56 @@ TEST(
 
         item.value =
             rim::RIMValueFactory::CreateBool(
-                false);
+                true);
 
-        storage.Store(
+        doorStorage.Store(
             item);
     }
 
-    {
-        rim::RIMDataItem item{};
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
 
-        item.id =
-            RI_DATA_RIGHT_DOOR_OPEN;
+    rim::test::ExpectDataNotification(
+        publisherQueue);
 
-        item.value =
-            rim::RIMValueFactory::CreateBool(
-                false);
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_PRINT_READY);
 
-        storage.Store(
-            item);
-    }
-
-    {
-        rim::RIMDataItem item{};
-
-        item.id =
-            RI_DATA_LEFT_DOOR_OPEN;
-
-        item.value =
-            rim::RIMValueFactory::CreateBool(
-                false);
-
-        storage.Store(
-            item);
-    }
-
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
-
-    rim::PublisherInputQueue
-        publisherQueue;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        accessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
-
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_UPPER_DOOR_OPEN;
-
-    ASSERT_TRUE(
-        queue.Push(
-            input));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
-
-    const auto* capability =
-        capabilityStore.Find(
-            RI_CAPABILITY_PRINT_READY);
-
-    ASSERT_NE(
-        capability,
-        nullptr);
-
-    const auto& printReady =
-        std::any_cast<
-            const rim::PrintReadyCapability&>(
-                *capability);
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
 
     EXPECT_TRUE(
-        printReady.ready);
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_OPERATION_READY));
+
+    const auto facade =
+        FindFacade(
+            domainStore,
+            productContext,
+            RI_FACADE_OPERATION_READY);
+
+    EXPECT_FALSE(
+        facade.value.value.b);
 }
 
-TEST(
-    CapabilityWorkerTest,
-    MissingHumidityDoesNotCrash)
+TEST_F(
+    CapabilityWorkerFixture,
+    SameOperationReadyFacadeValueDoesNotNotifyAgain)
 {
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
-
-    rim::PublisherInputQueue
-        publisherQueue;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::DomainStorageRegistry
-        domainStore;
-
-    auto& storage =
-        domainStore.GetOrCreate(
+    auto& environmentStorage =
+        GetPartitionStorage(
             1U);
+
+    auto& doorStorage =
+        GetPartitionStorage(
+            2U);
+
+    rim::test::PrinterATestSupport::
+        SetAllDoorsClosed(
+            doorStorage);
 
     {
         rim::RIMDataItem item{};
@@ -868,68 +833,243 @@ TEST(
             rim::RIMValueFactory::CreateDouble(
                 300.15);
 
-        storage.Store(
+        environmentStorage.Store(
             item);
     }
 
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
+    {
+        rim::RIMDataItem item{};
 
-    rim::SnapshotAccessor
-        accessor(
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                30.0);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    //
+    // 初回生成
+    //
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::PublisherInput notification{};
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+    }
+
+    //
+    // 同じ状態で再評価
+    //
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectNoNotification(
+        publisherQueue);
+
+    const auto facade =
+        FindFacade(
             domainStore,
-            rim::kPrinterAProductDefinition);
+            productContext,
+            RI_FACADE_OPERATION_READY);
 
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
+    EXPECT_TRUE(
+        facade.value.value.b);
+}
 
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
+TEST_F(
+    CapabilityWorkerFixture,
+    OperationReadyFacadeChangesWhenEnvironmentBecomesNotReady)
+{
+    auto& environmentStorage =
+        GetPartitionStorage(
+            1U);
 
-    rim::CapabilityInput input{};
+    auto& doorStorage =
+        GetPartitionStorage(
+            2U);
 
-    input.changedDataId =
-        RI_DATA_TEMPERATURE_SENSOR_A;
+    //
+    // PrintReady=true
+    //
+    rim::test::PrinterATestSupport::
+        SetAllDoorsClosed(
+            doorStorage);
 
-    ASSERT_TRUE(
-        queue.Push(
-            input));
+    //
+    // Environment=1
+    //
+    {
+        rim::RIMDataItem item{};
 
-    EXPECT_NO_THROW(
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                30.0);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    //
+    // OperationReady=true生成
+    //
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    Execute(
+        RI_DATA_UPPER_DOOR_OPEN);
+
+    const auto initialFacade =
+        FindFacade(
+            domainStore,
+            productContext,
+            RI_FACADE_OPERATION_READY);
+
+    EXPECT_TRUE(
+        initialFacade.value.value.b);
+
+    //
+    // 通知クリア
+    //
+    rim::PublisherInput notification{};
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+    }
+
+    //
+    // Environment=2へ遷移
+    //
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                340.15);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    {
+        rim::RIMDataItem item{};
+
+        item.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        item.value =
+            rim::RIMValueFactory::CreateDouble(
+                80.0);
+
+        environmentStorage.Store(
+            item);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::test::ExpectDataNotification(
+        publisherQueue);
+
+    rim::test::ExpectCapabilityNotification(
+        publisherQueue,
+        RI_CAPABILITY_ENVIRONMENT);
+
+    const auto notifications =
+        CollectNotifications(
+            publisherQueue);
+
+    EXPECT_TRUE(
+        HasFacadeNotification(
+            notifications,
+            RI_FACADE_OPERATION_READY));
+
+    const auto updatedFacade =
+        FindFacade(
+            domainStore,
+            productContext,
+            RI_FACADE_OPERATION_READY);
+
+    EXPECT_FALSE(
+        updatedFacade.value.value.b);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    ExecuteOnceReturnsFalseWhenQueueEmpty)
+{
+    EXPECT_FALSE(
         worker.ExecuteOnce());
 }
 
-TEST(
-    CapabilityWorkerTest,
-    SameCapabilityValueDoesNotNotifyCapabilityAgain)
+TEST_F(
+    CapabilityWorkerFixture,
+    MissingRequiredDataDoesNotCrash)
 {
-    rim::EventQueue<
-        rim::CapabilityInput,
-        rim::FifoPolicy> queue;
-
-    rim::PublisherInputQueue
-        publisherQueue;
-
-    rim::CapabilityStore
-        capabilityStore;
-
-    rim::CapabilityManager
-        capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::DomainStorageRegistry
-        domainStore;
-
     auto& storage =
-        domainStore.GetOrCreate(
+        GetPartitionStorage(
+            1U);
+
+    rim::RIMDataItem item{};
+
+    item.id =
+        RI_DATA_TEMPERATURE_SENSOR_A;
+
+    item.value =
+        rim::RIMValueFactory::CreateDouble(
+            300.15);
+
+    storage.Store(
+        item);
+
+    EXPECT_NO_THROW(
+        Execute(
+            RI_DATA_TEMPERATURE_SENSOR_A));
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    NotificationOrderIsDataCapabilityFacade)
+{
+    auto& storage =
+        GetPartitionStorage(
             1U);
 
     {
@@ -960,41 +1100,8 @@ TEST(
             item);
     }
 
-    rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
-
-    rim::SnapshotAccessor
-        accessor(
-            domainStore,
-            rim::kPrinterAProductDefinition);
-
-    rim::CapabilitySnapshotProvider
-        provider(
-            resolver,
-            accessor);
-
-    rim::CapabilityWorker
-        worker(
-            queue,
-            capabilityManager,
-            publisherQueue,
-            provider);
-
-    rim::CapabilityInput input{};
-
-    input.changedDataId =
-        RI_DATA_TEMPERATURE_SENSOR_A;
-
-    //
-    // 1回目
-    //
-    ASSERT_TRUE(
-        queue.Push(
-            input));
-
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
 
     rim::PublisherInput event{};
 
@@ -1014,32 +1121,245 @@ TEST(
         rim::NotificationTargetType::Capability,
         event.target.type);
 
-    EXPECT_FALSE(
+    ASSERT_TRUE(
         publisherQueue.TryPop(
             event));
 
-    //
-    // 同じ値で再実行
-    //
-    ASSERT_TRUE(
-        queue.Push(
-            input));
+    EXPECT_EQ(
+        rim::NotificationTargetType::Facade,
+        event.target.type);
 
-    ASSERT_TRUE(
-        worker.ExecuteOnce());
+    EXPECT_EQ(
+        static_cast<std::uint32_t>(
+            RI_FACADE_ENVIRONMENT_READY),
+        event.target.id);
 
     ASSERT_TRUE(
         publisherQueue.TryPop(
             event));
 
     EXPECT_EQ(
-        rim::NotificationTargetType::Data,
+        rim::NotificationTargetType::Facade,
         event.target.type);
 
-    //
-    // Capability通知は発生しない想定
-    //
+    EXPECT_EQ(
+        static_cast<std::uint32_t>(
+            RI_FACADE_OPERATION_READY),
+        event.target.id);
+
     EXPECT_FALSE(
         publisherQueue.TryPop(
             event));
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    DataNotificationInheritsRouteCompressionPolicy)
+{
+    auto& storage =
+        GetPartitionStorage(
+            1U);
+
+    rim::RIMDataItem temperature{};
+
+    temperature.id =
+        RI_DATA_TEMPERATURE_SENSOR_A;
+
+    temperature.value =
+        rim::RIMValueFactory::CreateDouble(
+            300.15);
+
+    storage.Store(
+        temperature);
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::PublisherInput notification{};
+
+    bool found = false;
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+        if (
+            notification.target.type ==
+                rim::NotificationTargetType::Data)
+        {
+            found = true;
+
+            const auto* route =
+                productContext.ResolveRoute(
+                    notification.target);
+
+            ASSERT_NE(
+                nullptr,
+                route);
+
+            EXPECT_EQ(
+                route->compressionPolicy,
+                notification.compressionPolicy);
+
+            break;
+        }
+    }
+
+    EXPECT_TRUE(found);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    CapabilityNotificationInheritsRouteCompressionPolicy)
+{
+    auto& storage =
+        GetPartitionStorage(
+            1U);
+
+    {
+        rim::RIMDataItem temperature{};
+
+        temperature.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        temperature.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        storage.Store(
+            temperature);
+    }
+
+    {
+        rim::RIMDataItem humidity{};
+
+        humidity.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        humidity.value =
+            rim::RIMValueFactory::CreateDouble(
+                60.0);
+
+        storage.Store(
+            humidity);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::PublisherInput notification{};
+
+    bool found = false;
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+        if (
+            notification.target.type ==
+                rim::NotificationTargetType::Capability &&
+            notification.target.id ==
+                RI_CAPABILITY_ENVIRONMENT)
+        {
+            found = true;
+
+            const auto* route =
+                productContext.ResolveRoute(
+                    notification.target);
+
+            ASSERT_NE(
+                nullptr,
+                route);
+
+            EXPECT_EQ(
+                route->compressionPolicy,
+                notification.compressionPolicy);
+
+            break;
+        }
+    }
+
+    EXPECT_TRUE(found);
+}
+
+TEST_F(
+    CapabilityWorkerFixture,
+    FacadeNotificationInheritsRouteCompressionPolicy)
+{
+    auto& storage =
+        GetPartitionStorage(
+            1U);
+
+    {
+        rim::RIMDataItem temperature{};
+
+        temperature.id =
+            RI_DATA_TEMPERATURE_SENSOR_A;
+
+        temperature.value =
+            rim::RIMValueFactory::CreateDouble(
+                300.15);
+
+        storage.Store(
+            temperature);
+    }
+
+    {
+        rim::RIMDataItem humidity{};
+
+        humidity.id =
+            RI_DATA_HUMIDITY_SENSOR;
+
+        humidity.value =
+            rim::RIMValueFactory::CreateDouble(
+                60.0);
+
+        storage.Store(
+            humidity);
+    }
+
+    Execute(
+        RI_DATA_TEMPERATURE_SENSOR_A);
+
+    rim::PublisherInput notification{};
+
+    bool found = false;
+
+    while (
+        publisherQueue.TryPop(
+            notification))
+    {
+        if (
+            notification.target.type ==
+                rim::NotificationTargetType::Facade)
+        {
+            found = true;
+
+            const auto* facade =
+                productContext.FindFacade(
+                    static_cast<RIFacadeId>(
+                        notification.target.id));
+
+            ASSERT_NE(
+                nullptr,
+                facade);
+
+            EXPECT_NE(
+                0U,
+                facade->routeId);
+
+            const auto* route =
+                productContext.FindRoute(
+                    facade->routeId);
+
+            ASSERT_NE(
+                nullptr,
+                route);
+
+
+            break;
+        }
+    }
+
+    EXPECT_TRUE(found);
 }

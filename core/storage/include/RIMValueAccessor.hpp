@@ -3,8 +3,6 @@
 #include <cstdint>
 
 #include "RIMValue.hpp"
-#include "BinaryStoreValue.hpp"
-#include "BinaryInput.hpp"
 
 namespace rim
 {
@@ -114,52 +112,21 @@ public:
 
     static bool GetBinary(
         const RIMValue& value,
-        const BinaryStoreValue*& binary)
-    {
-        if (value.type !=
-            ValueType::kBinary)
-        {
-            return false;
-        }
-
-        binary =
-            static_cast<
-                const BinaryStoreValue*>(
-                    value.value.ptr);
-
-        return true;
-    }
-
-    static bool GetBinaryStore(
-        const RIMValue& value,
-        BinaryStoreValue*& binary)
+        const std::uint8_t*& bytes,
+        std::size_t& size)
     {
         if (value.type != ValueType::kBinary)
         {
             return false;
         }
 
-        binary =
-            static_cast<BinaryStoreValue*>(
-                value.value.ptr);
+        bytes =
+            value.value.bytes;
+
+        size =
+            value.size;
 
         return true;
-    }
-
-    static bool GetBinaryInput(
-        const RIMValue& value,
-        BinaryInput*& out)
-    {
-        if (value.type != ValueType::kBinary)
-        {
-            return false;
-        }
-
-        out =
-            static_cast<BinaryInput*>(
-                value.value.ptr);
-
-        return out != nullptr;
     }
 
 

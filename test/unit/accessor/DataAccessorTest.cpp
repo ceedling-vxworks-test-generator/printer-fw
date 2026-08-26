@@ -3,16 +3,19 @@
 #include <algorithm>
 
 #include "DataAccessor.hpp"
+#include "RIMValueFactory.hpp"
+#include "BinaryInfo.hpp"
 
 #include "test/support/AccessorTestConstants.hpp"
 #include "test/support/AccessorTestFixture.hpp"
+#include "ProductContext.hpp"
+
 
 namespace
 {
 
 class DataAccessorTest :
-    public ::testing::Test,
-    protected rim::test::AccessorTestFixture
+    public rim::test::AccessorTestFixture
 {
 protected:
 
@@ -20,14 +23,14 @@ protected:
         :
         accessor(
             domainStore,
-            rim::kPrinterAProductDefinition)
+            productContext)
     {
     }
 
     rim::DataAccessor accessor;
 };
 
-}
+} // namespace
 
 TEST_F(
     DataAccessorTest,
@@ -120,4 +123,86 @@ TEST_F(
             domains.end(),
             domain),
         domains.end());
+}
+
+TEST_F(
+    DataAccessorTest,
+    GetBinaryInfo)
+{
+    const auto domainId =
+        rim::DataDomainMap(
+            rim::kPrinterAProductDefinition)
+            .Find(
+                RI_DATA_ERROR_LIST);
+
+    ASSERT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    auto& storage =
+        domainStore.GetOrCreate(
+            domainId);
+
+    const std::uint8_t data[]
+    {
+        0x11,
+        0x22,
+        0x33
+    };
+
+    rim::RIMDataItem item{};
+
+    item.id =
+        RI_DATA_ERROR_LIST;
+
+    item.value =
+        rim::RIMValueFactory::CreateBinary(
+            data,
+            sizeof(data));
+
+    storage.Store(
+        item);
+
+    rim::BinaryInfo info{};
+
+    ASSERT_TRUE(
+        accessor.GetBinaryInfo(
+            RI_DATA_ERROR_LIST,
+            info));
+
+    ASSERT_NE(
+        info.bytes,
+        nullptr);
+
+    EXPECT_EQ(
+        info.size,
+        sizeof(data));
+
+    EXPECT_NE(
+        info.hash,
+        0ULL);
+
+    EXPECT_EQ(
+        info.bytes[0],
+        0x11);
+
+    EXPECT_EQ(
+        info.bytes[1],
+        0x22);
+
+    EXPECT_EQ(
+        info.bytes[2],
+        0x33);
+}
+
+TEST_F(
+    DataAccessorTest,
+    GetBinaryInfoUnknownReturnsFalse)
+{
+    rim::BinaryInfo info{};
+
+    EXPECT_FALSE(
+        accessor.GetBinaryInfo(
+            RI_DATA_ERROR_LIST,
+            info));
 }

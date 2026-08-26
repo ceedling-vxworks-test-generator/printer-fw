@@ -43,22 +43,6 @@ TEST(
 
 TEST(
     SubscriberMailboxManagerTest,
-    RemoveMailbox)
-{
-    rim::SubscriberMailboxManager manager;
-
-    auto& mailbox =
-        manager.GetMailbox(100);
-
-    EXPECT_TRUE(
-        manager.RemoveMailbox(100));
-
-    EXPECT_FALSE(
-        manager.RemoveMailbox(100));
-}
-
-TEST(
-    SubscriberMailboxManagerTest,
     GetOverflowCountUnknownMailbox)
 {
     rim::SubscriberMailboxManager manager;

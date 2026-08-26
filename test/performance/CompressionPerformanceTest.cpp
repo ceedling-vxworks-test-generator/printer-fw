@@ -3,89 +3,12 @@
 #include <chrono>
 #include <cstdint>
 #include <iomanip>
-#include <iostream>
 #include <list>
 
 #include "printer_a.h"
-
-#include "CompressionPolicyResolver.hpp"
 #include "QueuePolicy.hpp"
 #include "PublisherInput.hpp"
-
-TEST(
-    CompressionPerformanceTest,
-    ResolverThroughput)
-{
-    constexpr std::uint32_t
-        kIterations = 1000000;
-
-    rim::NotificationTarget target
-    {
-        rim::NotificationTargetType::
-            Capability,
-
-        RI_CAPABILITY_ENVIRONMENT
-    };
-
-    const auto start =
-        std::chrono::steady_clock::now();
-
-    std::size_t keepLatest = 0;
-
-    for (std::uint32_t i = 0;
-         i < kIterations;
-         ++i)
-    {
-        const auto policy =
-            rim::CompressionPolicyResolver::
-                Resolve(
-                    target);
-
-        if (policy ==
-            rim::CompressionPolicy::
-                KeepLatest)
-        {
-            ++keepLatest;
-        }
-    }
-
-    const auto end =
-        std::chrono::steady_clock::now();
-
-    const auto elapsedUs =
-        std::chrono::duration_cast
-        <
-            std::chrono::microseconds
-        >
-        (
-            end - start
-        )
-        .count();
-
-    std::cout
-        << "\n=== CompressionPolicyResolver ===\n"
-        << "Iterations  : "
-        << kIterations
-        << '\n'
-        << "KeepLatest  : "
-        << keepLatest
-        << '\n'
-        << "Elapsed(us) : "
-        << elapsedUs
-        << '\n'
-        << "Resolve/sec : "
-        << static_cast<std::uint64_t>(
-               static_cast<double>(
-                   kIterations)
-               * 1000000.0
-               / elapsedUs)
-        << '\n';
-}
-
-#include <list>
-
-#include "QueuePolicy.hpp"
-#include "PublisherInput.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     CompressionPerformanceTest,
@@ -107,15 +30,9 @@ TEST(
         policy.Insert(
             events,
             {
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-
-                rim::EventPriority::
-                    Normal
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::EventPriority::Normal,
+                rim::CompressionPolicy::KeepLatest
             });
     }
 
@@ -168,15 +85,9 @@ TEST(
         policy.Insert(
             events,
             {
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-
-                rim::EventPriority::
-                    Normal
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::EventPriority::Normal,
+                rim::CompressionPolicy::KeepLatest
             });
     }
 

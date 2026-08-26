@@ -12,8 +12,7 @@ bool AdapterDispatcher::Dispatch(
     const RIMDataItem& item)
 {
     const auto* definition =
-        FindDataItem(
-            product_,
+        context_.FindDataItem(
             item.id);
 
     if (definition == nullptr)

@@ -17,9 +17,6 @@ public:
     void Register(
         const PeriodicCondition& condition);
 
-    bool Remove(
-        SubscriptionId subscriptionId);
-
     void GetDueConditions(
         std::vector<PeriodicCondition>& out)
         const;
@@ -34,8 +31,7 @@ private:
         PeriodicCondition>
             conditions_;
 
-    mutable std::mutex
-        mutex_;
+    mutable std::mutex mutex_;
 };
 
 } // namespace rim

@@ -2,12 +2,11 @@
 
 #include "PrinterAProductDefinition.hpp"
 
-#include "ProductDefinition.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueFactory.hpp"
 
-#include "DomainStorageRegistry.hpp"
-#include "DataDomainMap.hpp"
+#include "PartitionStorageRegistry.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -19,11 +18,14 @@ public:
     static bool StoreData(
         RIDataId id,
         const RIMValue& value,
-        DomainStorageRegistry& store)
+        PartitionStorageRegistry& store)
     {
+        static const ProductContext
+            productContext(
+                kPrinterAProductDefinition);
+
         const auto* definition =
-            FindDataItem(
-                kPrinterAProductDefinition,
+            productContext.FindDataItem(
                 id);
 
         if (definition == nullptr)
@@ -55,12 +57,8 @@ public:
         item.value =
             storeValue;
 
-        static const DataDomainMap
-            dataDomainMap(
-                kPrinterAProductDefinition);
-
         const auto domainId =
-            dataDomainMap.Find(
+            productContext.FindDataDomainId(
                 id);
 
         if (domainId ==
@@ -80,7 +78,7 @@ public:
 
     static void ProcessTemperatureA(
         double value,
-        DomainStorageRegistry& store)
+        PartitionStorageRegistry& store)
     {
         StoreData(
             RI_DATA_TEMPERATURE_SENSOR_A,
@@ -91,7 +89,7 @@ public:
 
     static void ProcessTemperatureB(
         double value,
-        DomainStorageRegistry& store)
+        PartitionStorageRegistry& store)
     {
         StoreData(
             RI_DATA_TEMPERATURE_SENSOR_B,
@@ -102,7 +100,7 @@ public:
 
     static void ProcessHumidity(
         double value,
-        DomainStorageRegistry& store)
+        PartitionStorageRegistry& store)
     {
         StoreData(
             RI_DATA_HUMIDITY_SENSOR,
@@ -113,7 +111,7 @@ public:
 
     static void ProcessUpperDoor(
         bool value,
-        DomainStorageRegistry& store)
+        PartitionStorageRegistry& store)
     {
         StoreData(
             RI_DATA_UPPER_DOOR_OPEN,

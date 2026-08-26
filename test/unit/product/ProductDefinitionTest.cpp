@@ -1,23 +1,24 @@
 #include <gtest/gtest.h>
 
-#include <any>
-
 #include "PrinterAProductDefinition.hpp"
 #include "ProductDefinition.hpp"
 #include "DomainDefinition.hpp"
+#include "RIMValue.hpp"
+#include "RIMValueFactory.hpp"
+#include "Route/PrinterARouteId.hpp"
 
 namespace
 {
 
-std::any DummyBuild(
+rim::RIMValue DummyBuild(
     const rim::RIMSnapshot&)
 {
-    return std::any{};
+    return rim::RIMValueFactory::CreateBool(false);
 }
 
 bool DummyCompare(
-    const std::any&,
-    const std::any&)
+    const rim::RIMValue&,
+    const rim::RIMValue&)
 {
     return false;
 }
@@ -81,12 +82,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
             &kDomainA,
-            "ValueRoute",
+            rim::ROUTE_VALUE ,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,
@@ -106,22 +113,38 @@ TEST(
             "CapabilityA",
             rim::ValueType::kBool,
 
+            {
+                rim::ValueType::kBool,
+                { .b = false },
+                0
+            },
+
             DummyBuild,
             DummyCompare,
 
             requiredDataIds,
-            1
+            1,
+
+            rim::ROUTE_VALUE 
         },
         {
             RI_CAPABILITY_PRINT_READY,
             "CapabilityA",
             rim::ValueType::kBool,
 
+            {
+                rim::ValueType::kBool,
+                { .b = false },
+                0
+            },
+
             DummyBuild,
             DummyCompare,
 
             requiredDataIds,
-            1
+            1,
+
+            rim::ROUTE_VALUE 
         }
     };
 
@@ -158,12 +181,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_A,
             "Duplicate",
             &kDomainA,
-            "ValueRoute",
+            rim::ROUTE_VALUE ,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,
@@ -173,12 +202,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_B,
             "Duplicate",
             &kDomainA,
-            "ValueRoute",
+            rim::ROUTE_VALUE ,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,
@@ -219,12 +254,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
             &kDomainA,
-            "ValueRoute",
+            rim::ROUTE_VALUE ,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,
@@ -234,12 +275,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemB",
             &kDomainA,
-            "ValueRoute",
+            rim::ROUTE_VALUE ,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,
@@ -280,12 +327,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
             &kDomainA,
-            "ValueRoute",
+            rim::ROUTE_VALUE ,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,
@@ -305,22 +358,38 @@ TEST(
             "CapabilityA",
             rim::ValueType::kBool,
 
+            {
+                rim::ValueType::kBool,
+                { .b = false },
+                0
+            },
+
             DummyBuild,
             DummyCompare,
 
             requiredDataIds,
-            1
+            1,
+
+            rim::ROUTE_VALUE 
         },
         {
             RI_CAPABILITY_ENVIRONMENT,
             "CapabilityB",
             rim::ValueType::kBool,
 
+            {
+                rim::ValueType::kBool,
+                { .b = false },
+                0
+            },
+
             DummyBuild,
             DummyCompare,
 
             requiredDataIds,
-            1
+            1,
+
+            rim::ROUTE_VALUE 
         }
     };
 
@@ -354,7 +423,7 @@ TEST(
     const rim::RouteDefinition routes[]
     {
         {
-            "ValueRoute"
+            1
         }
     };
 
@@ -364,12 +433,18 @@ TEST(
             RI_DATA_TEMPERATURE_SENSOR_A,
             "ItemA",
             &kDomainA,
-            "RouteA",
+            rim::ROUTE_VALUE,
 
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
             rim::ValueType::kDouble,
+
+            {
+                rim::ValueType::kDouble,
+                { .d = 0.0 },
+                0
+            },
 
             nullptr,
             nullptr,

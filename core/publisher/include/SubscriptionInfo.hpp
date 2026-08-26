@@ -10,12 +10,10 @@ namespace rim
 
 struct SubscriptionInfo
 {
-
     SubscriptionId id;
-    NotificationTarget target;//type + ID
-    DeliveryMethod method;//mailBoxかcallback
-    NotificationTrigger trigger;//定期通知か変更通知か
-    
+    NotificationTarget target;      //type + ID
+    DeliveryMethod method;          //mailBox か callback か カスタム(別途CustomDeliveryHandlerへの実装が必要)
+    NotificationTrigger trigger;    //定期通知 か 変更通知
 };
 
 }

@@ -30,13 +30,8 @@ public:
 private:
 
     PublisherInputQueue& queue_;
-
     PublishManager& manager_;
-
-    std::atomic<bool>
-        running_{false};
-
-    std::thread
-        workerThread_;};
+    std::atomic<bool> running_{false};
+    std::thread workerThread_;};
 
 } // namespace rim

@@ -2,10 +2,10 @@
 
 #include <vector>
 
-#include "ProductDefinition.hpp"
 #include "RIMSnapshot.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "DataDomainMap.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -15,8 +15,7 @@ class SnapshotBuilder
 public:
 
     SnapshotBuilder(
-        const DomainStorageRegistry& store,
-        const ProductDefinition& product);
+        const PartitionStorageRegistry& store);
 
     RIMSnapshot
     Build(
@@ -24,14 +23,8 @@ public:
 
 private:
 
-    const DomainStorageRegistry&
+    const PartitionStorageRegistry&
         store_;
-
-    const ProductDefinition&
-        product_;
-
-    DataDomainMap
-        domainMap_;
 };
 
 } // namespace rim

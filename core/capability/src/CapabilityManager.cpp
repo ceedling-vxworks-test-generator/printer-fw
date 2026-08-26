@@ -1,61 +1,72 @@
 #include "CapabilityManager.hpp"
 
-#include <any>
-#include <new>
-
 #include "CapabilityItemDefinition.hpp"
+#include "RIMDataItem.hpp"
 
 namespace rim
 {
 
-CapabilityChangeSet
-CapabilityManager::Evaluate(
+bool CapabilityManager::Evaluate(
     const RIMSnapshot& snapshot,
-    RIDataId changedDataId)
+    const CapabilityItemDefinition* capability)
 {
-    CapabilityChangeSet changes;
+    const RIMValue newValue =
+        capability->build(
+            snapshot);
 
-    const auto& capabilities =
-        dependencyMap_.Find(
-            changedDataId);
+    const DomainId domainId =
+        context_.FindCapabilityDomainId(
+            capability->id);
 
-    for (const auto* capability
-            : capabilities)
+    if (domainId ==
+        kInvalidDomainId)
     {
-        std::any newValue =
-            capability->build(
-                snapshot);
-
-        bool changed = true;
-
-        const auto* oldValue =
-            store_.Find(
-                capability->id);
-
-        if (oldValue != nullptr)
-        {
-            changed =
-                capability->compare(
-                    *oldValue,
-                    newValue);
-        }
-
-        if (!changed)
-        {
-            continue;
-        }
-
-        store_.Store(
-            capability->id,
-            std::move(
-                newValue));
-
-        changes.changedCapabilities
-            .push_back(
-                capability->id);
+        return false;
     }
 
-    return changes;
+    auto& storage =
+        store_.GetOrCreate(
+            domainId);
+
+    RIMDataItem storedItem{};
+
+    const bool exists =
+        storage.Find(
+            static_cast<RIDataId>(
+                capability->id),
+            storedItem);
+
+    const RIMValue* oldValue =
+        exists
+            ? &storedItem.value
+            : nullptr;
+
+    bool changed = true;
+
+    if (oldValue != nullptr)
+    {
+        changed =
+            capability->diff(
+                *oldValue,
+                newValue);
+    }
+
+    if (changed)
+    {
+        RIMDataItem item{};
+
+        item.id =
+            static_cast<RIDataId>(
+                capability->id);
+
+        item.value =
+            newValue;
+
+        storage.Store(
+            item);
+    }
+
+    return changed;
 }
 
 } // namespace rim

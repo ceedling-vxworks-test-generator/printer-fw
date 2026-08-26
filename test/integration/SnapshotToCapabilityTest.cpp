@@ -1,14 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <any>
-
 #include "printer_a.h"
 
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
-
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
+#include "RIMValue.hpp"
 
 #include "CapabilityItem/PrinterACapabilityBuilders.hpp"
 
@@ -23,7 +19,6 @@ void AddBoolItem(
     rim::RIMDataItem item{};
 
     item.id = id;
-    // item.valueType = rim::ValueType::kBool;
 
     item.value =
         rim::RIMValueFactory::CreateBool(
@@ -33,7 +28,7 @@ void AddBoolItem(
         item);
 }
 
-}
+} // namespace
 
 TEST(
     SnapshotToCapabilityTest,
@@ -46,9 +41,6 @@ TEST(
 
         item.id =
             RI_DATA_TEMPERATURE_SENSOR_A;
-
-        // item.valueType =
-        //     rim::ValueType::kDouble;
 
         item.value =
             rim::RIMValueFactory::CreateDouble(
@@ -63,9 +55,6 @@ TEST(
 
         item.id =
             RI_DATA_HUMIDITY_SENSOR;
-
-        // item.valueType =
-        //     rim::ValueType::kDouble;
 
         item.value =
             rim::RIMValueFactory::CreateDouble(
@@ -91,25 +80,25 @@ TEST(
         false);
 
     const auto environment =
-        std::any_cast<
-            rim::EnvironmentCapability>(
-                rim::BuildEnvironmentCapability(
-                    snapshot));
+        rim::BuildEnvironmentCapability(
+            snapshot);
 
     const auto printReady =
-        std::any_cast<
-            rim::PrintReadyCapability>(
-                rim::BuildPrintReadyCapability(
-                    snapshot));
+        rim::BuildPrintReadyCapability(
+            snapshot);
 
-    EXPECT_DOUBLE_EQ(
-        environment.temperature,
-        300.15);
+    EXPECT_EQ(
+        environment.type,
+        rim::ValueType::kInt32);
 
-    EXPECT_DOUBLE_EQ(
-        environment.humidity,
-        60.0);
+    EXPECT_EQ(
+        environment.value.i32,
+        1);
+
+    EXPECT_EQ(
+        printReady.type,
+        rim::ValueType::kBool);
 
     EXPECT_TRUE(
-        printReady.ready);
+        printReady.value.b);
 }

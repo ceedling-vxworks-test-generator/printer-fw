@@ -23,7 +23,7 @@ public:
     }
 
     RIMSnapshot Create(
-        RIDataId changedDataId) const override
+        RICapabilityId changedDataId) const override
     {
         const auto domains =
             resolver_.ResolveSnapshotDomains(

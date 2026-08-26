@@ -1,15 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 
 // TEST(
 //     SnapshotPerformanceTest,
 //     BuildSnapshot10000Times)
 // {
-//     rim::DomainStorageRegistry domainStore;
+//     rim::PartitionStorageRegistry domainStore;
 
 //     rim::RIMSnapshotManager reader(
 //         domainStore);
@@ -52,7 +51,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <iostream>
 
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"

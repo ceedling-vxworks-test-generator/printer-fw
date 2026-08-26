@@ -3,7 +3,6 @@
 #include <chrono>
 #include <cstdint>
 #include <iomanip>
-#include <iostream>
 #include <atomic>
 #include <thread>
 
@@ -21,6 +20,7 @@
 #include "CallbackWorker.hpp"
 #include "test/support/TestWaitHelper.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     PublishPerformanceTest,
@@ -58,17 +58,17 @@ TEST(
         rim::PeriodicNotifyManager
             periodicNotifyManager;
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
 
         for (std::size_t i = 0;
              i < subscriberCount;
@@ -76,22 +76,10 @@ TEST(
         {
             subscriptionStore.Register(
             {
-                static_cast<std::uint32_t>(
-                    i + 1),
-
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-
-                    static_cast<std::uint32_t>(
-                        RI_CAPABILITY_ENVIRONMENT)
-                },
-
-                rim::DeliveryMethod::
-                    Mailbox,
-
-                rim::NotificationTrigger::
-                    OnChange
+                static_cast<std::uint32_t>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::DeliveryMethod::Mailbox,
+                rim::NotificationTrigger::OnChange
             });
         }
 
@@ -106,15 +94,8 @@ TEST(
              ++i)
         {
             publishManager.Publish(
-            {
-                rim::NotificationTargetType::
-                    Capability,
-
-                static_cast<std::uint32_t>(
-                    RI_CAPABILITY_ENVIRONMENT)
-            },
-            rim::NotificationTrigger::
-                OnChange);
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::NotificationTrigger::OnChange);
         }
 
         const auto end =
@@ -272,10 +253,7 @@ TEST(
     subscriptionStore.Register(
     {
         id,
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::DeliveryMethod::Callback,
         rim::NotificationTrigger::OnChange
     });
@@ -296,12 +274,11 @@ TEST(
          i < kCount;
          ++i)
     {
+
         notifyManager.Notify(
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
-        rim::NotificationTrigger::OnChange);
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::NotificationTrigger::OnChange
+        );
     }
 
     const auto publishTime =

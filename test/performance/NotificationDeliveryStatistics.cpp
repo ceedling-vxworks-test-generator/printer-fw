@@ -3,7 +3,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <iostream>
 #include <thread>
 
 #include "PerformanceTestFixture.hpp"
@@ -95,9 +94,4 @@ TEST_F(
                    elapsed)
                .count()
         << " ms\n";
-
-    ASSERT_EQ(
-        RIM_Unsubscribe(
-            subscriptionId),
-        RI_SUCCESS);
 }

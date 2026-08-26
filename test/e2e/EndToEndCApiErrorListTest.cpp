@@ -6,8 +6,6 @@
 
 #include "printer_a.h"
 
-#include "BinaryStoreValue.hpp"
-
 #include "RIMValueFactory.hpp"
 
 TEST(

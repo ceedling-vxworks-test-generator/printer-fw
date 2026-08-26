@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+
 #include "RIMValue.hpp"
 
 namespace rim
@@ -38,7 +40,17 @@ inline bool IdentityDiff(
         return lhs.value.str != rhs.value.str;
 
     case ValueType::kBinary:
-        return lhs.value.ptr != rhs.value.ptr;
+    {
+        if (lhs.size != rhs.size)
+        {
+            return true;
+        }
+
+        return std::memcmp(
+                lhs.value.bytes,
+                rhs.value.bytes,
+                lhs.size) != 0;
+    }
 
     default:
         return true;

@@ -1,78 +1,79 @@
 #include <gtest/gtest.h>
 
 #include "CapabilityAccessor.hpp"
-#include "CapabilityStore.hpp"
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
+
+#include "RIMValue.hpp"
+#include "RIMValueFactory.hpp"
 
 #include "printer_a.h"
 
-namespace
-{
+#include "test/support/AccessorTestFixture.hpp"
 
-class CapabilityAccessorTest :
-    public ::testing::Test
-{
-protected:
-
-    void StoreEnvironment(
-        double temperature = 35.0,
-        double humidity = 60.0)
-    {
-        rim::EnvironmentCapability env{};
-
-        env.temperature =
-            temperature;
-
-        env.humidity =
-            humidity;
-
-        store.Store(
-            RI_CAPABILITY_ENVIRONMENT,
-            env);
-    }
-
-    rim::CapabilityStore store;
-};
-
-} // namespace
+using rim::test::AccessorTestFixture;
 
 TEST_F(
-    CapabilityAccessorTest,
-    GetEnvironment)
+    AccessorTestFixture,
+    GetEnvironmentCapability)
 {
-    StoreEnvironment();
+    StoreEnvironment(1);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::EnvironmentCapability result{};
+    rim::RIMValue result{};
 
     ASSERT_TRUE(
         accessor.TryGet(
             RI_CAPABILITY_ENVIRONMENT,
             result));
 
-    EXPECT_DOUBLE_EQ(
-        result.temperature,
-        35.0);
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kInt32);
 
-    EXPECT_DOUBLE_EQ(
-        result.humidity,
-        60.0);
+    EXPECT_EQ(
+        result.value.i32,
+        1);
 }
 
 TEST_F(
-    CapabilityAccessorTest,
-    RepeatedReadReturnsSameValue)
+    AccessorTestFixture,
+    GetPrintReadyCapability)
 {
-    StoreEnvironment();
+    StorePrintReady(true);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::EnvironmentCapability first{};
-    rim::EnvironmentCapability second{};
+    rim::RIMValue result{};
+
+    ASSERT_TRUE(
+        accessor.TryGet(
+            RI_CAPABILITY_PRINT_READY,
+            result));
+
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kBool);
+
+    EXPECT_TRUE(
+        result.value.b);
+}
+
+TEST_F(
+    AccessorTestFixture,
+    RepeatedReadReturnsSameValue)
+{
+    StoreEnvironment(1);
+
+    rim::CapabilityAccessor accessor(
+        domainStore,
+        productContext);
+
+    rim::RIMValue first{};
+    rim::RIMValue second{};
 
     ASSERT_TRUE(
         accessor.TryGet(
@@ -84,71 +85,51 @@ TEST_F(
             RI_CAPABILITY_ENVIRONMENT,
             second));
 
-    EXPECT_DOUBLE_EQ(
-        first.temperature,
-        second.temperature);
+    EXPECT_EQ(
+        first.type,
+        second.type);
 
-    EXPECT_DOUBLE_EQ(
-        first.humidity,
-        second.humidity);
+    EXPECT_EQ(
+        first.value.i32,
+        second.value.i32);
 }
 
 TEST_F(
-    CapabilityAccessorTest,
+    AccessorTestFixture,
     OverwriteCapability)
 {
-    StoreEnvironment(
-        10.0,
-        20.0);
-
-    StoreEnvironment(
-        30.0,
-        40.0);
+    StoreEnvironment(1);
+    StoreEnvironment(2);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::EnvironmentCapability result{};
+    rim::RIMValue result{};
 
     ASSERT_TRUE(
         accessor.TryGet(
             RI_CAPABILITY_ENVIRONMENT,
             result));
 
-    EXPECT_DOUBLE_EQ(
-        result.temperature,
-        30.0);
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kInt32);
 
-    EXPECT_DOUBLE_EQ(
-        result.humidity,
-        40.0);
+    EXPECT_EQ(
+        result.value.i32,
+        2);
 }
 
 TEST_F(
-    CapabilityAccessorTest,
+    AccessorTestFixture,
     ReturnFalseWhenCapabilityNotFound)
 {
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::EnvironmentCapability result{};
-
-    EXPECT_FALSE(
-        accessor.TryGet(
-            RI_CAPABILITY_ENVIRONMENT,
-            result));
-}
-
-TEST_F(
-    CapabilityAccessorTest,
-    ReturnFalseWhenCapabilityTypeMismatch)
-{
-    StoreEnvironment();
-
-    rim::CapabilityAccessor accessor(
-        store);
-
-    int result{};
+    rim::RIMValue result{};
 
     EXPECT_FALSE(
         accessor.TryGet(
@@ -157,124 +138,96 @@ TEST_F(
 }
 
 TEST_F(
-    CapabilityAccessorTest,
-    TypeMismatchStillDetectedAfterOverwrite)
+    AccessorTestFixture,
+    EnvironmentCapabilityStoresExpectedState)
 {
-    StoreEnvironment(
-        10.0,
-        20.0);
-
-    StoreEnvironment(
-        30.0,
-        40.0);
+    StoreEnvironment(2);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    int result{};
-
-    EXPECT_FALSE(
-        accessor.TryGet(
-            RI_CAPABILITY_ENVIRONMENT,
-            result));
-}
-
-TEST_F(
-    CapabilityAccessorTest,
-    EnvironmentCapabilityContainsExpectedValues)
-{
-    StoreEnvironment(
-        123.45,
-        67.89);
-
-    rim::CapabilityAccessor accessor(
-        store);
-
-    rim::EnvironmentCapability result{};
+    rim::RIMValue result{};
 
     ASSERT_TRUE(
         accessor.TryGet(
             RI_CAPABILITY_ENVIRONMENT,
             result));
 
-    EXPECT_DOUBLE_EQ(
-        123.45,
-        result.temperature);
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kInt32);
 
-    EXPECT_DOUBLE_EQ(
-        67.89,
-        result.humidity);
+    EXPECT_EQ(
+        result.value.i32,
+        2);
 }
 
 TEST_F(
-    CapabilityAccessorTest,
-    GetPrintReadyCapability)
+    AccessorTestFixture,
+    PrintReadyCapabilityStoresExpectedState)
 {
-    rim::PrintReadyCapability capability{};
-
-    capability.ready =
-        true;
-
-    store.Store(
-        RI_CAPABILITY_PRINT_READY,
-        capability);
+    StorePrintReady(false);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::PrintReadyCapability result{};
+    rim::RIMValue result{};
 
     ASSERT_TRUE(
         accessor.TryGet(
             RI_CAPABILITY_PRINT_READY,
             result));
 
-    EXPECT_TRUE(
-        result.ready);
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kBool);
+
+    EXPECT_FALSE(
+        result.value.b);
 }
 
 TEST_F(
-    CapabilityAccessorTest,
-    EnvironmentTypeMismatch)
+    AccessorTestFixture,
+    EnvironmentValueTypeIsInt32)
 {
-    rim::PrintReadyCapability capability{};
-
-    capability.ready =
-        true;
-
-    store.Store(
-        RI_CAPABILITY_ENVIRONMENT,
-        capability);
+    StoreEnvironment(1);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::EnvironmentCapability result{};
+    rim::RIMValue result{};
 
-    EXPECT_FALSE(
+    ASSERT_TRUE(
         accessor.TryGet(
             RI_CAPABILITY_ENVIRONMENT,
             result));
+
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kInt32);
 }
 
 TEST_F(
-    CapabilityAccessorTest,
-    PrintReadyTypeMismatch)
+    AccessorTestFixture,
+    PrintReadyValueTypeIsBool)
 {
-    rim::EnvironmentCapability capability{};
-
-    store.Store(
-        RI_CAPABILITY_PRINT_READY,
-        capability);
+    StorePrintReady(true);
 
     rim::CapabilityAccessor accessor(
-        store);
+        domainStore,
+        productContext);
 
-    rim::PrintReadyCapability result{};
+    rim::RIMValue result{};
 
-    EXPECT_FALSE(
+    ASSERT_TRUE(
         accessor.TryGet(
             RI_CAPABILITY_PRINT_READY,
             result));
-}
 
+    EXPECT_EQ(
+        result.type,
+        rim::ValueType::kBool);
+}

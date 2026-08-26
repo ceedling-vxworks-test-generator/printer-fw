@@ -1,45 +1,24 @@
 #include "CapabilitySnapshotResolver.hpp"
+#include "ProductContext.hpp"
 
 #include <algorithm>
 
 namespace rim
 {
 
-std::vector<DomainId>
-CapabilitySnapshotResolver::
-ResolveSnapshotDomains(
-    RIDataId changedDataId) const
-{
-    std::vector<DomainId>
-        result;
-
-    const auto& capabilities =
-        dependencyMap_.Find(
-            changedDataId);
-
-    for (const auto* capability
-         : capabilities)
+    CapabilitySnapshotResolver::
+    CapabilitySnapshotResolver(
+        const ProductContext& context)
+        :
+        dependencyMap_(
+            context.CapabilityDependencies()),
+        domainMap_(
+            context.CapabilityDomains())
     {
-        const auto& domains =
-            domainMap_.Find(
-                capability->id);
-
-        for (const auto domain
-             : domains)
-        {
-            if (std::find(
-                    result.begin(),
-                    result.end(),
-                    domain)
-                == result.end())
-            {
-                result.push_back(
-                    domain);
-            }
-        }
     }
 
-    return result;
+std::vector<DomainId> CapabilitySnapshotResolver::ResolveSnapshotDomains(RICapabilityId capabilityId) const{
+    return domainMap_.Find(capabilityId);
 }
 
 } // namespace rim

@@ -3,9 +3,10 @@
 #include <string_view>
 #include <vector>
 
-#include "ProductDefinition.hpp"
 #include "RIMDataItem.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
+#include "BinaryInfo.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -13,13 +14,12 @@ namespace rim
 class DataAccessor
 {
 public:
-
     DataAccessor(
-        const DomainStorageRegistry& store,
-        const ProductDefinition& product)
+        const PartitionStorageRegistry& store,
+        const ProductContext& context)
         :
-        store_(store),
-        product_(product)
+    store_(store),
+    context_(context)
     {
     }
 
@@ -33,27 +33,24 @@ public:
         RIDataId id,
         std::string_view& domain) const;
 
-    bool
-    TryGetDomain(
-        std::string_view dataItemName,
-        std::string_view& domain) const;
-
     std::vector<std::string_view>
     GetDomains() const;
 
-    const ProductDefinition&
-    GetProductDefinition() const
-    {
-        return product_;
-    }
+    bool GetBinaryHash(
+        RIDataId id,
+        std::uint64_t& hash) const;
+
+    bool GetBinaryInfo(
+        RIDataId id,
+        BinaryInfo& info) const;
 
 private:
 
-    const DomainStorageRegistry&
+    const PartitionStorageRegistry&
         store_;
 
-    const ProductDefinition&
-        product_;
+    const ProductContext&
+        context_;
 
 };
 

@@ -7,12 +7,13 @@
 #include "DataItemDefinition.hpp"
 #include "DomainDefinition.hpp"
 #include "RouteDefinition.hpp"
-#include "ProductDefinition.hpp"
 #include "RouteProvider.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValue.hpp"
 #include "RIMValueAccessor.hpp"
 #include "RIMValueFactory.hpp"
+#include "ProductContext.hpp"
+
 
 namespace
 {
@@ -24,6 +25,7 @@ constexpr rim::DomainDefinition kTestDomain
 
 constexpr rim::RouteDefinition kTestRoute
 {
+    1,
     "TestRoute",
     rim::QueuePolicy::Buffered,
     rim::QueuePolicy::Buffered,
@@ -77,12 +79,18 @@ const rim::DataItemDefinition kTestDataItems[]
         kNormalizedDataId,
         "NormalizedItem",
         &kTestDomain,
-        kTestRoute.name,
+        kTestRoute.id,
 
         rim::ValueType::kInt32,
         rim::ValueType::kInt32,
         rim::ValueType::kInt32,
         rim::ValueType::kInt32,
+
+        {
+            rim::ValueType::kInt32,
+            { .i32 = 0 },
+            0
+        },
 
         ScaleByTen,
         nullptr,
@@ -92,12 +100,18 @@ const rim::DataItemDefinition kTestDataItems[]
         kTypeChangeDataId,
         "TypeChangeItem",
         &kTestDomain,
-        kTestRoute.name,
+        kTestRoute.id,
 
         rim::ValueType::kInt32,
         rim::ValueType::kUInt32,
         rim::ValueType::kUInt32,
         rim::ValueType::kUInt32,
+
+        {
+            rim::ValueType::kInt32,
+            { .i32 = 0 },
+            0
+        },
 
         NarrowToUInt32,
         nullptr,
@@ -126,15 +140,16 @@ const rim::ProductDefinition kTestProduct
 struct AdapterDispatcherFixture
 {
     rim::RouteProvider routeProvider;
+    rim::ProductContext productContext{kTestProduct};
 
     rim::AdapterDispatcher dispatcher{
-        kTestProduct,
+        productContext,
         routeProvider};
 
     AdapterDispatcherFixture()
     {
         routeProvider.Initialize(
-            kTestProduct);
+            productContext);
     }
 };
 

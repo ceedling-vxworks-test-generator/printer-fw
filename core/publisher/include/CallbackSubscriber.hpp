@@ -7,11 +7,9 @@
 
 namespace rim
 {
-
     using NotificationCallback =
         std::function<
             void(
                 SubscriptionId,
                 const NotificationMessage&)>;
-
 }

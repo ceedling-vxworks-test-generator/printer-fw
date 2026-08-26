@@ -8,9 +8,8 @@ namespace rim
 {
     struct PublisherInput
     {
-        
         NotificationTarget target;
         EventPriority priority;
-
+        CompressionPolicy compressionPolicy;
     };
 } // namespace rim

@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
@@ -14,6 +13,7 @@
 #include "CallbackSubscriptionRegistry.hpp"
 
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     PublishManagerPerformanceTest,
@@ -50,17 +50,17 @@ TEST(
         rim::PeriodicNotifyManager
             periodicNotifyManager;
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
 
         const auto now =
             std::chrono::steady_clock::now();
@@ -76,10 +76,7 @@ TEST(
             subscriptionStore.Register(
             {
                 id,
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -159,17 +156,17 @@ TEST(
         rim::PeriodicNotifyManager
             periodicNotifyManager;
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
 
         const auto now =
             std::chrono::steady_clock::now();
@@ -185,10 +182,7 @@ TEST(
             subscriptionStore.Register(
             {
                 id,
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -284,17 +278,17 @@ TEST(
         rim::PeriodicNotifyManager
             periodicNotifyManager;
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
 
         const auto now =
             std::chrono::steady_clock::now();
@@ -310,10 +304,7 @@ TEST(
             subscriptionStore.Register(
             {
                 id,
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -404,18 +395,17 @@ TEST(
 
         rim::PeriodicNotifyManager
             periodicNotifyManager;
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
 
         const auto now =
             std::chrono::steady_clock::now();
@@ -431,34 +421,22 @@ TEST(
             {
             case 0:
                 target =
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                };
+                    test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
                 break;
 
             case 1:
                 target =
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_JOB
-                };
+                    test::CapabilityTarget(RI_CAPABILITY_JOB);
                 break;
 
             case 2:
                 target =
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_PRINT_READY
-                };
+                    test::CapabilityTarget(RI_CAPABILITY_PRINT_READY);
                 break;
 
             default:
                 target =
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_CONSUMABLE
-                };
+                    test::CapabilityTarget(RI_CAPABILITY_CONSUMABLE);
                 break;
             }
 
@@ -560,10 +538,7 @@ TEST(
         subscriptionStore.Register(
         {
             id,
-            {
-                rim::NotificationTargetType::Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
             rim::DeliveryMethod::Mailbox,
             rim::NotificationTrigger::Periodic
         });

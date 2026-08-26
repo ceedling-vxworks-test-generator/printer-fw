@@ -83,11 +83,6 @@ TEST(
         g_received.load());
 
     EXPECT_EQ(
-        RIM_Unsubscribe(
-            subscriptionId),
-        RI_SUCCESS);
-
-    EXPECT_EQ(
         RIM_Stop(),
         RI_SUCCESS);
 

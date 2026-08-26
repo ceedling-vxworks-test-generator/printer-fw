@@ -34,11 +34,17 @@ TEST(
     NormalizationFunctionTest,
     IdentityBinary)
 {
-    rim::BinaryStoreValue value;
+    std::uint8_t data[]
+    {
+        0x11,
+        0x22,
+        0x33
+    };
 
     auto input =
         rim::RIMValueFactory::CreateBinary(
-            &value);
+            data,
+            sizeof(data));
 
     auto result =
         rim::IdentityNormalize(
@@ -48,4 +54,12 @@ TEST(
     EXPECT_EQ(
         result.type,
         rim::ValueType::kBinary);
+
+    EXPECT_EQ(
+        result.value.bytes,
+        data);
+
+    EXPECT_EQ(
+        result.size,
+        sizeof(data));
 }

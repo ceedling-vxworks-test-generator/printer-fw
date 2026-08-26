@@ -1,6 +1,5 @@
 #include "DataAccessor.hpp"
 
-#include "DataDomainMap.hpp"
 #include "DataItemDefinition.hpp"
 #include "DomainDefinition.hpp"
 
@@ -12,12 +11,10 @@ DataAccessor::TryGetData(
     RIDataId id,
     RIMDataItem& item) const
 {
-    DataDomainMap map(
-        product_);
-
     const DomainId domainId =
-        map.Find(
-            id);
+        context_
+            .FindDataDomainId(
+                id);
 
     if (domainId ==
         kInvalidDomainId)
@@ -45,8 +42,8 @@ DataAccessor::TryGetDomain(
     std::string_view& domain) const
 {
     const auto* definition =
-        rim::FindDataItem(
-            product_,
+        context_
+        .FindDataItem(
             id);
 
     if (definition == nullptr)
@@ -63,50 +60,66 @@ DataAccessor::TryGetDomain(
 std::vector<std::string_view>
 DataAccessor::GetDomains() const
 {
-    std::vector<std::string_view>
-        result;
-
-    const auto* domains =
-        rim::GetDomains(
-            product_);
-
-    const auto count =
-        rim::GetDomainCount(
-            product_);
-
-    result.reserve(
-        count);
-
-    for (std::size_t i = 0;
-         i < count;
-         ++i)
-    {
-        result.push_back(
-            domains[i].name);
-    }
-
-    return result;
+    return context_.GetDomains();
 }
 
 bool
-DataAccessor::TryGetDomain(
-    std::string_view dataItemName,
-    std::string_view& domain) const
+DataAccessor::GetBinaryHash(
+    RIDataId id,
+    std::uint64_t& hash) const
 {
-    const auto* definition =
-        rim::FindDataItem(
-            product_,
-            dataItemName);
+    const DomainId domainId =
+        context_
+            .FindDataDomainId(
+                id);
 
-    if (definition == nullptr)
+    if (domainId ==
+        kInvalidDomainId)
     {
         return false;
     }
 
-    domain =
-        definition->domain->name;
+    const auto* storage =
+        store_.Find(
+            domainId);
 
-    return true;
+    if (storage == nullptr)
+    {
+        return false;
+    }
+
+    return storage->GetBinaryHash(
+        id,
+        hash);
+}
+
+bool
+DataAccessor::GetBinaryInfo(
+    RIDataId id,
+    BinaryInfo& info) const
+{
+    const DomainId domainId =
+        context_
+            .FindDataDomainId(
+                id);
+
+    if (domainId ==
+        kInvalidDomainId)
+    {
+        return false;
+    }
+
+    const auto* storage =
+        store_.Find(domainId);
+
+    if (storage == nullptr)
+    {
+        return false;
+    }
+
+    return storage->GetBinaryInfo(
+        id,
+        info);
 }
 
 }

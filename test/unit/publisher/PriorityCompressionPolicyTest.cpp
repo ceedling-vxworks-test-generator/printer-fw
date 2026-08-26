@@ -6,6 +6,7 @@
 
 #include "QueuePolicy.hpp"
 #include "PublisherInput.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     PriorityCompressionPolicyTest,
@@ -20,23 +21,19 @@ TEST(
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::EventPriority::Low
+            test::CapabilityTarget(
+                RI_CAPABILITY_ENVIRONMENT),
+            rim::EventPriority::Low,
+            rim::CompressionPolicy::KeepLatest
         });
 
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::EventPriority::High
+            test::CapabilityTarget(
+                RI_CAPABILITY_ENVIRONMENT),
+            rim::EventPriority::High,
+            rim::CompressionPolicy::KeepLatest
         });
 
     ASSERT_EQ(
@@ -61,25 +58,19 @@ TEST(
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_PRINT_READY
-            },
-            rim::EventPriority::Low
+            test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+            rim::EventPriority::Low,
+            rim::CompressionPolicy::KeepOldest
         });
 
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_PRINT_READY
-            },
-            rim::EventPriority::High
+            test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+            rim::EventPriority::High,
+            rim::CompressionPolicy::KeepOldest
         });
-
+        
     ASSERT_EQ(
         1u,
         events.size());
@@ -102,22 +93,14 @@ TEST(
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_JOB
-            },
+            test::CapabilityTarget(RI_CAPABILITY_JOB),
             rim::EventPriority::Low
         });
 
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_JOB
-            },
+            test::CapabilityTarget(RI_CAPABILITY_JOB),
             rim::EventPriority::High
         });
 
@@ -136,33 +119,22 @@ TEST(
     rim::PriorityCompressionPolicy
         policy;
 
+
     rim::PublisherInput low
     {
-        {
-            rim::NotificationTargetType::
-                Capability,
-            RI_CAPABILITY_JOB
-        },
+        test::CapabilityTarget(RI_CAPABILITY_JOB),
         rim::EventPriority::Low
     };
 
     rim::PublisherInput normal
     {
-        {
-            rim::NotificationTargetType::
-                Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::EventPriority::Normal
     };
 
     rim::PublisherInput high
     {
-        {
-            rim::NotificationTargetType::
-                Capability,
-            RI_CAPABILITY_CONSUMABLE
-        },
+        test::CapabilityTarget(RI_CAPABILITY_CONSUMABLE),
         rim::EventPriority::High
     };
 
@@ -208,69 +180,51 @@ TEST(
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::EventPriority::Low
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::EventPriority::Low,
+            rim::CompressionPolicy::KeepLatest
         });
 
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::EventPriority::High
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::EventPriority::High,
+            rim::CompressionPolicy::KeepLatest
         });
 
     // KeepOldest
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_PRINT_READY
-            },
-            rim::EventPriority::Low
+            test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+            rim::EventPriority::Low,
+            rim::CompressionPolicy::KeepOldest
         });
 
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_PRINT_READY
-            },
-            rim::EventPriority::High
+            test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+            rim::EventPriority::High,
+            rim::CompressionPolicy::KeepOldest
         });
 
     // None
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_JOB
-            },
-            rim::EventPriority::Low
+            test::CapabilityTarget(RI_CAPABILITY_JOB),
+            rim::EventPriority::Low,
+            rim::CompressionPolicy::None
         });
 
     policy.Insert(
         events,
         {
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_JOB
-            },
-            rim::EventPriority::High
+            test::CapabilityTarget(RI_CAPABILITY_JOB),
+            rim::EventPriority::High,
+            rim::CompressionPolicy::None
         });
 
     EXPECT_EQ(
@@ -313,4 +267,46 @@ TEST(
     EXPECT_EQ(
         2u,
         jobCount);
+}
+
+TEST(
+    PriorityCompressionPolicyTest,
+    SamePriorityPreservesInsertionOrder)
+{
+    std::list<rim::PublisherInput>
+        events;
+
+    rim::PriorityCompressionPolicy
+        policy;
+
+    rim::PublisherInput first
+    {
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+        rim::EventPriority::Normal
+    };
+
+    rim::PublisherInput second
+    {
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+        rim::EventPriority::Normal
+    };
+
+    policy.Insert(events, first);
+    policy.Insert(events, second);
+
+    ASSERT_EQ(
+        2u,
+        events.size());
+
+    auto it = events.begin();
+
+    EXPECT_EQ(
+        RI_CAPABILITY_ENVIRONMENT,
+        it->target.id);
+
+    ++it;
+
+    EXPECT_EQ(
+        RI_CAPABILITY_PRINT_READY,
+        it->target.id);
 }

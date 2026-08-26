@@ -19,6 +19,7 @@
 #include "SubscriptionInfo.hpp"
 #include "DeliveryMethod.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 class TestCustomDeliveryHandler
     : public rim::ICustomDeliveryHandler
@@ -67,18 +68,16 @@ TEST(
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
-    
-    rim::RouteProvider routeProvider;
 
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
         publishManager(
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext);
 
     const auto subscriptionId =
         subscriptionStore
@@ -90,10 +89,7 @@ TEST(
         subscriptionId;
 
     info.target =
-    {
-        rim::NotificationTargetType::Capability,
-        RI_CAPABILITY_ENVIRONMENT
-    };
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
 
     info.method =
         rim::DeliveryMethod::Custom;

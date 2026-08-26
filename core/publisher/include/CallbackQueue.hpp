@@ -6,10 +6,8 @@
 
 namespace rim
 {
-
-using CallbackQueue =
-    EventQueue<
-        CallbackNotification,
-        FifoPolicy>;
-
+    using CallbackQueue =
+        EventQueue<
+            CallbackNotification,
+            FifoPolicy>;
 }

@@ -1,33 +1,18 @@
-#include <iostream>
-
 #include "DataStoreWorker.hpp"
 #include "DataItemDefinition.hpp"
 #include "RIMDataItem.hpp"
+#include "BinaryHash.hpp"
+#include "RIMValueAccessor.hpp"
+#include "BinaryInfo.hpp"
 
 namespace rim
 {
-
-DataStoreWorker::DataStoreWorker(
-    const ProductDefinition& product,
-    IQueue<RIMDataItem>& queue,
-    DomainStorageRegistry& domainStore,
-    IQueue<CapabilityInput>& capabilityQueue)
-    :
-    product_(product),
-    queue_(queue),
-    domainStore_(domainStore),
-    capabilityQueue_(capabilityQueue),
-    dataDomainMap_(product)
-{
-}
-
 DataStoreWorker::~DataStoreWorker()
 {
     stop();
 }
 
-void
-DataStoreWorker::start()
+void DataStoreWorker::start()
 {
     if (running_)
     {
@@ -36,14 +21,10 @@ DataStoreWorker::start()
 
     running_ = true;
 
-    workerThread_ =
-        std::thread(
-            &DataStoreWorker::run,
-            this);
+    workerThread_ = std::thread(&DataStoreWorker::WorkerLoop, this);
 }
 
-void
-DataStoreWorker::stop()
+void DataStoreWorker::stop()
 {
     if (!running_)
     {
@@ -60,8 +41,7 @@ DataStoreWorker::stop()
     }
 }
 
-void
-DataStoreWorker::run()
+void DataStoreWorker::WorkerLoop()
 {
     while (running_)
     {
@@ -72,21 +52,11 @@ DataStoreWorker::run()
             break;
         }
 
-        if (ProcessItem(item))
-        {
-            CapabilityInput input{};
-
-            input.changedDataId =
-                item.id;
-
-            capabilityQueue_.Push(
-                input);
-        }
+        Process(item);
     }
 }
 
-bool
-DataStoreWorker::ExecuteOnce()
+bool DataStoreWorker::ExecuteOnce()
 {
     RIMDataItem item{};
 
@@ -95,99 +65,152 @@ DataStoreWorker::ExecuteOnce()
         return false;
     }
 
-    if (ProcessItem(item))
-    {
-        CapabilityInput input{};
-
-        input.changedDataId =
-            item.id;
-
-        capabilityQueue_.Push(
-            input);
-    }
+    Process(item);
 
     return true;
 }
 
-bool
-DataStoreWorker::ProcessItem(
+void DataStoreWorker::Process(
     RIMDataItem& item)
 {
-    bool result = false;
+    const auto* definition =
+        context_
+            .FindDataItem(
+                item.id);
+
+    if (definition == nullptr)
+    {
+        return;
+    }
 
     const auto domainId =
-        dataDomainMap_.Find(
-            item.id);
+        context_
+            .FindDataDomainId(
+                item.id);
 
-    const auto* definition =
-        FindDataItem(
-            product_,
-            item.id);
+    if (domainId ==
+        kInvalidDomainId)
+    {
+        return;
+    }
 
-    if (definition != nullptr)
+    RIMValue currentValue{};
+    bool exists = false;
+
+    const auto* storage =
+        domainStore_.Find(
+            domainId);
+
+    if (storage != nullptr)
     {
         RIMDataItem currentItem{};
 
-        RIMValue currentValue{};
+        exists =
+            storage->Find(
+                item.id,
+                currentItem);
 
-        bool exists = false;
-
-        if (domainId !=
-            kInvalidDomainId)
+        if (exists)
         {
-            const auto* storage =
-                domainStore_.Find(
-                    domainId);
+            currentValue =
+                currentItem.value;
+        }
+    }
 
-            if (storage != nullptr)
+    item.value =
+        definition->store(
+            currentValue,
+            item.value,
+            nullptr);
+
+    item.value.type =
+        definition->storeValueType;
+
+    if (exists &&
+        definition->diff != nullptr)
+    {
+        bool changed = true;
+
+        if (currentValue.type ==
+                ValueType::kBinary &&
+            item.value.type ==
+                ValueType::kBinary &&
+            storage != nullptr)
+        {
+            BinaryInfo currentInfo{};
+
+            const std::uint8_t* bytes{};
+            std::size_t size{};
+
+            if (storage->GetBinaryInfo(
+                    item.id,
+                    currentInfo) &&
+                RIMValueAccessor::GetBinary(
+                    item.value,
+                    bytes,
+                    size))
             {
-                exists =
-                    storage->Find(
-                        item.id,
-                        currentItem);
-
-                if (exists)
+                if (currentInfo.size !=
+                    size)
                 {
-                    currentValue =
-                        currentItem.value;
+                    changed = true;
+                }
+                else
+                {
+                    const auto newHash =
+                        CalculateBinaryHash(
+                            bytes,
+                            size);
+
+                    if (currentInfo.hash !=
+                        newHash)
+                    {
+                        changed = true;
+                    }
+                    else
+                    {
+                        changed =
+                            definition->diff(
+                                currentValue,
+                                item.value);
+                    }
                 }
             }
+            else
+            {
+                changed =
+                    definition->diff(
+                        currentValue,
+                        item.value);
+            }
         }
-
-        item.value =
-            definition->store(
-                currentValue,
-                item.value,
-                nullptr);
-
-        item.value.type =
-            definition->storeValueType;
-
-        if (exists &&
-            definition->diff != nullptr)
+        else
         {
-            result =
+            changed =
                 definition->diff(
                     currentValue,
                     item.value);
         }
-        else
+
+        if (!changed)
         {
-            result = true;
+            return;
         }
     }
 
-    if (domainId !=
-        kInvalidDomainId)
-    {
-        domainStore_
-            .GetOrCreate(
-                domainId)
-            .Store(
-                item);
-    }
+    domainStore_
+        .GetOrCreate(
+            domainId)
+        .Store(
+            item);
 
-    return result;
+    CapabilityInput input{};
+
+    input.changedDataId =
+        item.id;
+
+    capabilityQueue_.Push(
+        input);
 }
 
 } // namespace rim

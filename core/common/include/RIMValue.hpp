@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "ValueType.hpp"
@@ -21,7 +22,7 @@ union RIMValueStorage
 
     const char* str;
 
-    void* ptr;
+    const std::uint8_t* bytes{};     //for binary
 };
 
 struct RIMValue
@@ -29,6 +30,8 @@ struct RIMValue
     ValueType type{};
 
     RIMValueStorage value{};
+
+    std::size_t size{};
 };
 
 } // namespace rim

@@ -1,96 +1,48 @@
-#include <iostream>
-
 #include "../printer_a_data_id.h"
 
 #include "PrinterACapabilityBuilders.hpp"
 
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
-
 #include "RIMSnapshot.hpp"
+#include "RIMValueFactory.hpp"
 
 namespace rim
 {
 
-std::any
+RIMValue
 BuildEnvironmentCapability(
     const RIMSnapshot& snapshot)
 {
-    EnvironmentCapability capability{};
+    double temperature{};
+    double humidity{};
 
-    snapshot.TryGetDouble(
-        RI_DATA_TEMPERATURE_SENSOR_A,
-        capability.temperature);
+    snapshot.TryGetDouble(RI_DATA_TEMPERATURE_SENSOR_A, temperature);
+    snapshot.TryGetDouble(RI_DATA_HUMIDITY_SENSOR, humidity);
 
-    snapshot.TryGetDouble(
-        RI_DATA_HUMIDITY_SENSOR,
-        capability.humidity);
+    if((temperature >= (60.0 + 273.15)) && (humidity >= 60.0))
+    {
+        return RIMValueFactory::CreateInt32(2);
+    }
+    else if((temperature >= (25.0 + 273.15)) && (humidity >= 25.0))
+    {
+        return RIMValueFactory::CreateInt32(1);
+    }
 
-    return capability;
+    return RIMValueFactory::CreateInt32(0);
 }
 
-std::any
+RIMValue
 BuildPrintReadyCapability(
     const RIMSnapshot& snapshot)
 {
-    PrintReadyCapability capability{};
-
     bool upperDoorOpen{};
     bool rightDoorOpen{};
     bool leftDoorOpen{};
 
-    snapshot.TryGetBool(
-        RI_DATA_UPPER_DOOR_OPEN,
-        upperDoorOpen);
+    snapshot.TryGetBool(RI_DATA_UPPER_DOOR_OPEN, upperDoorOpen);
+    snapshot.TryGetBool(RI_DATA_RIGHT_DOOR_OPEN, rightDoorOpen);
+    snapshot.TryGetBool(RI_DATA_LEFT_DOOR_OPEN, leftDoorOpen);
 
-    snapshot.TryGetBool(
-        RI_DATA_RIGHT_DOOR_OPEN,
-        rightDoorOpen);
-
-    snapshot.TryGetBool(
-        RI_DATA_LEFT_DOOR_OPEN,
-        leftDoorOpen);
-
-    capability.ready =
-        !upperDoorOpen &&
-        !rightDoorOpen &&
-        !leftDoorOpen;
-
-    return capability;
+    return RIMValueFactory::CreateBool(!upperDoorOpen && !rightDoorOpen && !leftDoorOpen);
 }
-
-// std::any
-// BuildConsumableCapability(
-//     const RIMSnapshot& snapshot)
-// {
-//     ConsumableCapability capability{};
-
-//     snapshot.TryGetInt32(
-//         RI_DATA_STAPLE_LEVEL,
-//         capability.stapleLevel);
-
-//     snapshot.TryGetInt32(
-//         RI_DATA_TONER_LEVEL,
-//         capability.tonerLevel);
-
-//     return capability;
-// }
-
-// std::any
-// BuildJobCapability(
-//     const RIMSnapshot& snapshot)
-// {
-//     JobCapability capability{};
-
-//     snapshot.TryGetBool(
-//         RI_DATA_JOB_ACTIVE,
-//         capability.jobActive);
-
-//     snapshot.TryGetInt32(
-//         RI_DATA_JOB_ID,
-//         capability.jobId);
-
-//     return capability;
-// }
 
 } // namespace rim

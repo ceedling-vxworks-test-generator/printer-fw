@@ -8,26 +8,68 @@ project(
     RIManager_Impl
     LANGUAGES CXX)
 
-option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+option(
+    ENABLE_COVERAGE
+    "Enable coverage reporting"
+    OFF)
 
-if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+#
+# Common compile/link options
+#
+
+set(
+    RIM_COMPILE_OPTIONS
+
+    -fno-exceptions
+    -fno-rtti
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+)
+
+set(
+    RIM_LINK_OPTIONS
+)
+
+#
+# Footprint optimization
+#
+# Coverage時は無効
+#
+
+if(NOT ENABLE_COVERAGE)
+
+    list(APPEND
+        RIM_COMPILE_OPTIONS
+
+        -ffunction-sections
+        -fdata-sections)
+
+    list(APPEND
+        RIM_LINK_OPTIONS
+
+        -Wl,--gc-sections)
+endif()
+
+if(ENABLE_COVERAGE
+   AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+
     add_compile_options(
         -O0
         -g
         --coverage
-    )
+        -fprofile-update=atomic)
 
     add_link_options(
-        --coverage
-    )
+        --coverage)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #
-# STATIC Library を SHARED Library にリンク可能にする
+# STATIC Library / SHARED Library
 #
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_subdirectory(
@@ -47,7 +89,8 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
-FetchContent_MakeAvailable(googletest)
+FetchContent_MakeAvailable(
+    googletest)
 
 file(GLOB_RECURSE FUNCTIONAL_TEST_SOURCES
     CONFIGURE_DEPENDS
@@ -134,6 +177,18 @@ target_link_libraries(
         GTest::gtest_main
 )
 
+target_link_options(
+    rimanager_functional_test
+    PRIVATE
+        ${RIM_LINK_OPTIONS}
+)
+
+target_link_options(
+    rimanager_performance_test
+    PRIVATE
+        ${RIM_LINK_OPTIONS}
+)
+
 include(GoogleTest)
 
 gtest_discover_tests(
@@ -165,7 +220,7 @@ if(ENABLE_COVERAGE
         # カバレッジ収集
         COMMAND ${LCOV_EXECUTABLE}
             --capture
-            --ignore-errors mismatch
+            --ignore-errors mismatch,negative,gcov
             --directory .
             --output-file coverage.info
 
@@ -187,4 +242,3 @@ if(ENABLE_COVERAGE
         COMMENT "Generating code coverage report"
     )
 endif()
-

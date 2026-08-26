@@ -36,7 +36,8 @@ struct DataItemDefinition
     // std::string_view description;
 
     const DomainDefinition* domain;
-    std::string_view route;
+    std::uint32_t routeId;
+    // std::string_view route;
 
     // ValueType valueType;
     ValueType rawValueType;
@@ -44,6 +45,8 @@ struct DataItemDefinition
     ValueType storeValueType;
     ValueType getValueType;
     // std::string_view unit;
+
+    RIMValue initialValue;
 
     NormalizeCallback normalize;
     StoreCallback store;

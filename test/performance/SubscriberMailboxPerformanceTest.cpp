@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
@@ -9,6 +8,7 @@
 
 #include "NotificationTargetType.hpp"
 #include "NotificationTrigger.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     SubscriberMailboxPerformanceTest,
@@ -28,17 +28,8 @@ TEST(
         rim::SubscriberMailbox
             mailbox;
 
-        rim::NotificationMessage
-            message
-            {
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-                rim::NotificationTrigger::
-                    Periodic
-            };
+        rim::NotificationMessage message =
+                test::PeriodicMessage(RI_CAPABILITY_ENVIRONMENT);
 
         auto start =
             std::chrono::steady_clock::now();
@@ -85,24 +76,14 @@ TEST(
         rim::SubscriberMailbox
             mailbox;
 
-        rim::NotificationMessage
-            message
-            {
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-                rim::NotificationTrigger::
-                    Periodic
-            };
+        rim::NotificationMessage message =
+                test::PeriodicMessage(RI_CAPABILITY_ENVIRONMENT);
 
         for (std::size_t i = 0;
              i < count;
              ++i)
         {
-            mailbox.Push(
-                message);
+            mailbox.Push(message);
         }
 
         auto start =
@@ -112,8 +93,7 @@ TEST(
              i < count;
              ++i)
         {
-            mailbox.Pop(
-                message);
+            mailbox.Pop(message);
         }
 
         auto end =

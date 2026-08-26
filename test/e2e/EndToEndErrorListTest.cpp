@@ -6,13 +6,13 @@
 
 #include "printer_a.h"
 
-#include "BinaryStoreValue.hpp"
 #include "DataDomainMap.hpp"
 
 #include "RIMValueFactory.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "SnapshotBuilder.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "ProductContext.hpp"
 
 TEST(
     EndToEndErrorListTest,
@@ -30,7 +30,7 @@ TEST(
         std::uint32_t count;
     };
 
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     FaultInfoList input{};
 
@@ -38,18 +38,6 @@ TEST(
 
     input.entries[0].code = 1234U;
     input.entries[0].state = 1U;
-
-    auto binary =
-        std::make_unique<
-            rim::BinaryStoreValue>();
-
-    binary->data.resize(
-        sizeof(input));
-
-    std::memcpy(
-        binary->data.data(),
-        &input,
-        sizeof(input));
 
     rim::RIMDataItem item{};
 
@@ -61,7 +49,10 @@ TEST(
 
     item.value =
         rim::RIMValueFactory::CreateBinary(
-            binary.release());
+            reinterpret_cast<
+                const std::uint8_t*>(
+                    &input),
+            sizeof(input));
 
     const rim::DataDomainMap domainMap(
         rim::kPrinterAProductDefinition);
@@ -80,9 +71,11 @@ TEST(
         .Store(
             item);
 
-    rim::SnapshotBuilder builder(
-        store,
+    rim::ProductContext productContext(
         rim::kPrinterAProductDefinition);
+
+    rim::SnapshotBuilder builder(
+        store);
 
     auto snapshot =
         builder.Build(
@@ -90,12 +83,14 @@ TEST(
                 domainId
             });
 
-    const rim::BinaryStoreValue* found{};
+    const std::uint8_t* found{};
+    std::size_t size{};
 
     ASSERT_TRUE(
         snapshot.TryGetBinary(
             RI_DATA_ERROR_LIST,
-            found));
+            found,
+            size));
 
     ASSERT_NE(
         found,
@@ -105,7 +100,7 @@ TEST(
 
     std::memcpy(
         &output,
-        found->data.data(),
+        found,
         sizeof(output));
 
     EXPECT_EQ(

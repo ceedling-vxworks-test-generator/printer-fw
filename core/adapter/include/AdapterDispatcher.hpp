@@ -2,7 +2,7 @@
 
 #include "RIMDataItem.hpp"
 #include "RouteProvider.hpp"
-#include "ProductDefinition.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -12,9 +12,9 @@ class AdapterDispatcher
 public:
 
     AdapterDispatcher(
-        const ProductDefinition& product,
+        const ProductContext& context,
         RouteProvider& routeProvider)
-        : product_(product),
+        : context_(context),
           routeProvider_(routeProvider)
     {
     }
@@ -26,7 +26,7 @@ public:
 
 private:
 
-    const ProductDefinition& product_;
+    const ProductContext& context_;
 
     RouteProvider& routeProvider_;
 };

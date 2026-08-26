@@ -37,6 +37,15 @@ typedef enum RIStatus
 
 } RIStatus;
 
+const char*
+RIM_GetProductName(void);
+
+RIStatus
+RIM_GetVersionInfo(
+    RIM_VERSION_INFO* versionInfo);
+
+const char*
+RIM_GetVersionString(void);
 
 int RIM_Create(void);
 
@@ -63,31 +72,16 @@ RIStatus RIM_GetNotification(
 uint32_t RIM_GetMailboxCount(
     uint64_t subscriptionId);
 
-#ifdef __cplusplus
-
-namespace rim
-{
-class CapabilityAccessor;
-}
-
-rim::CapabilityAccessor*
-RIM_GetCapabilityAccessor();
-
-#endif
-
-int RIM_Unsubscribe(
-    uint64_t subscriptionId);
-
 RIStatus
 RIM_GetBool(
     RIDataId dataId,
     int* value);
 
-    RIStatus
+RIStatus
 RIM_SetBool(
     RIDataId dataId,
     int value);
-    
+
 RIStatus
 RIM_GetInt32(
     RIDataId dataId,
@@ -113,10 +107,26 @@ RIM_GetBinary(
     RIDataId dataId,
     RI_BINARY* binary);
 
-int RIM_SetBinary(
+RIStatus
+RIM_SetBinary(
     RIDataId dataId,
     const void* data,
     size_t size);
+
+RIStatus
+RIM_GetCapabilityBool(
+    RICapabilityId capabilityId,
+    int* value);
+
+RIStatus
+RIM_GetCapabilityInt32(
+    RICapabilityId capabilityId,
+    int32_t* value);
+
+RIStatus
+RIM_GetCapabilityDouble(
+    RICapabilityId capabilityId,
+    double* value);
 
 #ifdef __cplusplus
 }

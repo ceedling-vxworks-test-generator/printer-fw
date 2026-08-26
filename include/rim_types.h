@@ -4,6 +4,32 @@
 
 typedef void* RIM_HANDLE;
 
+typedef struct
+{
+    uint16_t major;
+    uint16_t minor;
+    uint16_t patch;
+}
+RIM_CORE_VERSION_INFO;
+
+typedef struct
+{
+    const char* productName;
+
+    uint16_t major;
+    uint16_t minor;
+    uint16_t patch;
+}
+RIM_PRODUCT_VERSION_INFO;
+
+typedef struct
+{
+    RIM_CORE_VERSION_INFO core;
+
+    RIM_PRODUCT_VERSION_INFO product;
+}
+RIM_VERSION_INFO;
+
 typedef uint64_t RIM_SUBSCRIPTION_ID;
 
 typedef struct RI_BINARY

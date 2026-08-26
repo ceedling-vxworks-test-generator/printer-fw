@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <thread>
+#include <vector>
 
 #include "CallbackQueue.hpp"
 #include "CallbackSubscriptionRegistry.hpp"
@@ -21,22 +22,18 @@ public:
     {
     }
 
-    void Run();
+    void Run(std::size_t workerCount = 1);
 
     void Stop();
 
 private:
 
+    void WorkerLoop();
     CallbackQueue& queue_;
-
-    CallbackSubscriptionRegistry&
-        registry_;
-
-    std::atomic<bool>
-        running_{false};
-
-    std::thread
-        workerThread_;
+    CallbackSubscriptionRegistry& registry_;
+    std::atomic<bool> running_{false};
+    std::vector<std::thread> workerThreads_;
+    
 };
 
 }

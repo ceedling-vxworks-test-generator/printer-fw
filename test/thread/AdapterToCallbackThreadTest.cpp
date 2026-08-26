@@ -7,11 +7,11 @@
 #include "AdapterDispatcher.hpp"
 #include "products/printer_a/Adapter/PrinterAAdapter.hpp"
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 
 #include "CapabilityWorker.hpp"
 #include "CapabilityManager.hpp"
-#include "CapabilityStore.hpp"
+#include "FacadeManager.hpp"
 
 #include "PublisherInputQueue.hpp"
 #include "PublisherWorker.hpp"
@@ -37,33 +37,51 @@
 
 #include "ProductFactory.hpp"
 #include "IProductProvider.hpp"
+
 #include "CallbackQueue.hpp"
 #include "CallbackWorker.hpp"
-#include "PrinterAProductDefinition.hpp"
 
 #include "CapabilitySnapshotResolver.hpp"
 #include "SnapshotAccessor.hpp"
 #include "CapabilitySnapshotProvider.hpp"
+#include "FacadeSnapshotProvider.hpp"
+
+#include "test/support/NotificationTestHelper.hpp"
+#include "ProductContext.hpp"
 
 TEST(
     AdapterToCallbackThreadTest,
     NotificationReceived)
 {
+    rim::EventQueue<
+        rim::CapabilityInput,
+        rim::FifoPolicy> queue;
 
-    rim::EventQueue<rim::CapabilityInput, rim::FifoPolicy> queue;
+    rim::RouteProvider
+        routeProvider;
 
-    rim::RouteProvider routeProvider;
+    rim::PublisherInputQueue
+        publisherQueue;
 
-    rim::PublisherInputQueue publisherQueue;
-
-    rim::DomainStorageRegistry
+    rim::PartitionStorageRegistry
         domainStore;
 
-    rim::CapabilityStore capabilityStore;
+    rim::ProductContext
+        productContext(
+            rim::kPrinterAProductDefinition);
 
-    rim::CapabilityManager capabilityManager(
-        capabilityStore,
-        rim::kPrinterAProductDefinition);
+    routeProvider.Initialize(
+        productContext);
+
+    rim::CapabilityManager
+        capabilityManager(
+            domainStore,
+            productContext);
+
+    rim::FacadeManager
+        facadeManager(
+            domainStore,
+            productContext);
 
     rim::SubscriptionStore
         subscriptionStore;
@@ -74,8 +92,8 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    std::atomic<bool> called{
-        false};
+    std::atomic<bool>
+        called{false};
 
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();
@@ -97,12 +115,8 @@ TEST(
         subscriptionId;
 
     info.target =
-    {
-        rim::NotificationTargetType::Capability,
-
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_ENVIRONMENT)
-    };
+        test::CapabilityTarget(
+            RI_CAPABILITY_ENVIRONMENT);
 
     info.method =
         rim::DeliveryMethod::Callback;
@@ -113,69 +127,81 @@ TEST(
     subscriptionStore.Register(
         info);
 
-        rim::CallbackQueue callbackQueue; 
-        rim::CallbackWorker
-            callbackWorker(
+    rim::CallbackQueue
+        callbackQueue;
+
+    rim::CallbackWorker
+        callbackWorker(
             callbackQueue,
             callbackRegistry);
 
-        rim::ChangeNotifyManager
-            notifyManager(
-                subscriptionStore,
-                mailboxManager,
-                callbackRegistry,
-                callbackQueue);
+    rim::ChangeNotifyManager
+        notifyManager(
+            subscriptionStore,
+            mailboxManager,
+            callbackRegistry,
+            callbackQueue);
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
     rim::PublishManager
-        publishManager(
+        publishManager{
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
-
-    auto productProvider = rim::CreatePrinterAProvider();
-
-    routeProvider.Initialize(
-        productProvider->GetProfile().definition);
+            productContext};
 
     rim::CapabilitySnapshotResolver
-        snapshotResolver(
-            rim::kPrinterAProductDefinition);
+        capabilitySnapshotResolver(
+            productContext);
 
     rim::SnapshotAccessor
         snapshotAccessor(
             domainStore,
-            rim::kPrinterAProductDefinition);
+            productContext);
 
     rim::CapabilitySnapshotProvider
-        snapshotProvider(
-            snapshotResolver,
+        capabilitySnapshotProvider(
+            capabilitySnapshotResolver,
             snapshotAccessor);
 
-    std::vector<std::unique_ptr<rim::RouteExecutor>>
+    rim::FacadeSnapshotProvider
+        facadeSnapshotProvider(
+            productContext,
+            domainStore);
+
+    auto productProvider =
+        rim::CreatePrinterAProvider();
+
+    const auto& product =
+        productProvider->GetProfile().definition;
+
+    std::vector<
+        std::unique_ptr<
+            rim::RouteExecutor>>
         routeExecutor;
 
-    for (const auto& [name, queues] : routeProvider.GetQueues())
+    for (const auto& [name, queues]
+         : routeProvider.GetQueues())
     {
         routeExecutor.push_back(
-            std::make_unique<rim::RouteExecutor>(
-                rim::kPrinterAProductDefinition,
-                queues,
-                domainStore,
-                capabilityManager,
-                publisherQueue,
-                snapshotProvider));
+            std::make_unique<
+                rim::RouteExecutor>(
+                    productContext,
+                    queues,
+                    domainStore,
+                    capabilityManager,
+                    facadeManager,
+                    publisherQueue,
+                    capabilitySnapshotProvider,
+                    facadeSnapshotProvider));
     }
 
-    rim::PublisherWorker publisherWorker(
-        publisherQueue,
-        publishManager);
+    rim::PublisherWorker
+        publisherWorker(
+            publisherQueue,
+            publishManager);
 
     for (auto& route : routeExecutor)
     {
@@ -185,12 +211,14 @@ TEST(
     callbackWorker.Run();
     publisherWorker.Run();
 
-    rim::AdapterDispatcher dispatcher(
-        rim::kPrinterAProductDefinition,
-        routeProvider);
+    rim::AdapterDispatcher
+        dispatcher(
+            productContext,
+            routeProvider);
 
-    rim::PrinterAAdapter adapter(
-        dispatcher);
+    rim::PrinterAAdapter
+        adapter(
+            dispatcher);
 
     ASSERT_TRUE(
         adapter.Poll());
@@ -210,5 +238,4 @@ TEST(
     {
         route->Stop();
     }
-
 }

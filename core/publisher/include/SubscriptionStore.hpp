@@ -18,9 +18,6 @@ public:
     void Register(
         const SubscriptionInfo& info);
 
-    bool Remove(
-        SubscriptionId id);
-
     bool Find(
     SubscriptionId id,
     SubscriptionInfo& out) const;
@@ -32,15 +29,12 @@ public:
 
 private:
 
-    SubscriptionId
-        nextId_{1};
-
+    SubscriptionId nextId_{1};
     std::vector<
         SubscriptionInfo>
             subscriptions_;
-
-    mutable std::mutex
-    mutex_;
+    mutable std::mutex mutex_;
+    
 };
 
 }

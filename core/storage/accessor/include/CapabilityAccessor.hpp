@@ -1,9 +1,10 @@
 #pragma once
 
-#include <any>
-
 #include "RIId.hpp"
-#include "CapabilityStore.hpp"
+#include "PartitionStorageRegistry.hpp"
+#include "ProductContext.hpp"
+#include "RIMValue.hpp"
+#include "RIMDataItem.hpp"
 
 namespace rim
 {
@@ -12,43 +13,61 @@ class CapabilityAccessor
 {
 public:
 
-    explicit CapabilityAccessor(
-        const CapabilityStore& store)
-        : store_(store)
+    CapabilityAccessor(
+        const PartitionStorageRegistry& store,
+        const ProductContext& context)
+        :
+        store_(store),
+        context_(context)
     {
     }
 
-    template<typename T>
     bool TryGet(
         RICapabilityId capabilityId,
-        T& value) const
+        RIMValue& value) const
     {
-        const auto* anyValue =
-            store_.Find(
+        const DomainId domainId =
+            context_.FindCapabilityDomainId(
                 capabilityId);
 
-        if (anyValue == nullptr)
+        if (domainId ==
+            kInvalidDomainId)
         {
             return false;
         }
 
-        const auto* typedValue =
-            std::any_cast<T>(
-                anyValue);
+        const auto* storage =
+            store_.Find(
+                domainId);
 
-        if (typedValue == nullptr)
+        if (storage == nullptr)
         {
             return false;
         }
 
-        value = *typedValue;
+        RIMDataItem item{};
+
+        if (!storage->Find(
+                static_cast<RIDataId>(
+                    capabilityId),
+                item))
+        {
+            return false;
+        }
+
+        value =
+            item.value;
 
         return true;
     }
 
 private:
 
-    const CapabilityStore& store_;
+    const PartitionStorageRegistry&
+        store_;
+
+    const ProductContext&
+        context_;
 };
 
 } // namespace rim

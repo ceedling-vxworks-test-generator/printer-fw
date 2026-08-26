@@ -1,27 +1,34 @@
 #include <gtest/gtest.h>
 
-#include <memory>
+#include <cstdint>
 
-#include "BinaryStoreValue.hpp"
 #include "RIMValueFactory.hpp"
 
 TEST(
     RIMValueFactoryTest,
     CreateBinary)
 {
-    auto binary =
-        std::make_unique<
-            rim::BinaryStoreValue>();
+    std::uint8_t data[]
+    {
+        0x11,
+        0x22,
+        0x33
+    };
 
     auto value =
         rim::RIMValueFactory::CreateBinary(
-            binary.get());
+            data,
+            sizeof(data));
 
     EXPECT_EQ(
         value.type,
         rim::ValueType::kBinary);
 
     EXPECT_EQ(
-        value.value.ptr,
-        binary.get());
+        value.value.bytes,
+        data);
+
+    EXPECT_EQ(
+        value.size,
+        sizeof(data));
 }

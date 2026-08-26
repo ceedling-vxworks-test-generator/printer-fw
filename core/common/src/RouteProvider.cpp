@@ -1,24 +1,25 @@
-#include <iostream>
 #include <cassert>
 #include "RouteProvider.hpp"
 #include "QueueFactory.hpp"
 #include "RouteDefinition.hpp"
 #include "DataItemDefinition.hpp"
-#include "CapabilityItemDefinition.hpp"
 
 namespace rim
 {
 
-void RouteProvider::Initialize(const ProductDefinition& product)
+void RouteProvider::Initialize(const ProductContext& context)
 {
     queues_.clear();
     routingTable_.clear();
-    capabilityRouteTable_.clear();
 
-    const auto* routes = GetRoutes(product);
-    const auto* items = GetDataItems(product);
+    // TODO: ログ追加候補
+    // RouteProvider初期化開始を出力すると
+    // 定義再ロードの確認に利用できる。
 
-    for (std::size_t i = 0; i < GetRouteCount(product); ++i)
+    const auto* routes = context.GetRoutes();
+    const auto* items = context.GetDataItems();
+
+    for (std::size_t i = 0; i < context.GetRouteCount(); ++i)
     {
         const auto& route = routes[i];
         auto storeQueue = QueueFactory::Create<RIMDataItem>(route.storePolicy);
@@ -31,35 +32,33 @@ void RouteProvider::Initialize(const ProductDefinition& product)
             route.name,
             RouteQueues
             {
-                &route,
                 std::move(storeQueue),
                 std::move(capabilityQueue)
             });
+
+        // TODO: ログ追加候補
+        // Route生成時に Route名とQueuePolicyを出力すると
+        // 初期設定確認に利用できる。
     }
 
-    for (std::size_t i = 0; i < GetDataItemCount(product); ++i)
+    for (std::size_t i = 0; i < context.GetDataItemCount(); ++i)
     {
         const auto& item = items[i];
 
-        auto queueIt = queues_.find(item.route);
+        auto* route = context.FindRoute(item.routeId);
+        assert(route != nullptr);
+        auto queueIt = queues_.find(route->name);
+
+        // auto queueIt = queues_.find(route.id);
 
         assert(queueIt != queues_.end());
 
         routingTable_.emplace(item.id, &queueIt->second);
-    }
 
-    //capabilityRouteTable作成
-    const auto* capabilities = GetCapabilities(product);
+        // TODO: ログ追加候補
+        // DataIdとRoute名の対応を出力すると
+        // Routing定義確認に利用できる。
 
-    for (std::size_t i = 0; i < GetCapabilityCount( product ); ++i)
-    {
-        const auto& capability = capabilities[i];
-
-        auto* route = rim::FindRoute( product, capability.route );
-
-        assert(route != nullptr);
-
-        capabilityRouteTable_.emplace( capability.id, route );
     }
 }
 
@@ -67,36 +66,12 @@ void RouteProvider::Initialize(const ProductDefinition& product)
 RouteQueues* RouteProvider::Find(RIDataId id) const
 {
     const auto it = routingTable_.find(id);
+
+    // TODO: ログ追加候補
+    // Route未検出時に DataId を出力すると
+    // 定義不整合の調査に利用できる。
+
     return it == routingTable_.end() ? nullptr : it->second;
-}
-
-const RouteDefinition*RouteProvider::FindRoute(const NotificationTarget& target) const
-{
-    switch (target.type)
-    {
-    case NotificationTargetType::Data:
-        return FindDataRoute(static_cast<RIDataId>(target.id));
-
-    case NotificationTargetType::Capability:
-        return FindCapabilityRoute(static_cast<RICapabilityId>(target.id));
-
-    default:
-        return nullptr;
-    }
-}
-
-//DataID -> RouteDefinition 
-const RouteDefinition*RouteProvider::FindDataRoute(RIDataId id) const
-{
-    const auto* queues = Find(id);
-    return queues == nullptr ? nullptr : queues->route;
-}
-
-//CapabilityID -> RouteDefinition 
-const RouteDefinition* RouteProvider::FindCapabilityRoute(RICapabilityId id) const
-{
-    const auto it = capabilityRouteTable_.find(id);
-    return it == capabilityRouteTable_.end() ? nullptr : it->second;
 }
 
 } // namespace rim

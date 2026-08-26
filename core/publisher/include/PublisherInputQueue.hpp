@@ -4,13 +4,24 @@
 #include "QueuePolicy.hpp"
 
 #include "PublisherInput.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
 
-    using PublisherInputQueue =
-        EventQueue<
+class PublisherInputQueue
+    : public EventQueue<
+        PublisherInput,
+        PriorityCompressionPolicy>
+{
+public:
+
+    PublisherInputQueue()
+        : EventQueue<
             PublisherInput,
-            PriorityCompressionPolicy>;
+            PriorityCompressionPolicy>()
+    {
+    }
+};
 
 } // namespace rim

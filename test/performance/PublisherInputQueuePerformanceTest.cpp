@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
 #include "PublisherInputQueue.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     PublisherInputQueuePerformanceTest,
@@ -19,10 +19,10 @@ TEST(
         50000
     };
 
+
     for (auto count : counts)
     {
-        rim::PublisherInputQueue
-            queue;
+        rim::PublisherInputQueue queue;
 
         auto start =
             std::chrono::steady_clock::now();
@@ -33,11 +33,9 @@ TEST(
         {
             queue.Push(
             {
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-                rim::EventPriority::Normal
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::EventPriority::Normal,
+                rim::CompressionPolicy::KeepLatest
             });
         }
 
@@ -72,8 +70,7 @@ TEST(
 
     for (auto count : counts)
     {
-        rim::PublisherInputQueue
-            queue;
+        rim::PublisherInputQueue queue;
 
         auto start =
             std::chrono::steady_clock::now();
@@ -84,11 +81,9 @@ TEST(
         {
             queue.Push(
             {
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_JOB
-                },
-                rim::EventPriority::Normal
+                test::CapabilityTarget(RI_CAPABILITY_JOB),
+                rim::EventPriority::Normal,
+                rim::CompressionPolicy::None
             });
         }
 
@@ -114,8 +109,7 @@ TEST(
     PublisherInputQueuePerformanceTest,
     CompressionEffect)
 {
-    rim::PublisherInputQueue
-        queue;
+    rim::PublisherInputQueue queue;
 
     for (std::size_t i = 0;
          i < 10000;
@@ -123,11 +117,9 @@ TEST(
     {
         queue.Push(
         {
-            {
-                rim::NotificationTargetType::Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::EventPriority::Normal
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::EventPriority::Normal,
+            rim::CompressionPolicy::KeepLatest
         });
     }
 

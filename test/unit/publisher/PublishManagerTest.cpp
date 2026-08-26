@@ -10,13 +10,13 @@
 #include "PeriodicNotifyManager.hpp"
 #include "NotificationTargetType.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
-TEST(
-    PublishManagerTest,
-    ProcessPeriodicNotifications)
+
+class PublishManagerTest
+    : public ::testing::Test
 {
-    rim::SubscriberMailbox
-        mailbox;
+protected:
 
     rim::SubscriptionStore
         subscriptionStore;
@@ -27,37 +27,46 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    rim::CallbackQueue callbackQueue; 
+    rim::CallbackQueue
+        callbackQueue;
 
     rim::ChangeNotifyManager
-        notifyManager(
+        notifyManager
+        {
             subscriptionStore,
             mailboxManager,
             callbackRegistry,
-            callbackQueue);
+            callbackQueue
+        };
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext
+        productContext
+        {
+            rim::kPrinterAProductDefinition
+        };
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
+};
+
+TEST_F(
+    PublishManagerTest,
+    ProcessPeriodicNotifications)
+{
 
     subscriptionStore.Register(
     {
         100,
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::DeliveryMethod::Callback,
         rim::NotificationTrigger::Periodic
     });
@@ -93,61 +102,20 @@ TEST(
     EXPECT_TRUE(
         due.empty());
 }
-TEST(
+TEST_F(
     PublishManagerTest,
     PublishOnChange)
 {
-    rim::SubscriptionStore
-        subscriptionStore;
-
-    rim::SubscriberMailboxManager
-        mailboxManager;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::CallbackQueue callbackQueue; 
-
-    rim::ChangeNotifyManager
-        notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue);
-
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
-    rim::PublishManager
-        publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider);
-
     subscriptionStore.Register(
     {
         100,
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::DeliveryMethod::Mailbox,
         rim::NotificationTrigger::OnChange
     });
 
     publishManager.Publish(
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::NotificationTrigger::OnChange);
 
     EXPECT_EQ(
@@ -156,101 +124,27 @@ TEST(
             100).Count());
 }
 
-TEST(
+TEST_F(
     PublishManagerTest,
     PublishWithoutSubscriber)
 {
-    rim::SubscriptionStore
-        subscriptionStore;
-
-    rim::SubscriberMailboxManager
-        mailboxManager;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::CallbackQueue callbackQueue; 
-
-    rim::ChangeNotifyManager
-        notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue);
-
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
-    rim::PublishManager
-        publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider);
-
     EXPECT_NO_THROW(
         publishManager.Publish(
-            {
-                rim::NotificationTargetType::Capability,
-                static_cast<std::uint32_t>(
-                    RI_CAPABILITY_ENVIRONMENT)
-            },
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
             rim::NotificationTrigger::OnChange));
 }
 
-TEST(
+TEST_F(
     PublishManagerTest,
     PeriodicNotificationDeliveredToMailbox)
 {
-    rim::SubscriptionStore
-        subscriptionStore;
-
-    rim::SubscriberMailboxManager
-        mailboxManager;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::CallbackQueue callbackQueue; 
-
-    rim::ChangeNotifyManager
-        notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue);
-
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
-    rim::PublishManager
-        publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider);
-
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();
 
     subscriptionStore.Register(
     {
         subscriptionId,
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::DeliveryMethod::Mailbox,
         rim::NotificationTrigger::Periodic
     });
@@ -292,4 +186,14 @@ TEST(
     EXPECT_EQ(
         message.trigger,
         rim::NotificationTrigger::Periodic);
+}
+
+TEST_F(
+    PublishManagerTest,
+    PublishUnknownTargetDoesNotThrow)
+{
+    EXPECT_NO_THROW(
+        publishManager.Publish(
+            test::CapabilityTarget(999999),
+            rim::NotificationTrigger::OnChange));
 }

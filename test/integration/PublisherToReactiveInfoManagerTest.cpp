@@ -19,6 +19,7 @@
 
 #include "printer_a.h"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     PublisherToReactiveInfoManagerTest,
@@ -45,17 +46,17 @@ TEST(
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
 
     const rim::SubscriptionId
         subscriptionId =
@@ -67,11 +68,7 @@ TEST(
         subscriptionId;
 
     info.target =
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_ENVIRONMENT)
-    };
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
 
     info.method =
         rim::DeliveryMethod::Mailbox;

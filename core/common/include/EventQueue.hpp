@@ -4,7 +4,9 @@
 #include <list>
 #include <chrono>
 #include <condition_variable>
+#include <utility>
 #include "IQueue.hpp"
+
 
 namespace rim
 {
@@ -17,6 +19,15 @@ class EventQueue
 {
 public:
 
+    EventQueue() = default;
+
+    explicit EventQueue(
+        TPolicy policy)
+        : policy_(
+            std::move(policy))
+    {
+    }
+
     bool Push(
         const T& event)
     {
@@ -26,11 +37,21 @@ public:
 
             if (shutdown_)
             {
+
+                // TODO: ログ追加候補
+                // Shutdown後にイベント投入が要求された場合は
+                // 発生回数とイベント種別を出力すると
+                // ライフサイクル不整合の調査に利用できる。
+
                 return false;
             }
 
-            policy_.Insert(
-                events_,event);
+            policy_.Insert(events_,event);
+
+            // TODO: ログ追加候補
+            // Queue投入後の件数を出力すると
+            // イベント滞留状況の確認に利用できる。
+
         }
 
         cv_.notify_one();
@@ -46,6 +67,11 @@ public:
 
         if (events_.empty())
         {
+
+            // TODO: ログ追加候補
+            // 空Queue参照の発生頻度を記録すると
+            // ポーリング過多や負荷調査に利用できる。
+
             return false;
         }
 
@@ -73,6 +99,11 @@ public:
         if (shutdown_
             && events_.empty())
         {
+
+            // TODO: ログ追加候補
+            // Shutdownによる待機解除を出力すると
+            // Worker停止処理の確認に利用できる。
+
             return false;
         }
 
@@ -102,6 +133,11 @@ public:
 
         if (!ready)
         {
+
+            // TODO: ログ追加候補
+            // Queue待機タイムアウト発生回数を記録すると
+            // イベント流量の監視に利用できる。
+
             return false;
         }
 
@@ -125,6 +161,11 @@ public:
                 lock(mutex_);
 
             shutdown_ = true;
+
+            // TODO: ログ追加候補
+            // Queue Shutdown開始を出力すると
+            // 停止シーケンス確認に利用できる。
+            
         }
 
         cv_.notify_all();

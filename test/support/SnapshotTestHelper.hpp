@@ -74,8 +74,10 @@ inline double GetDouble(
             id,
             value))
     {
-        throw std::runtime_error(
-            "double not found");
+        ADD_FAILURE()
+            << "double not found";
+
+        return {};
     }
 
     return value;
@@ -91,8 +93,10 @@ inline bool GetBool(
             id,
             value))
     {
-        throw std::runtime_error(
-            "bool not found");
+        ADD_FAILURE()
+            << "bool not found";
+
+        return false;
     }
 
     return value;
@@ -108,8 +112,10 @@ inline std::int32_t GetInt32(
             id,
             value))
     {
-        throw std::runtime_error(
-            "int32 not found");
+        ADD_FAILURE()
+            << "int32 not found";
+
+        return {};
     }
 
     return value;

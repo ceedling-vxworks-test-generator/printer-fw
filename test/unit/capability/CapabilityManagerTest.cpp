@@ -1,70 +1,67 @@
-#include <any>
-
 #include <gtest/gtest.h>
 
 #include "CapabilityManager.hpp"
-
-#include "CapabilityStore.hpp"
-
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
 
 #include "PrinterAProductDefinition.hpp"
 
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
 
+#include "test/support/RIMDataTestHelper.hpp"
+#include "ProductContext.hpp"
+
 namespace
 {
 
-rim::RIMDataItem CreateDoubleItem(
-    RIDataId id,
-    double value)
+rim::RIMDataItem FindCapability(
+    const rim::PartitionStorageRegistry& store,
+    const rim::ProductContext& context,
+    RICapabilityId capabilityId)
 {
+    const auto domainId =
+        context.FindCapabilityDomainId(
+            capabilityId);
+
+    EXPECT_NE(
+        domainId,
+        rim::kInvalidDomainId);
+
+    const auto* storage =
+        store.Find(
+            domainId);
+
+    EXPECT_NE(
+        storage,
+        nullptr);
+
     rim::RIMDataItem item{};
 
-    item.id =
-        id;
-
-    item.value =
-        rim::RIMValueFactory::CreateDouble(
-            value);
+    EXPECT_TRUE(
+        storage->Find(
+            static_cast<RIDataId>(
+                capabilityId),
+            item));
 
     return item;
 }
 
-rim::RIMDataItem CreateBoolItem(
-    RIDataId id,
-    bool value)
-{
-    rim::RIMDataItem item{};
-
-    item.id =
-        id;
-
-    item.value =
-        rim::RIMValueFactory::CreateBool(
-            value);
-
-    return item;
 }
 
-}
+using namespace rim::test;
 
 TEST(
     CapabilityManagerTest,
     GenerateEnvironmentCapability)
 {
-    rim::CapabilityStore
-        store;
+    rim::PartitionStorageRegistry store;
 
-    rim::CapabilityManager
-        manager(
-            store,
-            rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext( rim::kPrinterAProductDefinition);
 
-    rim::RIMSnapshot
-        snapshot;
+    rim::CapabilityManager manager(
+        store,
+        productContext);
+
+    rim::RIMSnapshot snapshot;
 
     snapshot.items.push_back(
         CreateDoubleItem(
@@ -76,55 +73,42 @@ TEST(
             RI_DATA_HUMIDITY_SENSOR,
             60.0));
 
-    const auto changes =
+    const bool changed =
         manager.Evaluate(
             snapshot,
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            &rim::kEnvironmentCapability);
 
-    ASSERT_EQ(
-        1U,
-        changes.changedCapabilities.size());
+    EXPECT_TRUE(
+        changed);
 
-    EXPECT_EQ(
-        RI_CAPABILITY_ENVIRONMENT,
-        changes.changedCapabilities.front());
-
-    const auto* capability =
-        store.Find(
+    const auto item =
+        FindCapability(
+            store,
+            productContext,
             RI_CAPABILITY_ENVIRONMENT);
 
-    ASSERT_NE(
-        capability,
-        nullptr);
+    EXPECT_EQ(
+        item.value.type,
+        rim::ValueType::kInt32);
 
-    const auto& environment =
-        std::any_cast<
-            const rim::EnvironmentCapability&>(
-                *capability);
+    EXPECT_EQ(
+        item.value.value.i32,
+        1);
 
-    EXPECT_DOUBLE_EQ(
-        300.15,
-        environment.temperature);
-
-    EXPECT_DOUBLE_EQ(
-        60.0,
-        environment.humidity);
 }
 
 TEST(
     CapabilityManagerTest,
     GeneratePrintReadyCapability)
 {
-    rim::CapabilityStore
-        store;
+    rim::PartitionStorageRegistry store;
 
-    rim::CapabilityManager
-        manager(
-            store,
-            rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext( rim::kPrinterAProductDefinition);
+    rim::CapabilityManager manager(
+        store,
+        productContext);
 
-    rim::RIMSnapshot
-        snapshot;
+    rim::RIMSnapshot snapshot;
 
     snapshot.items.push_back(
         CreateBoolItem(
@@ -141,74 +125,40 @@ TEST(
             RI_DATA_LEFT_DOOR_OPEN,
             false));
 
-    const auto changes =
+    const bool changed =
         manager.Evaluate(
             snapshot,
-            RI_DATA_UPPER_DOOR_OPEN);
+            &rim::kPrintReadyCapability);
 
-    ASSERT_EQ(
-        1U,
-        changes.changedCapabilities.size());
+    EXPECT_TRUE(
+        changed);
 
-    EXPECT_EQ(
-        RI_CAPABILITY_PRINT_READY,
-        changes.changedCapabilities.front());
-
-    const auto* capability =
-        store.Find(
+    const auto item =
+        FindCapability(
+            store,
+            productContext,
             RI_CAPABILITY_PRINT_READY);
 
-    ASSERT_NE(
-        capability,
-        nullptr);
-
-    const auto& printReady =
-        std::any_cast<
-            const rim::PrintReadyCapability&>(
-                *capability);
+    EXPECT_EQ(
+        item.value.type,
+        rim::ValueType::kBool);
 
     EXPECT_TRUE(
-        printReady.ready);
-}
-
-TEST(
-    CapabilityManagerTest,
-    IgnoreUnknownData)
-{
-    rim::CapabilityStore
-        store;
-
-    rim::CapabilityManager
-        manager(
-            store,
-            rim::kPrinterAProductDefinition);
-
-    rim::RIMSnapshot
-        snapshot;
-
-    const auto changes =
-        manager.Evaluate(
-            snapshot,
-            RI_DATA_UNKNOWN);
-
-    EXPECT_TRUE(
-        changes.changedCapabilities.empty());
+        item.value.value.b);
 }
 
 TEST(
     CapabilityManagerTest,
     SameEnvironmentValueDoesNotGenerateChange)
 {
-    rim::CapabilityStore
-        store;
+    rim::PartitionStorageRegistry store;
 
-    rim::CapabilityManager
-        manager(
-            store,
-            rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext( rim::kPrinterAProductDefinition);
+    rim::CapabilityManager manager(
+        store,
+        productContext);
 
-    rim::RIMSnapshot
-        snapshot;
+    rim::RIMSnapshot snapshot;
 
     snapshot.items.push_back(
         CreateDoubleItem(
@@ -220,37 +170,36 @@ TEST(
             RI_DATA_HUMIDITY_SENSOR,
             60.0));
 
-    const auto first =
+    const bool first =
         manager.Evaluate(
             snapshot,
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            &rim::kEnvironmentCapability);
 
-    ASSERT_FALSE(
-        first.changedCapabilities.empty());
+    EXPECT_TRUE(
+        first);
 
     const auto second =
         manager.Evaluate(
             snapshot,
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            &rim::kEnvironmentCapability);
 
-    EXPECT_TRUE(
-        second.changedCapabilities.empty());
+    EXPECT_FALSE(
+        second);
 }
 
 TEST(
     CapabilityManagerTest,
     MissingHumidityDoesNotThrow)
 {
-    rim::CapabilityStore
-        store;
+    rim::PartitionStorageRegistry store;
 
-    rim::CapabilityManager
-        manager(
-            store,
-            rim::kPrinterAProductDefinition);
+    rim::ProductContext productContext( rim::kPrinterAProductDefinition);
 
-    rim::RIMSnapshot
-        snapshot;
+    rim::CapabilityManager manager(
+        store,
+        productContext);
+
+    rim::RIMSnapshot snapshot;
 
     snapshot.items.push_back(
         CreateDoubleItem(
@@ -260,5 +209,177 @@ TEST(
     EXPECT_NO_THROW(
         manager.Evaluate(
             snapshot,
-            RI_DATA_TEMPERATURE_SENSOR_A));
+            &rim::kEnvironmentCapability));
+}
+
+TEST(
+    CapabilityManagerTest,
+    HumidityChangesButCapabilityStateUnchanged)
+{
+    rim::PartitionStorageRegistry store;
+
+    rim::ProductContext productContext( rim::kPrinterAProductDefinition);
+
+    rim::CapabilityManager manager(
+        store,
+        productContext);
+
+    rim::RIMSnapshot snapshot1;
+
+    snapshot1.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            300.15));
+
+    snapshot1.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_HUMIDITY_SENSOR,
+            60.0));
+
+    const bool first =
+        manager.Evaluate(
+            snapshot1,
+            &rim::kEnvironmentCapability);
+
+    EXPECT_TRUE(
+        first);
+
+    rim::RIMSnapshot snapshot2;
+
+    snapshot2.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            300.15));
+
+    snapshot2.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_HUMIDITY_SENSOR,
+            70.0));
+
+    const bool second =
+        manager.Evaluate(
+            snapshot2,
+            &rim::kEnvironmentCapability);
+
+    EXPECT_FALSE(
+        second);
+}
+
+TEST(
+    CapabilityManagerTest,
+    EnvironmentStateChangesGeneratesChange)
+{
+    rim::PartitionStorageRegistry store;
+
+    rim::ProductContext context(
+        rim::kPrinterAProductDefinition);
+
+    rim::CapabilityManager manager(
+        store,
+        context);
+
+    rim::RIMSnapshot snapshot1;
+
+    snapshot1.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            300.15));
+
+    snapshot1.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_HUMIDITY_SENSOR,
+            30.0));
+
+    EXPECT_TRUE(
+        manager.Evaluate(
+            snapshot1,
+            &rim::kEnvironmentCapability));
+
+    rim::RIMSnapshot snapshot2;
+
+    snapshot2.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            340.15));
+
+    snapshot2.items.push_back(
+        CreateDoubleItem(
+            RI_DATA_HUMIDITY_SENSOR,
+            80.0));
+
+    const bool second =
+        manager.Evaluate(
+            snapshot2,
+            &rim::kEnvironmentCapability);
+
+    EXPECT_TRUE(
+        second);
+
+    const auto item =
+        FindCapability(
+            store,
+            context,
+            RI_CAPABILITY_ENVIRONMENT);
+
+    EXPECT_EQ(
+        2,
+        item.value.value.i32);
+}
+
+TEST(
+    CapabilityManagerTest,
+    SamePrintReadyValueDoesNotGenerateChange)
+{
+    rim::PartitionStorageRegistry store;
+
+    rim::ProductContext productContext( rim::kPrinterAProductDefinition);
+    rim::CapabilityManager manager(
+        store,
+        productContext);
+
+    rim::RIMSnapshot snapshot;
+
+    snapshot.items.push_back(
+        CreateBoolItem(
+            RI_DATA_UPPER_DOOR_OPEN,
+            false));
+
+    snapshot.items.push_back(
+        CreateBoolItem(
+            RI_DATA_RIGHT_DOOR_OPEN,
+            false));
+
+    snapshot.items.push_back(
+        CreateBoolItem(
+            RI_DATA_LEFT_DOOR_OPEN,
+            false));
+
+    const bool first =
+        manager.Evaluate(
+            snapshot,
+            &rim::kPrintReadyCapability);
+
+    EXPECT_TRUE(
+        first);
+
+    const bool second =
+        manager.Evaluate(
+            snapshot,
+            &rim::kPrintReadyCapability);
+
+    EXPECT_FALSE(
+        second);
+
+    const auto item =
+        FindCapability(
+            store,
+            productContext,
+            RI_CAPABILITY_PRINT_READY);
+
+    EXPECT_EQ(
+        item.value.type,
+        rim::ValueType::kBool);
+
+    EXPECT_TRUE(
+        item.value.value.b);
 }

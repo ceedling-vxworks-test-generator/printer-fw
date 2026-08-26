@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
@@ -10,6 +9,7 @@
 #include "SubscriptionStore.hpp"
 #include "SubscriberMailboxManager.hpp"
 #include "CallbackSubscriptionRegistry.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     ChangeNotifyManagerPerformanceTest,
@@ -48,12 +48,8 @@ TEST(
         {
             store.Register(
             {
-                static_cast<rim::SubscriptionId>(
-                    i + 1),
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                static_cast<rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -63,12 +59,8 @@ TEST(
             std::chrono::steady_clock::now();
 
         manager.Notify(
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_ENVIRONMENT)
-        },
-        rim::NotificationTrigger::Periodic);
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::NotificationTrigger::Periodic);
 
         auto end =
             std::chrono::steady_clock::now();
@@ -126,13 +118,8 @@ TEST(
             store.Register(
             {
                 static_cast<
-                    rim::SubscriptionId>(
-                        i + 1),
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::
                     Mailbox,
                 rim::NotificationTrigger::
@@ -147,14 +134,10 @@ TEST(
              i < count;
              ++i)
         {
+
             manager.Notify(
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::NotificationTrigger::
-                Periodic);
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::NotificationTrigger::Periodic);
         }
 
         auto end =
@@ -211,10 +194,7 @@ TEST(
         store.Register(
         {
             1,
-            {
-                rim::NotificationTargetType::Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
             rim::DeliveryMethod::Mailbox,
             rim::NotificationTrigger::Periodic
         });
@@ -228,12 +208,8 @@ TEST(
         {
             store.Register(
             {
-                static_cast<rim::SubscriptionId>(
-                    i + 1),
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_JOB
-                },
+                static_cast<rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_JOB),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -243,11 +219,8 @@ TEST(
             std::chrono::steady_clock::now();
 
         manager.Notify(
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
-        rim::NotificationTrigger::Periodic);
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::NotificationTrigger::Periodic);
 
         auto end =
             std::chrono::steady_clock::now();
@@ -306,13 +279,8 @@ TEST(
             store.Register(
             {
                 static_cast<
-                    rim::SubscriptionId>(
-                        i + 1),
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::
                     Mailbox,
                 rim::NotificationTrigger::
@@ -324,13 +292,8 @@ TEST(
             std::chrono::steady_clock::now();
 
         manager.Notify(
-        {
-            rim::NotificationTargetType::
-                Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
-        rim::NotificationTrigger::
-            Periodic);
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::NotificationTrigger::Periodic);
 
         auto end =
             std::chrono::steady_clock::now();
@@ -405,18 +368,10 @@ TEST(
         {
             store.Register(
             {
-                static_cast<
-                    rim::SubscriptionId>(
-                        i + 1),
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-                rim::DeliveryMethod::
-                    Mailbox,
-                rim::NotificationTrigger::
-                    Periodic
+                static_cast<rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::DeliveryMethod::Mailbox,
+                rim::NotificationTrigger::Periodic
             });
         }
 
@@ -432,14 +387,9 @@ TEST(
                 std::chrono::steady_clock::now();
 
             store.GetSubscriptions(
-            {
-                rim::NotificationTargetType::
-                    Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::NotificationTrigger::
-                Periodic,
-            subscriptions);
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::NotificationTrigger::Periodic,
+                subscriptions);
 
             auto end =
                 std::chrono::steady_clock::now();
@@ -458,18 +408,10 @@ TEST(
             for (const auto& info
                 : subscriptions)
             {
-                mailboxManager.
-                    GetMailbox(
-                        info.id)
-                    .Push(
+                mailboxManager.GetMailbox(info.id).Push(
                     {
-                        {
-                            rim::NotificationTargetType::
-                                Capability,
-                            RI_CAPABILITY_ENVIRONMENT
-                        },
-                        rim::NotificationTrigger::
-                            Periodic
+                        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                        rim::NotificationTrigger::Periodic
                     });
             }
 

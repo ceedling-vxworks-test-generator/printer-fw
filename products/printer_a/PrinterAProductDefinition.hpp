@@ -10,6 +10,7 @@
 
 #include "CapabilityItemDefinition.hpp"
 #include "CapabilityItem/PrinterACapabilities.hpp"
+#include "CapabilityItem/PrinterAFacades.hpp"
 
 #include "ProductDefinition.hpp"
 
@@ -29,7 +30,9 @@ inline constexpr std::array kRoutes =
 {
     kValueRoute,
     kDataRoute,
-    kErrorRoute
+    kErrorRoute,
+    kFacadeRoute
+
 };
 
 inline constexpr std::array kDataItems =
@@ -55,9 +58,14 @@ inline constexpr std::array kCapabilities =
 {
     kEnvironmentCapability,
     kPrintReadyCapability,
-    // kConsumableCapability,
-    // kJobCapability,
 };
+
+inline constexpr std::array kFacades =
+{
+    kEnvironmentReadyFacade,
+    kOperationReadyFacade,
+};
+
 
 inline constexpr ProductDefinition
 kPrinterAProductDefinition
@@ -73,6 +81,9 @@ kPrinterAProductDefinition
 
     kCapabilities.data(),
     kCapabilities.size(),
+
+    kFacades.data(),
+    kFacades.size(),
 };
 
 }

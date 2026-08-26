@@ -4,12 +4,11 @@
 
 #include "DataStoreWorker.hpp"
 
-#include "BinaryStoreValue.hpp"
 #include "IProductProvider.hpp"
 #include "ProductFactory.hpp"
 #include "RIMDataItem.hpp"
 #include "RIMValueFactory.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "DataDomainMap.hpp"
 #include "RouteProvider.hpp"
 #include "QueueFactory.hpp"
@@ -18,14 +17,13 @@ TEST(
     DataStoreWorkerTest,
     GenerateSnapshotEvent)
 {
-    rim::DomainStorageRegistry domainStore;
+    rim::PartitionStorageRegistry domainStore;
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
     rim::RouteQueues queues
     {
-        nullptr,
         rim::QueueFactory::Create<rim::RIMDataItem>(
             rim::QueuePolicy::Buffered),
 
@@ -33,8 +31,11 @@ TEST(
             rim::QueuePolicy::Buffered)
     };
 
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
     rim::DataStoreWorker dispatcher(
-        productProvider->GetProfile().definition,
+        productContext,
         *queues.storeQueue,
         domainStore,
         *queues.capabilityQueue);
@@ -71,16 +72,15 @@ TEST(
 
 TEST(
     DataStoreWorkerTest,
-    UpdateDomainStorage)
+    UpdatePartitionStorage)
 {
-    rim::DomainStorageRegistry domainStore;
+    rim::PartitionStorageRegistry domainStore;
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
     rim::RouteQueues queues
     {
-        nullptr,
         rim::QueueFactory::Create<rim::RIMDataItem>(
             rim::QueuePolicy::Buffered),
 
@@ -88,8 +88,11 @@ TEST(
             rim::QueuePolicy::Buffered)
     };
 
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
     rim::DataStoreWorker dispatcher(
-        productProvider->GetProfile().definition,
+        productContext,
         *queues.storeQueue,
         domainStore,
         *queues.capabilityQueue);
@@ -147,14 +150,13 @@ TEST(
     DataStoreWorkerTest,
     StoreErrorList)
 {
-    rim::DomainStorageRegistry domainStore;
+    rim::PartitionStorageRegistry domainStore;
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
     rim::RouteQueues queues
     {
-        nullptr,
         rim::QueueFactory::Create<rim::RIMDataItem>(
             rim::QueuePolicy::Buffered),
 
@@ -162,17 +164,16 @@ TEST(
             rim::QueuePolicy::Buffered)
     };
 
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
     rim::DataStoreWorker dispatcher(
-        productProvider->GetProfile().definition,
+        productContext,
         *queues.storeQueue,
         domainStore,
         *queues.capabilityQueue);
 
-    auto binary =
-        std::make_unique<
-            rim::BinaryStoreValue>();
-
-    binary->data =
+    std::uint8_t data[]
     {
         0x11,
         0x22,
@@ -184,12 +185,10 @@ TEST(
     item.id =
         RI_DATA_ERROR_LIST;
 
-    // item.valueType =
-    //     rim::ValueType::kBinary;
-
     item.value =
         rim::RIMValueFactory::CreateBinary(
-            binary.release());
+            data,
+            sizeof(data));
 
     ASSERT_TRUE(
         queues.storeQueue->Push(
@@ -232,14 +231,13 @@ TEST(
     DataStoreWorkerTest,
     StoreErrorListCopiesBinaryData)
 {
-    rim::DomainStorageRegistry domainStore;
+    rim::PartitionStorageRegistry domainStore;
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
     rim::RouteQueues queues
     {
-        nullptr,
         rim::QueueFactory::Create<rim::RIMDataItem>(
             rim::QueuePolicy::Buffered),
 
@@ -247,17 +245,16 @@ TEST(
             rim::QueuePolicy::Buffered)
     };
 
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
     rim::DataStoreWorker dispatcher(
-        productProvider->GetProfile().definition,
+        productContext,
         *queues.storeQueue,
         domainStore,
         *queues.capabilityQueue);
 
-    auto binary =
-        std::make_unique<
-            rim::BinaryStoreValue>();
-
-    binary->data =
+    std::uint8_t data[]
     {
         0x11,
         0x22,
@@ -270,12 +267,10 @@ TEST(
     item.id =
         RI_DATA_ERROR_LIST;
 
-    // item.valueType =
-    //     rim::ValueType::kBinary;
-
     item.value =
         rim::RIMValueFactory::CreateBinary(
-            binary.release());
+            data,
+            sizeof(data));
 
     ASSERT_TRUE(
         queues.storeQueue->Push(
@@ -302,50 +297,41 @@ TEST(
         storage,
         nullptr);
 
-    rim::BinaryStoreValue* found{};
+    rim::RIMDataItem stored{};
 
     ASSERT_TRUE(
-        storage->FindBinary(
+        storage->Find(
             RI_DATA_ERROR_LIST,
-            found));
+            stored));
 
-    ASSERT_NE(
-        found,
-        nullptr);
+    const std::uint8_t* bytes{};
+    std::size_t size{};
 
-    EXPECT_EQ(
-        found->data.size(),
-        4U);
+    ASSERT_TRUE(
+        rim::RIMValueAccessor::GetBinary(
+            stored.value,
+            bytes,
+            size));
 
-    EXPECT_EQ(
-        found->data[0],
-        0x11);
+    EXPECT_EQ(size, 4U);
 
-    EXPECT_EQ(
-        found->data[1],
-        0x22);
-
-    EXPECT_EQ(
-        found->data[2],
-        0x33);
-
-    EXPECT_EQ(
-        found->data[3],
-        0x44);
+    EXPECT_EQ(bytes[0], 0x11);
+    EXPECT_EQ(bytes[1], 0x22);
+    EXPECT_EQ(bytes[2], 0x33);
+    EXPECT_EQ(bytes[3], 0x44);
 }
 
 TEST(
     DataStoreWorkerTest,
     NoNotificationWhenUnchanged)
 {
-    rim::DomainStorageRegistry domainStore;
+    rim::PartitionStorageRegistry domainStore;
 
     auto productProvider =
         rim::CreatePrinterAProvider();
 
     rim::RouteQueues queues
     {
-        nullptr,
         rim::QueueFactory::Create<rim::RIMDataItem>(
             rim::QueuePolicy::Buffered),
 
@@ -353,8 +339,12 @@ TEST(
             rim::QueuePolicy::Buffered)
     };
 
+
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
     rim::DataStoreWorker dispatcher(
-        productProvider->GetProfile().definition,
+        productContext,
         *queues.storeQueue,
         domainStore,
         *queues.capabilityQueue);
@@ -392,6 +382,248 @@ TEST(
         dispatcher.ExecuteOnce());
 
     EXPECT_FALSE(
+        queues.capabilityQueue->TryPop(
+            input));
+}
+
+TEST(
+    DataStoreWorkerTest,
+    SameBinaryDoesNotNotifyAgain)
+{
+    rim::PartitionStorageRegistry domainStore;
+
+    auto productProvider =
+        rim::CreatePrinterAProvider();
+
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
+    rim::DataStoreWorker worker(
+        productContext,
+        *queues.storeQueue,
+        domainStore,
+        *queues.capabilityQueue);
+
+    const std::uint8_t data[]
+    {
+        0x11,
+        0x22,
+        0x33
+    };
+
+    rim::RIMDataItem item{};
+
+    item.id =
+        RI_DATA_ERROR_LIST;
+
+    item.value =
+        rim::RIMValueFactory::CreateBinary(
+            data,
+            sizeof(data));
+
+    ASSERT_TRUE(
+        queues.storeQueue->Push(
+            item));
+
+    ASSERT_TRUE(
+        worker.ExecuteOnce());
+
+    rim::CapabilityInput input{};
+
+    ASSERT_TRUE(
+        queues.capabilityQueue->TryPop(
+            input));
+
+    ASSERT_TRUE(
+        queues.storeQueue->Push(
+            item));
+
+    ASSERT_TRUE(
+        worker.ExecuteOnce());
+
+    EXPECT_FALSE(
+        queues.capabilityQueue->TryPop(
+            input));
+}
+
+TEST(
+    DataStoreWorkerTest,
+    BinaryHashChangedNotifiesAgain)
+{
+    rim::PartitionStorageRegistry domainStore;
+
+    auto productProvider =
+        rim::CreatePrinterAProvider();
+
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
+    rim::DataStoreWorker worker(
+        productContext,
+        *queues.storeQueue,
+        domainStore,
+        *queues.capabilityQueue);
+
+    const std::uint8_t data1[]
+    {
+        0x11,
+        0x22,
+        0x33
+    };
+
+    rim::RIMDataItem item1{};
+
+    item1.id =
+        RI_DATA_ERROR_LIST;
+
+    item1.value =
+        rim::RIMValueFactory::CreateBinary(
+            data1,
+            sizeof(data1));
+
+    ASSERT_TRUE(
+        queues.storeQueue->Push(
+            item1));
+
+    ASSERT_TRUE(
+        worker.ExecuteOnce());
+
+    rim::CapabilityInput input{};
+
+    ASSERT_TRUE(
+        queues.capabilityQueue->TryPop(
+            input));
+
+    const std::uint8_t data2[]
+    {
+        0x11,
+        0x22,
+        0x44
+    };
+
+    rim::RIMDataItem item2{};
+
+    item2.id =
+        RI_DATA_ERROR_LIST;
+
+    item2.value =
+        rim::RIMValueFactory::CreateBinary(
+            data2,
+            sizeof(data2));
+
+    ASSERT_TRUE(
+        queues.storeQueue->Push(
+            item2));
+
+    ASSERT_TRUE(
+        worker.ExecuteOnce());
+
+    EXPECT_TRUE(
+        queues.capabilityQueue->TryPop(
+            input));
+}
+
+TEST(
+    DataStoreWorkerTest,
+    BinarySizeChangedNotifiesAgain)
+{
+    rim::PartitionStorageRegistry domainStore;
+
+    auto productProvider =
+        rim::CreatePrinterAProvider();
+
+    rim::RouteQueues queues
+    {
+        rim::QueueFactory::Create<rim::RIMDataItem>(
+            rim::QueuePolicy::Buffered),
+
+        rim::QueueFactory::Create<rim::CapabilityInput>(
+            rim::QueuePolicy::Buffered)
+    };
+
+    rim::ProductContext productContext(
+        productProvider->GetProfile().definition);
+
+    rim::DataStoreWorker worker(
+        productContext,
+        *queues.storeQueue,
+        domainStore,
+        *queues.capabilityQueue);
+
+    const std::uint8_t data1[]
+    {
+        0x11,
+        0x22,
+        0x33
+    };
+
+    rim::RIMDataItem item1{};
+
+    item1.id =
+        RI_DATA_ERROR_LIST;
+
+    item1.value =
+        rim::RIMValueFactory::CreateBinary(
+            data1,
+            sizeof(data1));
+
+    ASSERT_TRUE(
+        queues.storeQueue->Push(
+            item1));
+
+    ASSERT_TRUE(
+        worker.ExecuteOnce());
+
+    rim::CapabilityInput input{};
+
+    ASSERT_TRUE(
+        queues.capabilityQueue->TryPop(
+            input));
+
+    const std::uint8_t data2[]
+    {
+        0x11,
+        0x22,
+        0x33,
+        0x44
+    };
+
+    rim::RIMDataItem item2{};
+
+    item2.id =
+        RI_DATA_ERROR_LIST;
+
+    item2.value =
+        rim::RIMValueFactory::CreateBinary(
+            data2,
+            sizeof(data2));
+
+    ASSERT_TRUE(
+        queues.storeQueue->Push(
+            item2));
+
+    ASSERT_TRUE(
+        worker.ExecuteOnce());
+
+    EXPECT_TRUE(
         queues.capabilityQueue->TryPop(
             input));
 }

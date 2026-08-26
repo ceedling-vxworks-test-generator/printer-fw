@@ -9,6 +9,34 @@
 namespace
 {
 
+class EndToEndCApiCallbackTest
+    : public ::testing::Test
+{
+protected:
+
+    void SetUp() override
+    {
+        ASSERT_EQ(
+            RIM_Create(),
+            RI_SUCCESS);
+
+        ASSERT_EQ(
+            RIM_Start(),
+            RI_SUCCESS);
+    }
+
+    void TearDown() override
+    {
+        EXPECT_EQ(
+            RIM_Stop(),
+            RI_SUCCESS);
+
+        EXPECT_EQ(
+            RIM_Destroy(),
+            RI_SUCCESS);
+    }
+};
+
 std::atomic<std::uint64_t>
     g_receivedId{0U};
 
@@ -37,47 +65,40 @@ void OnPrintReady(
     g_printReadyCalled = true;
 }
 
-std::atomic<bool>
-    g_consumableCalled{false};
+std::atomic<int>
+    g_environmentCount{0};
 
-void OnConsumable(
+void OnEnvironmentCount(
     std::uint64_t subscriptionId,
     const void* notificationMessage)
 {
     (void)subscriptionId;
     (void)notificationMessage;
 
-    g_consumableCalled = true;
+    ++g_environmentCount;
 }
 
-std::atomic<bool>
-    g_jobCalled{false};
 
-void OnJob(
+std::atomic<int>
+    g_printReadyCount{0};
+
+void OnPrintReadyCount(
     std::uint64_t subscriptionId,
     const void* notificationMessage)
 {
     (void)subscriptionId;
     (void)notificationMessage;
 
-    g_jobCalled = true;
+    ++g_printReadyCount;
 }
 
-TEST(
+TEST_F(
     EndToEndCApiCallbackTest,
-    SubscribeReceiveAndUnsubscribe)
+    SubscribeReceiveNotification)
 {
     g_environmentCalled = false;
 
     g_receivedId = 0U;
-
-    ASSERT_EQ(
-        RIM_Create(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Start(),
-        RI_SUCCESS);
 
     std::uint64_t id{};
 
@@ -119,11 +140,6 @@ TEST(
         g_receivedId,
         id);
 
-    ASSERT_EQ(
-        RIM_Unsubscribe(
-            id),
-        RI_SUCCESS);
-
     g_environmentCalled = false;
 
     ASSERT_EQ(
@@ -138,29 +154,13 @@ TEST(
 
     EXPECT_FALSE(
         g_environmentCalled);
-
-    ASSERT_EQ(
-        RIM_Stop(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Destroy(),
-        RI_SUCCESS);
 }
 
-TEST(
+TEST_F(
     EndToEndCApiCallbackTest,
     SubscribePrintReady)
 {
     g_printReadyCalled = false;
-
-    ASSERT_EQ(
-        RIM_Create(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Start(),
-        RI_SUCCESS);
 
     uint64_t id{};
 
@@ -209,150 +209,186 @@ TEST(
 
     EXPECT_TRUE(
         g_printReadyCalled);
-
-    ASSERT_EQ(
-        RIM_Unsubscribe(
-            id),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Stop(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Destroy(),
-        RI_SUCCESS);
 }
 
-// TEST(
-//     EndToEndCApiCallbackTest,
-//     SubscribeConsumable)
-// {
-//     g_consumableCalled = false;
+TEST_F(
+    EndToEndCApiCallbackTest,
+    SameEnvironmentValueDoesNotNotifyAgain)
+{
+    g_environmentCount = 0;
 
-//     ASSERT_EQ(
-//         RIM_Create(),
-//         RI_SUCCESS);
+    std::uint64_t id{};
 
-//     ASSERT_EQ(
-//         RIM_Start(),
-//         RI_SUCCESS);
+    ASSERT_EQ(
+        RIM_SubscribeCapability(
+            RI_CAPABILITY_ENVIRONMENT,
+            OnEnvironmentCount,
+            &id),
+        RI_SUCCESS);
 
-//     uint64_t id{};
+    ASSERT_NE(
+        id,
+        0U);
 
-//     ASSERT_EQ(
-//         RIM_SubscribeCapability(
-//             RI_CAPABILITY_CONSUMABLE,
-//             OnConsumable,
-//             &id),
-//         RI_SUCCESS);
+    //
+    // 初回通知
+    //
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            30.0),
+        RI_SUCCESS);
 
-//     ASSERT_NE(
-//         id,
-//         0U);
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            200));
 
-//     ASSERT_EQ(
-//         RIM_TestInjectStapleLevel(
-//             80),
-//         RI_SUCCESS);
+    const int firstCount =
+        g_environmentCount.load();
 
-//     const auto timeout =
-//         std::chrono::steady_clock::now()
-//         + std::chrono::seconds(
-//             1);
+    EXPECT_GE(
+        firstCount,
+        1);
 
-//     while (!g_consumableCalled &&
-//            std::chrono::steady_clock::now()
-//                 < timeout)
-//     {
-//         std::this_thread::sleep_for(
-//             std::chrono::milliseconds(
-//                 10));
-//     }
+    //
+    // 同値更新
+    //
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            30.0),
+        RI_SUCCESS);
 
-//     EXPECT_TRUE(
-//         g_consumableCalled);
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            200));
 
-//     ASSERT_EQ(
-//         RIM_Unsubscribe(
-//             id),
-//         RI_SUCCESS);
+    EXPECT_EQ(
+        firstCount,
+        g_environmentCount.load());
+}
 
-//     ASSERT_EQ(
-//         RIM_Stop(),
-//         RI_SUCCESS);
+TEST_F(
+    EndToEndCApiCallbackTest,
+    PrintReadyChangedNotifiesAgain)
+{
+    g_printReadyCount = 0;
 
-//     ASSERT_EQ(
-//         RIM_Destroy(),
-//         RI_SUCCESS);
-// }
+    std::uint64_t id{};
 
-// TEST(
-//     EndToEndCApiCallbackTest,
-//     SubscribeJob)
-// {
-//     g_jobCalled = false;
+    ASSERT_EQ(
+        RIM_SubscribeCapability(
+            RI_CAPABILITY_PRINT_READY,
+            OnPrintReadyCount,
+            &id),
+        RI_SUCCESS);
 
-//     ASSERT_EQ(
-//         RIM_Create(),
-//         RI_SUCCESS);
+    ASSERT_NE(
+        id,
+        0U);
 
-//     ASSERT_EQ(
-//         RIM_Start(),
-//         RI_SUCCESS);
+    //
+    // 初期状態
+    // 全ドア閉
+    //
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
+            false),
+        RI_SUCCESS);
 
-//     uint64_t id{};
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_RIGHT_DOOR_OPEN,
+            false),
+        RI_SUCCESS);
 
-//     ASSERT_EQ(
-//         RIM_SubscribeCapability(
-//             RI_CAPABILITY_JOB,
-//             OnJob,
-//             &id),
-//         RI_SUCCESS);
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_LEFT_DOOR_OPEN,
+            false),
+        RI_SUCCESS);
 
-//     ASSERT_NE(
-//         id,
-//         0U);
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            200));
 
-//     ASSERT_EQ(
-//         RIM_TestInjectJobActive(
-//             1),
-//         RI_SUCCESS);
+    const auto firstCount =
+        g_printReadyCount.load();
 
-//     ASSERT_EQ(
-//         RIM_TestInjectJobId(
-//             123),
-//         RI_SUCCESS);
+    EXPECT_GE(
+        firstCount,
+        1);
 
-//     const auto timeout =
-//         std::chrono::steady_clock::now()
-//         + std::chrono::seconds(
-//             1);
+    //
+    // 上扉を開く
+    //
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
+            true),
+        RI_SUCCESS);
 
-//     while (!g_jobCalled &&
-//            std::chrono::steady_clock::now()
-//                 < timeout)
-//     {
-//         std::this_thread::sleep_for(
-//             std::chrono::milliseconds(
-//                 10));
-//     }
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            200));
 
-//     EXPECT_TRUE(
-//         g_jobCalled);
+    EXPECT_GT(
+        g_printReadyCount.load(),
+        firstCount);
+}
 
-//     ASSERT_EQ(
-//         RIM_Unsubscribe(
-//             id),
-//         RI_SUCCESS);
+TEST_F(
+    EndToEndCApiCallbackTest,
+    SamePrintReadyValueDoesNotNotifyAgain)
+{
+    g_printReadyCount = 0;
 
-//     ASSERT_EQ(
-//         RIM_Stop(),
-//         RI_SUCCESS);
+    std::uint64_t id{};
 
-//     ASSERT_EQ(
-//         RIM_Destroy(),
-//         RI_SUCCESS);
-// }
+    ASSERT_EQ(
+        RIM_SubscribeCapability(
+            RI_CAPABILITY_PRINT_READY,
+            OnPrintReadyCount,
+            &id),
+        RI_SUCCESS);
+
+    //
+    // 初回
+    //
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
+            false),
+        RI_SUCCESS);
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            200));
+
+    const auto firstCount =
+        g_printReadyCount.load();
+
+    EXPECT_GE(
+        firstCount,
+        1);
+
+    //
+    // 同値
+    //
+    ASSERT_EQ(
+        RIM_SetBool(
+            RI_DATA_UPPER_DOOR_OPEN,
+            false),
+        RI_SUCCESS);
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            200));
+
+    EXPECT_EQ(
+        firstCount,
+        g_printReadyCount.load());
+}
 
 } // namespace

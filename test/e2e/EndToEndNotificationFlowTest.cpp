@@ -19,11 +19,13 @@
 #include "SubscriptionInfo.hpp"
 #include "DeliveryMethod.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
-TEST(
-    EndToEndNotificationFlowTest,
-    EnvironmentNotification)
+class EndToEndNotificationFlowTest
+    : public ::testing::Test
 {
+protected:
+
     rim::SubscriptionStore
         subscriptionStore;
 
@@ -33,30 +35,41 @@ TEST(
     rim::CallbackSubscriptionRegistry
         callbackRegistry;
 
-    rim::CallbackQueue callbackQueue; 
+    rim::CallbackQueue
+        callbackQueue;
 
     rim::ChangeNotifyManager
-        notifyManager(
+        notifyManager
+        {
             subscriptionStore,
             mailboxManager,
             callbackRegistry,
-            callbackQueue);
+            callbackQueue
+        };
 
     rim::PeriodicNotifyManager
         periodicNotifyManager;
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    
+    rim::ProductContext
+        productContext
+        {
+            rim::kPrinterAProductDefinition
+        };
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
+};
 
+TEST_F(
+    EndToEndNotificationFlowTest,
+    EnvironmentNotification)
+{
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();
 
@@ -65,10 +78,7 @@ TEST(
     info.id = subscriptionId;
 
     info.target =
-    {
-        rim::NotificationTargetType::Capability,
-        RI_CAPABILITY_ENVIRONMENT
-    };
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
 
     info.method =
         rim::DeliveryMethod::Mailbox;
@@ -108,43 +118,10 @@ TEST(
         rim::NotificationTrigger::OnChange);
 }
 
-TEST(
+TEST_F(
     EndToEndNotificationFlowTest,
     PrintReadyNotification)
 {
-    rim::SubscriptionStore
-        subscriptionStore;
-
-    rim::SubscriberMailboxManager
-        mailboxManager;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::CallbackQueue callbackQueue; 
-
-    rim::ChangeNotifyManager
-        notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue);
-
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
-    rim::PublishManager
-        publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider);
-
     const auto subscriptionId =
         subscriptionStore.CreateSubscriptionId();
 
@@ -153,10 +130,7 @@ TEST(
     info.id = subscriptionId;
 
     info.target =
-    {
-        rim::NotificationTargetType::Capability,
-        RI_CAPABILITY_PRINT_READY
-    };
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY);
 
     info.method =
         rim::DeliveryMethod::Mailbox;

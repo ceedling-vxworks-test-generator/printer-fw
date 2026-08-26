@@ -5,10 +5,13 @@
 
 #include "CapabilityManager.hpp"
 #include "CapabilityInput.hpp"
+#include "FacadeManager.hpp"
 #include "IQueue.hpp"
 #include "PublisherInput.hpp"
 #include "PublisherInputQueue.hpp"
 #include "ICapabilitySnapshotProvider.hpp"
+#include "IFacadeSnapshotProvider.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -19,45 +22,39 @@ public:
 
     CapabilityWorker(
         IQueue<CapabilityInput>& queue,
-        CapabilityManager& manager,
+        CapabilityManager& capabilityManager,
+        FacadeManager& facadeManager,
         PublisherInputQueue& publisherQueue,
-        const ICapabilitySnapshotProvider& snapshotProvider);
-
+        const ICapabilitySnapshotProvider& capabilitySnapshotProvider,
+        const IFacadeSnapshotProvider& facadeSnapshotProvider,
+        const ProductContext& productContext);
     ~CapabilityWorker();
 
-    void Run();
+    void start();
 
-    void Stop();
+    void stop();
 
     bool ExecuteOnce();
 
 private:
 
-    void Process(
-        const CapabilityInput& capabilityInput);
+    void WorkerLoop();
 
-    void PublishCapabilityChanges(
-        const CapabilityChangeSet& changes);
+    void Process(const CapabilityInput& item);
 
-private:
+    void PublishDataChanges(const CapabilityInput& change);
+    void PublishCapabilityChanges(const RIDataId dataId);
+    void PublishFacadeChanges(const RICapabilityId capabilityId);
 
-    IQueue<CapabilityInput>&
-        queue_;
-
-    CapabilityManager&
-        manager_;
-
-    PublisherInputQueue&
-        publisherQueue_;
-
-    const ICapabilitySnapshotProvider&
-        snapshotProvider_;
-
-    std::atomic<bool>
-        running_{false};
-
-    std::thread
-        workerThread_;
+    IQueue<CapabilityInput>& queue_;
+    CapabilityManager& capabilityManager_;
+    FacadeManager& facadeManager_;
+    PublisherInputQueue& publisherQueue_;
+    const ICapabilitySnapshotProvider& capabilitySnapshotProvider_;
+    const IFacadeSnapshotProvider& facadeSnapshotProvider_;
+    std::atomic<bool> running_{false};
+    std::thread workerThread_;
+    const ProductContext& productContext_;
 };
 
 } // namespace rim

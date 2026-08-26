@@ -2,23 +2,27 @@
 
 #include <chrono>
 #include <cstdint>
-#include <iostream>
 
 #include "CapabilityManager.hpp"
-#include "CapabilityStore.hpp"
 #include "RIMSnapshot.hpp"
 
+#include "PartitionStorageRegistry.hpp"
+
 #include "PrinterAProductDefinition.hpp"
+#include "ProductContext.hpp"
 
 TEST(
     CapabilityPerformanceTest,
     Evaluate10000Times)
 {
-    rim::CapabilityStore store;
+    rim::PartitionStorageRegistry store;
+
+    rim::ProductContext productContext(
+        rim::kPrinterAProductDefinition);
 
     rim::CapabilityManager manager(
         store,
-        rim::kPrinterAProductDefinition);
+        productContext);
 
     rim::RIMSnapshot snapshot{};
 
@@ -28,13 +32,14 @@ TEST(
     const auto start =
         std::chrono::steady_clock::now();
 
-    for (std::size_t i = 0;
-         i < kIteration;
-         ++i)
+    for (
+        std::size_t i = 0;
+        i < kIteration;
+        ++i)
     {
         (void)manager.Evaluate(
             snapshot,
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            &rim::kEnvironmentCapability);
     }
 
     const auto elapsed =

@@ -4,6 +4,7 @@
 
 #include "SubscriptionStore.hpp"
 #include "NotificationTargetType.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 namespace rim
 {
@@ -17,11 +18,7 @@ TEST(
     store.Register(
     {
         1,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_PRINT_READY)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
         DeliveryMethod::Callback,
         NotificationTrigger::OnChange
     });
@@ -60,35 +57,6 @@ TEST(
 
 TEST(
     SubscriptionStoreTest,
-    Remove)
-{
-    SubscriptionStore store;
-
-    store.Register(
-    {
-        1,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_PRINT_READY)
-        },
-        DeliveryMethod::Callback,
-        NotificationTrigger::OnChange
-    });
-
-    EXPECT_TRUE(
-        store.Remove(1));
-
-    SubscriptionInfo info{};
-
-    EXPECT_FALSE(
-        store.Find(
-            1,
-            info));
-}
-
-TEST(
-    SubscriptionStoreTest,
     NotFound)
 {
     SubscriptionStore store;
@@ -110,22 +78,14 @@ TEST(
     store.Register(
     {
         1,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_PRINT_READY)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
         DeliveryMethod::Callback,
         NotificationTrigger::OnChange
     });
     store.Register(
     {
         2,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_ERROR)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ERROR),
         DeliveryMethod::Callback,
         NotificationTrigger::OnChange
     });
@@ -133,11 +93,7 @@ TEST(
     store.Register(
     {
         3,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_PRINT_READY)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
         DeliveryMethod::Mailbox,
         NotificationTrigger::Periodic
     });
@@ -146,13 +102,9 @@ TEST(
         subscriptions;
 
     store.GetSubscriptions(
-    {
-        NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_PRINT_READY)
-    },
-    NotificationTrigger::OnChange,
-    subscriptions);
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+        NotificationTrigger::OnChange,
+        subscriptions);
 
     ASSERT_EQ(
         subscriptions.size(),
@@ -180,11 +132,7 @@ TEST(
     store.Register(
     {
         1,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         DeliveryMethod::Mailbox,
         NotificationTrigger::Periodic
     });
@@ -214,11 +162,7 @@ TEST(
     store.Register(
     {
         1,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_PRINT_READY)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
         DeliveryMethod::Callback,
         NotificationTrigger::OnChange
     });
@@ -226,11 +170,7 @@ TEST(
     store.Register(
     {
         3,
-        {
-            NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_PRINT_READY)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
         DeliveryMethod::Mailbox,
         NotificationTrigger::Periodic
     });
@@ -239,13 +179,9 @@ TEST(
         subscriptions;
 
     store.GetSubscriptions(
-    {
-        NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_PRINT_READY)
-    },
-    NotificationTrigger::Periodic,
-    subscriptions);
+        test::CapabilityTarget(RI_CAPABILITY_PRINT_READY),
+        NotificationTrigger::Periodic,
+        subscriptions);
 
     ASSERT_EQ(
         subscriptions.size(),
@@ -262,6 +198,23 @@ TEST(
     EXPECT_EQ(
         subscriptions[0].trigger,
         NotificationTrigger::Periodic);
+}
+
+TEST(
+    SubscriptionStoreTest,
+    GenerateUniqueSubscriptionId)
+{
+    rim::SubscriptionStore store;
+
+    const auto id1 =
+        store.CreateSubscriptionId();
+
+    const auto id2 =
+        store.CreateSubscriptionId();
+
+    EXPECT_NE(
+        id1,
+        id2);
 }
 
 } // namespace rim

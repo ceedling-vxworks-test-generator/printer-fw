@@ -4,28 +4,6 @@
 
 TEST(
     PeriodicNotifyManagerTest,
-    RegisterAndRemove)
-{
-    rim::PeriodicNotifyManager manager;
-
-    rim::PeriodicCondition condition{};
-
-    condition.subscriptionId = 100;
-
-    manager.Register(
-        condition);
-
-    EXPECT_TRUE(
-        manager.Remove(
-            100));
-
-    EXPECT_FALSE(
-        manager.Remove(
-            100));
-}
-
-TEST(
-    PeriodicNotifyManagerTest,
     GetDueConditions)
 {
     rim::PeriodicNotifyManager manager;
@@ -144,15 +122,3 @@ TEST(
         due.front().subscriptionId,
         100U);
 }
-
-TEST(
-    PeriodicNotifyManagerTest,
-    RemoveUnknownPeriodId)
-{
-    rim::PeriodicNotifyManager manager;
-
-    EXPECT_FALSE(
-        manager.Remove(
-            999));
-}
-

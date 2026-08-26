@@ -6,14 +6,10 @@
 
 namespace rim
 {
-
-struct CallbackNotification
-{
-    SubscriptionId subscriptionId;
-
-    NotificationTarget target;
-
-    NotificationTrigger trigger;
-};
-
+    struct CallbackNotification
+    {
+        SubscriptionId subscriptionId;
+        NotificationTarget target;
+        NotificationTrigger trigger;
+    };
 }

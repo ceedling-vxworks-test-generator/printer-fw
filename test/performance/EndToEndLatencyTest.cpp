@@ -4,7 +4,6 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
-#include <iostream>
 #include <mutex>
 #include <vector>
 #include <thread>
@@ -24,7 +23,7 @@ struct CallbackContext
 
     std::condition_variable cv;
 
-    bool notified{false};
+    std::uint64_t callbackCount{0};
 
     Clock::time_point end;
 };
@@ -40,16 +39,22 @@ void OnEnvironment(
 
     {
         std::lock_guard<std::mutex>
-            lock(g_context.mutex);
+            lock(
+                g_context.mutex);
 
-        g_context.end = Clock::now();
-        g_context.notified = true;
+        ++g_context.callbackCount;
+
+        std::cout
+            << "callbackCount="
+            << g_context.callbackCount
+            << std::endl;
+
+        g_context.end =
+            Clock::now();
     }
 
     g_context.cv.notify_one();
 }
-
-} // namespace
 
 TEST_F(
     PerformanceTestFixture,
@@ -76,52 +81,52 @@ TEST_F(
             &subscriptionId),
         RI_SUCCESS);
 
-    //
-    // Warmup
-    //
-    for (int i = 0;
-         i < 3;
-         ++i)
-    {
-        ASSERT_EQ(
-            RIM_SetDouble(
-                RI_DATA_TEMPERATURE_SENSOR_A,
-                1000.0 + i),
-            RI_SUCCESS);
-
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(
-                10));
-    }
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            80.0),
+        RI_SUCCESS);
 
     //
-    // RateLimiter対策
+    // 初期状態
+    // Environment = 1
     //
-    {
-        std::lock_guard<std::mutex>
-            lock(
-                g_context.mutex);
-
-        g_context.notified =
-            false;
-    }
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            25.0),
+        RI_SUCCESS);
 
     std::this_thread::sleep_for(
         std::chrono::milliseconds(
-            120));
+            250));
 
-    for (int i = 1;
-         i <= kIterationCount;
+    for (int i = 0;
+         i < kIterationCount;
          ++i)
     {
+        std::uint64_t previousCount{};
+
         {
             std::lock_guard<std::mutex>
                 lock(
                     g_context.mutex);
 
-            g_context.notified =
-                false;
+            previousCount =
+                g_context.callbackCount;
         }
+
+        std::cout
+            << "iteration="
+            << i
+            << " previousCount="
+            << previousCount
+            << std::endl;
+
+        const double temperature =
+            (i % 2 == 0)
+                ? 60.0   // state=2
+                : 25.0;  // state=1
 
         const auto start =
             Clock::now();
@@ -129,8 +134,7 @@ TEST_F(
         ASSERT_EQ(
             RIM_SetDouble(
                 RI_DATA_TEMPERATURE_SENSOR_A,
-                static_cast<double>(
-                    i)),
+                temperature),
             RI_SUCCESS);
 
         {
@@ -145,14 +149,14 @@ TEST_F(
                         kTimeout,
                     [&]
                     {
-                        return g_context
-                            .notified;
+                        return
+                            g_context.callbackCount >
+                            previousCount;
                     });
 
             ASSERT_TRUE(
                 received)
-                << "Timeout waiting "
-                   "for callback";
+                << "Timeout waiting for callback";
         }
 
         const auto latency =
@@ -164,9 +168,6 @@ TEST_F(
         latenciesUs.push_back(
             latency.count());
 
-        //
-        // 最小通知間隔(100ms)
-        //
         std::this_thread::sleep_for(
             std::chrono::milliseconds(
                 120));
@@ -177,8 +178,7 @@ TEST_F(
             latenciesUs);
 
     std::cout
-        << "\n[PERF] Environment "
-           "Callback Latency\n"
+        << "\n[PERF] Environment Callback Latency\n"
         << "  Samples : "
         << latenciesUs.size()
         << '\n'
@@ -197,9 +197,6 @@ TEST_F(
         << "  Max      : "
         << stats.max
         << " us\n";
-
-    ASSERT_EQ(
-        RIM_Unsubscribe(
-            subscriptionId),
-        RI_SUCCESS);
 }
+
+} // namespace

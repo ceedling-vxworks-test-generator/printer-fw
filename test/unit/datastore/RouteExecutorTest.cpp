@@ -6,10 +6,10 @@
 #include "RouteExecutor.hpp"
 
 #include "DataDomainMap.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 
-#include "CapabilityStore.hpp"
 #include "CapabilityManager.hpp"
+#include "FacadeManager.hpp"
 
 #include "PublisherInputQueue.hpp"
 
@@ -21,6 +21,8 @@
 #include "CapabilitySnapshotResolver.hpp"
 #include "SnapshotAccessor.hpp"
 #include "CapabilitySnapshotProvider.hpp"
+#include "FacadeSnapshotProvider.hpp"
+#include "ProductContext.hpp"
 
 TEST(
     RouteExecutorTest,
@@ -32,35 +34,45 @@ TEST(
     const auto& product =
         productProvider->GetProfile().definition;
 
+    rim::ProductContext productContext(
+        product);
+
     rim::RouteProvider routeProvider;
 
     routeProvider.Initialize(
-        product);
+        productContext);
 
-    rim::DomainStorageRegistry domainStore;
-
-    rim::CapabilityStore capabilityStore;
+    rim::PartitionStorageRegistry domainStore;
 
     rim::CapabilityManager capabilityManager(
-        capabilityStore,
-        product);
+        domainStore,
+        productContext);
 
     rim::PublisherInputQueue publisherQueue;
 
     rim::CapabilitySnapshotResolver
         snapshotResolver(
-            product);
+            productContext);
 
     rim::SnapshotAccessor
         snapshotAccessor(
             domainStore,
-            product);
+            productContext);
 
     rim::CapabilitySnapshotProvider
-        snapshotProvider(
+        capabilitySnapshotProvider(
             snapshotResolver,
             snapshotAccessor);
 
+    rim::FacadeManager facadeManager(
+        domainStore,
+        productContext);
+
+    rim::FacadeSnapshotProvider
+        facadeSnapshotProvider(
+            productContext,
+            domainStore);
+            
     std::vector<
         std::unique_ptr<rim::RouteExecutor>>
         routeExecutor;
@@ -68,13 +80,15 @@ TEST(
     for (const auto& [name, queues] : routeProvider.GetQueues())
     {
         routeExecutor.push_back(
-            std::make_unique<rim::RouteExecutor>(
-                product,
-                queues,
-                domainStore,
-                capabilityManager,
-                publisherQueue,
-                snapshotProvider));
+        std::make_unique<rim::RouteExecutor>(
+            productContext,
+            queues,
+            domainStore,
+            capabilityManager,
+            facadeManager,
+            publisherQueue,
+            capabilitySnapshotProvider,
+            facadeSnapshotProvider));
     }
 
     EXPECT_EQ(
@@ -92,14 +106,17 @@ TEST(
     const auto& product =
         productProvider->GetProfile().definition;
 
+    rim::ProductContext productContext(
+        product);
+
     rim::RouteProvider routeProvider;
 
     routeProvider.Initialize(
-        product);
+        productContext);
 
     EXPECT_EQ(
         routeProvider.GetQueues().size(),
-        GetRouteCount(product));
+        productContext.GetRouteCount());
 }
 
 TEST(
@@ -112,34 +129,44 @@ TEST(
     const auto& product =
         productProvider->GetProfile().definition;
 
+    rim::ProductContext productContext(
+        product);
+
     rim::RouteProvider routeProvider;
 
     routeProvider.Initialize(
-        product);
+        productContext);
 
-    rim::DomainStorageRegistry domainStore;
-
-    rim::CapabilityStore capabilityStore;
-
-    rim::CapabilityManager capabilityManager(
-        capabilityStore,
-        product);
+    rim::PartitionStorageRegistry domainStore;
 
     rim::PublisherInputQueue publisherQueue;
 
     rim::CapabilitySnapshotResolver
         snapshotResolver(
-            product);
+            productContext);
 
     rim::SnapshotAccessor
         snapshotAccessor(
             domainStore,
-            product);
+            productContext);
+
+    rim::CapabilityManager capabilityManager(
+        domainStore,
+        productContext);
 
     rim::CapabilitySnapshotProvider
-        snapshotProvider(
+        capabilitySnapshotProvider(
             snapshotResolver,
             snapshotAccessor);
+
+    rim::FacadeManager facadeManager(
+        domainStore,
+        productContext);
+
+    rim::FacadeSnapshotProvider
+        facadeSnapshotProvider(
+            productContext,
+            domainStore);
 
     auto queueIt =
         routeProvider.GetQueues().find(
@@ -149,13 +176,16 @@ TEST(
         queueIt,
         routeProvider.GetQueues().end());
 
-    rim::RouteExecutor routeExecutor(
-        product,
-        queueIt->second,
-        domainStore,
-        capabilityManager,
-        publisherQueue,
-        snapshotProvider);
+    auto routeExecutor =
+        std::make_unique<rim::RouteExecutor>(
+            productContext,
+            queueIt->second,
+            domainStore,
+            capabilityManager,
+            facadeManager,
+            publisherQueue,
+            capabilitySnapshotProvider,
+            facadeSnapshotProvider);
 
     rim::RIMDataItem item{};
 
@@ -174,14 +204,12 @@ TEST(
             item));
 
     ASSERT_TRUE(
-        routeExecutor.ExecuteOnce());
-
-    rim::DataDomainMap dataDomainMap(
-        product);
+        routeExecutor->ExecuteOnce());
 
     const auto domainId =
-        dataDomainMap.Find(
-            RI_DATA_UPPER_DOOR_OPEN);
+        productContext
+            .FindDataDomainId(
+                RI_DATA_UPPER_DOOR_OPEN);
 
     ASSERT_NE(
         domainId,

@@ -3,9 +3,8 @@
 #include "test/support/TestDataProcessor.hpp"
 
 #include "RIMValueAccessor.hpp"
-#include "BinaryStoreValue.hpp"
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "DataDomainMap.hpp"
 #include "PrinterAProductDefinition.hpp"
 
@@ -13,7 +12,7 @@ namespace
 {
 
 rim::RIMDataItem GetItem(
-    rim::DomainStorageRegistry& store,
+    rim::PartitionStorageRegistry& store,
     RIDataId dataId)
 {
     rim::DataDomainMap map(
@@ -46,7 +45,7 @@ TEST(
     EndToEndDataToStoreTest,
     TemperatureSensorA)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     rim::TestDataProcessor::
         ProcessTemperatureA(
@@ -74,7 +73,7 @@ TEST(
     EndToEndDataToStoreTest,
     TemperatureSensorB)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     rim::TestDataProcessor::
         ProcessTemperatureB(
@@ -102,7 +101,7 @@ TEST(
     EndToEndDataToStoreTest,
     HumiditySensor)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     rim::TestDataProcessor::
         ProcessHumidity(
@@ -130,7 +129,7 @@ TEST(
     EndToEndDataToStoreTest,
     UpperDoorOpen)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     rim::TestDataProcessor::
         StoreData(

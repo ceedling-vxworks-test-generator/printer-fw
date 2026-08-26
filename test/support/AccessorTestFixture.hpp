@@ -1,23 +1,28 @@
 #pragma once
 
-#include "CapabilityStore.hpp"
+#include <gtest/gtest.h>
+
 #include "PrinterAProductDefinition.hpp"
 #include "RIMValueFactory.hpp"
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "DataDomainMap.hpp"
 
 #include "test/support/AccessorTestConstants.hpp"
+#include "ProductContext.hpp"
 
 namespace rim::test
 {
 
 class AccessorTestFixture
+    : public ::testing::Test
 {
 protected:
 
     AccessorTestFixture()
         :
+        productContext(
+            rim::kPrinterAProductDefinition),
         dataDomainMap(
             rim::kPrinterAProductDefinition)
     {
@@ -52,7 +57,6 @@ protected:
         StoreItem(
             {
                 RI_DATA_TEMPERATURE_SENSOR_A,
-                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
@@ -66,7 +70,6 @@ protected:
         StoreItem(
             {
                 RI_DATA_TEMPERATURE_SENSOR_B,
-                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
@@ -80,22 +83,65 @@ protected:
         StoreItem(
             {
                 RI_DATA_HUMIDITY_SENSOR,
-                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
     }
 
-protected:
+    void
+    StoreCapability(
+        RICapabilityId capabilityId,
+        const rim::RIMValue& value)
+    {
+        const DomainId domainId =
+            productContext.FindCapabilityDomainId(
+                capabilityId);
 
-    rim::DomainStorageRegistry
+        if (domainId ==
+            kInvalidDomainId)
+        {
+            return;
+        }
+
+        domainStore
+            .GetOrCreate(
+                domainId)
+            .Store(
+                {
+                    static_cast<RIDataId>(
+                        capabilityId),
+                    value
+                });
+    }
+
+    void
+    StoreEnvironment(
+        int32_t state)
+    {
+        StoreCapability(
+            RI_CAPABILITY_ENVIRONMENT,
+            rim::RIMValueFactory::CreateInt32(
+                state));
+    }
+
+    void
+    StorePrintReady(
+        bool ready)
+    {
+        StoreCapability(
+            RI_CAPABILITY_PRINT_READY,
+            rim::RIMValueFactory::CreateBool(
+                ready));
+    }
+
+    rim::ProductContext
+        productContext;
+
+    rim::PartitionStorageRegistry
         domainStore;
 
     rim::DataDomainMap
         dataDomainMap;
-
-    rim::CapabilityStore
-        capabilityStore;
 };
 
 } // namespace rim::test

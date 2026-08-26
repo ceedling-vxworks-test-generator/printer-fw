@@ -1,23 +1,13 @@
 #pragma once
 
-#include <any>
-#include <new>
+#include "RIMValue.hpp"
 
 namespace rim
 {
 
 class RIMSnapshot;
 
-std::any BuildEnvironmentCapability(
-    const RIMSnapshot& snapshot);
-
-std::any BuildPrintReadyCapability(
-    const RIMSnapshot& snapshot);
-
-std::any BuildConsumableCapability(
-    const RIMSnapshot& snapshot);
-
-std::any BuildJobCapability(
-    const RIMSnapshot& snapshot);
+RIMValue BuildEnvironmentCapability(const RIMSnapshot& snapshot);
+RIMValue BuildPrintReadyCapability(const RIMSnapshot& snapshot);
 
 }

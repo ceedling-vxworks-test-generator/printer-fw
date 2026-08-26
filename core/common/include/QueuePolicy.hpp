@@ -2,7 +2,6 @@
 #include <list>
 
 #include "CompressionPolicy.hpp"
-#include "CompressionPolicyResolver.hpp"
 
 namespace rim
 {
@@ -18,12 +17,9 @@ namespace rim
     struct FifoPolicy
     {
         template<typename T>
-        void Insert(
-            std::list<T>& events,
-            const T& event)
+        void Insert(std::list<T>& events,const T& event)
         {
-            events.push_back(
-                event);
+            events.push_back(event);
         }
     };
 
@@ -36,6 +32,11 @@ namespace rim
             {
                 if (it->CompressionKey() == event.CompressionKey())
                 {
+
+                    // TODO: ログ追加候補
+                    // Coalescingにより既存イベントが置換された場合は
+                    // 圧縮発生回数を記録すると効果測定に利用できる。
+
                     events.erase(it);
                     break;
                 }
@@ -48,109 +49,81 @@ namespace rim
     struct PriorityPolicy
     {
         template<typename T>
-        void Insert(
-            std::list<T>& events,
-            const T& event)
+        void Insert(std::list<T>& events,const T& event)
         {
-            auto it =
-                events.begin();
+            auto it =events.begin();
 
             for (; it != events.end(); ++it)
             {
-                if (event.priority >
-                    it->priority)
+                if (event.priority >it->priority)
                 {
                     break;
                 }
             }
 
-            events.insert(
-                it,
-                event);
+            events.insert(it,event);
+
+            // TODO: ログ追加候補
+            // 高優先度イベント投入時の件数を記録すると
+            // 負荷解析に利用できる。
+            
         }
     };
 
     struct PriorityCompressionPolicy
     {
         template<typename T>
-        void Insert(
-            std::list<T>& events,
-            const T& event)
+        void Insert(std::list<T>& events,const T& event)
         {
-            const auto compressionPolicy =
-                CompressionPolicyResolver::
-                    Resolve(
-                        event.target);
+            const auto compressionPolicy = event.compressionPolicy;
 
-            //
-            // Job�Ȃǈ��k�Ȃ��ʒm
-            //
-            if (compressionPolicy ==
-                CompressionPolicy::None)
+            if (compressionPolicy ==CompressionPolicy::KeepOldest)
             {
-                events.push_back(
-                    event);
-
-                return;
-            }
-
-            //
-            // PrintReady
-            //
-            if (compressionPolicy ==
-                CompressionPolicy::KeepOldest)
-            {
-                for (const auto& existing
-                    : events)
+                for (const auto& existing: events)
                 {
-                    if (existing.target.type ==
-                            event.target.type &&
-                        existing.target.id ==
-                            event.target.id)
+                    if (existing.target.type == event.target.type &&
+                        existing.target.id ==event.target.id)
                     {
+
+                        // TODO: ログ追加候補
+                        // KeepOldestによりイベントを破棄した場合は
+                        // 圧縮発生回数を記録すると通知削減効果の
+                        // 確認に利用できる。
+
                         return;
                     }
                 }
             }
 
-            //
-            // Environment / Consumable
-            //
-            if (compressionPolicy ==
-                CompressionPolicy::KeepLatest)
+            if (compressionPolicy == CompressionPolicy::KeepLatest)
             {
-                for (auto it =
-                        events.begin();
-                    it != events.end();
-                    ++it)
+                for (auto it = events.begin();it != events.end();++it)
                 {
-                    if (it->target.type ==
-                            event.target.type &&
-                        it->target.id ==
-                            event.target.id)
+                    if (it->target.type ==event.target.type &&
+                        it->target.id ==event.target.id)
                     {
                         events.erase(it);
+
+                        // TODO: ログ追加候補
+                        // KeepLatestにより旧イベントを置換した場合は
+                        // 圧縮発生回数を記録すると圧縮効果確認に利用できる。
+
                         break;
                     }
                 }
             }
 
-            auto insertPos =
-                events.begin();
+            auto insertPos =events.begin();
 
-            for (; insertPos != events.end();
-                ++insertPos)
+            for (; insertPos != events.end();++insertPos)
             {
-                if (event.priority >
-                    insertPos->priority)
+                if (event.priority > insertPos->priority)
                 {
                     break;
                 }
             }
 
-            events.insert(
-                insertPos,
-                event);
+            events.insert(insertPos,event);
         }
     };
 

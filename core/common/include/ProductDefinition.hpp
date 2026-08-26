@@ -12,6 +12,7 @@ struct DomainDefinition;
 struct RouteDefinition;
 struct DataItemDefinition;
 struct CapabilityItemDefinition;
+struct FacadeItemDefinition;
 
 struct ProductDefinition
 {
@@ -26,6 +27,9 @@ struct ProductDefinition
 
     const CapabilityItemDefinition* capabilities;
     std::size_t capabilityCount;
+
+    const FacadeItemDefinition* facades;
+    std::size_t facadeCount;
 };
 
 const DomainDefinition*
@@ -58,6 +62,16 @@ FindCapability(
     const ProductDefinition& product,
     RICapabilityId id);
 
+const FacadeItemDefinition*
+FindFacade(
+    const ProductDefinition& product,
+    std::string_view name);
+
+const FacadeItemDefinition*
+FindFacade(
+    const ProductDefinition& product,
+    RIFacadeId id);
+
 const RouteDefinition*
 GetRoutes(
     const ProductDefinition& product);
@@ -72,6 +86,14 @@ GetCapabilities(
 
 std::size_t
 GetCapabilityCount(
+    const ProductDefinition& product);
+
+const FacadeItemDefinition*
+GetFacades(
+    const ProductDefinition& product);
+
+std::size_t
+GetFacadeCount(
     const ProductDefinition& product);
 
 const DataItemDefinition*

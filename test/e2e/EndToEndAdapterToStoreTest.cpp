@@ -4,7 +4,7 @@
 #include "RIMValueFactory.hpp"
 #include "RIMValueAccessor.hpp"
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "DataDomainMap.hpp"
 #include "PrinterAProductDefinition.hpp"
 
@@ -19,7 +19,7 @@ TEST(
 
     event.value = 30;
 
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     rim::DataDomainMap map(
         rim::kPrinterAProductDefinition);

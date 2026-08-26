@@ -13,7 +13,7 @@ public:
     virtual ~ICapabilitySnapshotProvider() = default;
 
     virtual RIMSnapshot Create(
-        RIDataId changedDataId) const = 0;
+        RICapabilityId capabilityId) const = 0;
 };
 
 } // namespace rim

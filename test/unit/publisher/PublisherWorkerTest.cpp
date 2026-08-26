@@ -21,48 +21,53 @@
 
 #include "test/support/TestWaitHelper.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
-// #include "ErrorInfo.hpp"
-
-TEST(
-    PublisherWorkerTest,
-    ReturnFalseWhenQueueEmpty)
+class PublisherWorkerTest
+    : public ::testing::Test
 {
+protected:
+
     rim::PublisherInputQueue queue;
 
-    rim::SubscriptionStore
-        subscriptionStore;
+    rim::SubscriptionStore subscriptionStore;
 
-    rim::SubscriberMailboxManager
-        mailboxManager;
+    rim::SubscriberMailboxManager mailboxManager;
 
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
+    rim::CallbackSubscriptionRegistry callbackRegistry;
 
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
+    rim::PeriodicNotifyManager periodicNotifyManager;
 
-        rim::CallbackQueue callbackQueue; 
+    rim::CallbackQueue callbackQueue;
 
-        rim::ChangeNotifyManager
-            notifyManager(
-                subscriptionStore,
-                mailboxManager,
-                callbackRegistry,
-                callbackQueue);
+    rim::ChangeNotifyManager notifyManager
+    {
+        subscriptionStore,
+        mailboxManager,
+        callbackRegistry,
+        callbackQueue
+    };
 
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
+    rim::ProductContext
+    productContext
+    {
+        rim::kPrinterAProductDefinition
+    };
 
     rim::PublishManager
-        publishManager(
+        publishManager
+        {
             notifyManager,
             periodicNotifyManager,
             subscriptionStore,
-            routeProvider);
+            productContext
+        };
+};
 
+TEST_F(
+    PublisherWorkerTest,
+    ReturnFalseWhenQueueEmpty)
+{
     rim::PublisherWorker worker(
         queue,
         publishManager);
@@ -71,56 +76,17 @@ TEST(
         worker.ExecuteOnce());
 }
 
-TEST(
+TEST_F(
     PublisherWorkerTest,
     ExecuteOnce)
 {
-    rim::PublisherInputQueue queue;
-
-    rim::SubscriptionStore
-        subscriptionStore;
-
-    rim::SubscriberMailboxManager
-        mailboxManager;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
-
-    rim::CallbackQueue callbackQueue; 
-
-    rim::ChangeNotifyManager
-        notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue);
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
-    rim::PublishManager
-        publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider);
-
     rim::PublisherWorker worker(
         queue,
         publishManager);
 
     queue.Push(
     {
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<std::uint32_t>(
-                RI_CAPABILITY_JOB)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_JOB),
         rim::EventPriority::Normal
     });
 
@@ -128,44 +94,10 @@ TEST(
         worker.ExecuteOnce());
 }
 
-TEST(
+TEST_F(
     PublisherWorkerTest,
     RunAndStop)
 {
-    rim::PublisherInputQueue queue;
-
-    rim::SubscriptionStore
-        subscriptionStore;
-
-    rim::SubscriberMailboxManager
-        mailboxManager;
-
-    rim::CallbackSubscriptionRegistry
-        callbackRegistry;
-
-    rim::PeriodicNotifyManager
-        periodicNotifyManager;
-
-    rim::CallbackQueue callbackQueue; 
-
-    rim::ChangeNotifyManager
-        notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue);
-
-    rim::RouteProvider routeProvider;
-
-    routeProvider.Initialize(
-    rim::kPrinterAProductDefinition);
-
-    rim::PublishManager
-        publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider);
     rim::PublisherWorker worker(
         queue,
         publishManager);

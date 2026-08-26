@@ -1,14 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <any>
-
 #include "RIMSnapshot.hpp"
 #include "RIMValueFactory.hpp"
 
 #include "printer_a.h"
-
-#include "EnvironmentCapability.hpp"
-#include "PrintReadyCapability.hpp"
 
 #include "CapabilityItem/PrinterACapabilityBuilders.hpp"
 
@@ -23,9 +18,6 @@ void AddBoolItem(
     rim::RIMDataItem item{};
 
     item.id = id;
-
-    // item.valueType =
-    //     rim::ValueType::kBool;
 
     item.value =
         rim::RIMValueFactory::CreateBool(
@@ -49,12 +41,9 @@ TEST(
         item.id =
             RI_DATA_TEMPERATURE_SENSOR_A;
 
-        // item.valueType =
-        //     rim::ValueType::kDouble;
-
         item.value =
             rim::RIMValueFactory::CreateDouble(
-                30.0);
+                30.0 + 273.15);
 
         snapshot.items.push_back(
             item);
@@ -65,9 +54,6 @@ TEST(
 
         item.id =
             RI_DATA_HUMIDITY_SENSOR;
-
-        // item.valueType =
-        //     rim::ValueType::kDouble;
 
         item.value =
             rim::RIMValueFactory::CreateDouble(
@@ -93,25 +79,25 @@ TEST(
         false);
 
     const auto environment =
-        std::any_cast<
-            rim::EnvironmentCapability>(
-                rim::BuildEnvironmentCapability(
-                    snapshot));
+        rim::BuildEnvironmentCapability(
+            snapshot);
 
     const auto printReady =
-        std::any_cast<
-            rim::PrintReadyCapability>(
-                rim::BuildPrintReadyCapability(
-                    snapshot));
+        rim::BuildPrintReadyCapability(
+            snapshot);
 
-    EXPECT_DOUBLE_EQ(
-        environment.temperature,
-        30.0);
+    EXPECT_EQ(
+        environment.type,
+        rim::ValueType::kInt32);
 
-    EXPECT_DOUBLE_EQ(
-        environment.humidity,
-        40.0);
+    EXPECT_EQ(
+        environment.value.i32,
+        1);
+
+    EXPECT_EQ(
+        printReady.type,
+        rim::ValueType::kBool);
 
     EXPECT_TRUE(
-        printReady.ready);
+        printReady.value.b);
 }

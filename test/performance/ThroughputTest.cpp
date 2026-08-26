@@ -1,24 +1,16 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
+#include "test/performance/PerformanceTestFixture.hpp"
 
-TEST(
-    ThroughputTest,
+TEST_F(
+    PerformanceTestFixture,
     Environment10000Messages)
 {
     constexpr int kCount =
         10000;
-
-    ASSERT_EQ(
-        RIM_Create(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Start(),
-        RI_SUCCESS);
 
     const auto start =
         std::chrono::steady_clock::now();
@@ -49,12 +41,4 @@ TEST(
         << elapsed.count()
         << " ms"
         << std::endl;
-
-    ASSERT_EQ(
-        RIM_Stop(),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Destroy(),
-        RI_SUCCESS);
 }

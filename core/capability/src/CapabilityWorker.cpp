@@ -5,59 +5,30 @@
 namespace rim
 {
 
-    CapabilityWorker::CapabilityWorker(
-        IQueue<CapabilityInput>& queue,
-        CapabilityManager& manager,
-        PublisherInputQueue& publisherQueue,
-        const ICapabilitySnapshotProvider& snapshotProvider)
-        :
-        queue_(queue),
-        manager_(manager),
-        publisherQueue_(publisherQueue),
-        snapshotProvider_(snapshotProvider)
-    {
-    }
-
-    CapabilityWorker::~CapabilityWorker()
-    {
-        Stop();
-    }
-
-void CapabilityWorker::Process(
-    const CapabilityInput& capabilityInput)
+CapabilityWorker::CapabilityWorker(
+    IQueue<CapabilityInput>& queue,
+    CapabilityManager& capabilityManager,
+    FacadeManager& facadeManager,
+    PublisherInputQueue& publisherQueue,
+    const ICapabilitySnapshotProvider& capabilitySnapshotProvider,
+    const IFacadeSnapshotProvider& facadeSnapshotProvider,
+    const ProductContext& productContext)
+    : queue_(queue),
+      capabilityManager_(capabilityManager),
+      facadeManager_(facadeManager),
+      publisherQueue_(publisherQueue),
+      capabilitySnapshotProvider_(capabilitySnapshotProvider),
+      facadeSnapshotProvider_(facadeSnapshotProvider),
+      productContext_(productContext)
 {
-    if (capabilityInput.changedDataId
-        == RI_INVALID_DATA_ID)
-    {
-        return;
-    }
-
-    PublisherInput dataInput{};
-
-    dataInput.target.type =
-        NotificationTargetType::Data;
-
-    dataInput.target.id =
-        static_cast<std::uint32_t>(
-            capabilityInput.changedDataId);
-
-    publisherQueue_.Push(
-        dataInput);
-
-    const auto snapshot =
-        snapshotProvider_.Create(
-            capabilityInput.changedDataId);
-
-    const auto changes =
-        manager_.Evaluate(
-            snapshot,
-            capabilityInput.changedDataId);
-
-    PublishCapabilityChanges(
-        changes);
 }
 
-void CapabilityWorker::Run()
+CapabilityWorker::~CapabilityWorker()
+{
+    stop();
+}
+
+void CapabilityWorker::start()
 {
     if (running_)
     {
@@ -66,28 +37,16 @@ void CapabilityWorker::Run()
 
     running_ = true;
 
-    workerThread_ =
-        std::thread(
-            [this]
-            {
-                while (running_)
-                {
-                    CapabilityInput capabilityInput{};
-
-                    if (!queue_.WaitAndPop(
-                            capabilityInput))
-                    {
-                        break;
-                    }
-
-                    Process(
-                        capabilityInput);
-                }
-            });
+    workerThread_ = std::thread(&CapabilityWorker::WorkerLoop, this);
 }
 
-void CapabilityWorker::Stop()
+void CapabilityWorker::stop()
 {
+    if (!running_)
+    {
+        return;
+    }
+
     running_ = false;
 
     queue_.Shutdown();
@@ -98,44 +57,121 @@ void CapabilityWorker::Stop()
     }
 }
 
+
+void CapabilityWorker::WorkerLoop()
+{
+    while (running_)
+    {
+        CapabilityInput item{};
+
+        if (!queue_.WaitAndPop(item))
+        {
+            break;
+        }
+
+        Process(item);
+    }
+}
+
 bool CapabilityWorker::ExecuteOnce()
 {
-    CapabilityInput capabilityInput{};
+    CapabilityInput item{};
 
-    if (!queue_.TryPop(
-            capabilityInput))
+    if (!queue_.TryPop(item))
     {
         return false;
     }
 
-    Process(
-        capabilityInput);
+    Process(item);
 
     return true;
 }
 
-void CapabilityWorker::PublishCapabilityChanges(
-    const CapabilityChangeSet& changes)
+void CapabilityWorker::Process(const CapabilityInput& changeData)
 {
-    if (changes.Empty())
+    if (changeData.changedDataId == RI_INVALID_DATA_ID)
     {
         return;
     }
 
-    for (const auto capabilityId
-            : changes.changedCapabilities)
+    PublishDataChanges(changeData);
+    PublishCapabilityChanges(changeData.changedDataId);
+}
+
+void CapabilityWorker::PublishDataChanges(const CapabilityInput& change)
+{
+    PublisherInput input{};
+
+    input.target.type = NotificationTargetType::Data;
+    input.target.id = static_cast<std::uint32_t>(change.changedDataId);
+    
+    const auto* route =productContext_.ResolveRoute(input.target);
+    if (route != nullptr)
     {
+        input.compressionPolicy =route->compressionPolicy;
+    }
+
+    publisherQueue_.Push(input);
+}
+
+void CapabilityWorker::PublishCapabilityChanges(const RIDataId dataId)
+{
+    const auto& capabilities = productContext_.CapabilityDependencies().Find(dataId);
+
+    for (const auto* capability : capabilities)
+    {
+        const auto snapshot = capabilitySnapshotProvider_.Create(capability->id);
+        const bool changed = capabilityManager_.Evaluate(snapshot, capability);
+
+        if (!changed)
+        {
+            continue;
+        }
+
         PublisherInput input{};
 
-        input.target.type =
-            NotificationTargetType::Capability;
+        input.target.type = NotificationTargetType::Capability;
+        input.target.id = static_cast<std::uint32_t>(capability->id);
+        
+        const auto* route =productContext_.ResolveRoute(input.target);
+        if (route != nullptr)
+        {
+            input.compressionPolicy =route->compressionPolicy;
+        }
 
-        input.target.id =
-            static_cast<std::uint32_t>(
-                capabilityId);
+        publisherQueue_.Push(input);
 
-        publisherQueue_.Push(
-            input);
+        PublishFacadeChanges(capability->id);
+    }
+}
+
+void CapabilityWorker::PublishFacadeChanges(const RICapabilityId capabilityId)
+{
+    const auto& facades = productContext_.FacadeDependencies().Find(capabilityId);
+
+    for (const auto* facade : facades)
+    {
+        const auto snapshot = facadeSnapshotProvider_.Create(facade->id);
+        const bool changed = facadeManager_.Evaluate(snapshot, facade);
+
+        if (!changed)
+        {
+            continue;
+        }
+
+        PublisherInput input{};
+
+        input.target.type = NotificationTargetType::Facade;
+        input.target.id = static_cast<std::uint32_t>(facade->id);
+
+        const auto* route =productContext_.ResolveRoute(input.target);
+        if (route != nullptr)
+        {
+            input.compressionPolicy =route->compressionPolicy;
+        }
+
+
+        publisherQueue_.Push(input);
     }
 }
 

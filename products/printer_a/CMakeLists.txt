@@ -13,6 +13,7 @@ set(PRODUCT_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/core/storage/include
 
     ${PROJECT_SOURCE_DIR}/core/storage/accessor/include
+    ${PROJECT_SOURCE_DIR}/core/storage/snapshot/include
 
     ${PROJECT_SOURCE_DIR}/core/capability/include
     ${PROJECT_SOURCE_DIR}/core/publisher/include
@@ -38,6 +39,12 @@ target_include_directories(
         ${PRODUCT_INCLUDE_DIRS}
 )
 
+target_compile_options(
+    rim-product-printer-a
+    PRIVATE
+        ${RIM_COMPILE_OPTIONS}
+)
+
 target_link_libraries(
     rim-product-printer-a
     PUBLIC
@@ -57,6 +64,18 @@ add_library(
     ${PRODUCT_SOURCES}
 
     $<TARGET_OBJECTS:rim-core-obj>
+)
+
+target_compile_options(
+    rim-product-printer-a-shared
+    PRIVATE
+        ${RIM_COMPILE_OPTIONS}
+)
+
+target_link_options(
+    rim-product-printer-a-shared
+    PRIVATE
+        ${RIM_LINK_OPTIONS}
 )
 
 target_include_directories(

@@ -1,19 +1,21 @@
 #include "rim_api.h"
 
 #include <memory>
-#include <unordered_map>
-#include <cstring>
+
+#include "CoreVersionInfo.hpp"
+#include "ProductVersionInfo.hpp"
 
 #include "AdapterDispatcher.hpp"
 
-#include "CapabilityStore.hpp"
-
 #include "CapabilityAccessor.hpp"
+#include "FacadeAccessor.hpp"
 
+#include "RIMValue.hpp"
 #include "RIMValueFactory.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 
 #include "CapabilityManager.hpp"
+#include "FacadeManager.hpp"
 
 #include "PublisherInputQueue.hpp"
 #include "PublisherWorker.hpp"
@@ -33,7 +35,8 @@
 
 #include "SnapshotAccessor.hpp"
 #include "CapabilitySnapshotProvider.hpp"
-
+#include "FacadeSnapshotProvider.hpp"
+#include "ProductContext.hpp"
 namespace
 {
 
@@ -44,6 +47,8 @@ struct RIManagerContext
 
     std::vector<std::unique_ptr<rim::RouteExecutor>> routeExecutor;
     rim::RouteProvider routeProvider;
+
+    std::unique_ptr<rim::ProductContext> productContext;
 
     //
     // Queue
@@ -56,28 +61,31 @@ struct RIManagerContext
     // Adapter
     //
 
-    rim::AdapterDispatcher
-        dispatcher;
+    std::unique_ptr<
+        rim::AdapterDispatcher>
+            dispatcher;
 
     //
     // Datastore
     //
 
-    rim::DomainStorageRegistry
+    rim::PartitionStorageRegistry
         domainStore;
 
     //
     // Capability
     //
 
-    rim::CapabilityStore
-        capabilityStore;
+    std::unique_ptr<
+        rim::CapabilityManager>
+            capabilityManager;
 
-    rim::CapabilityManager
-        capabilityManager;
+    std::unique_ptr<
+        rim::CapabilitySnapshotResolver>
+            capabilitySnapshotResolver;
 
-    rim::CapabilitySnapshotResolver
-        capabilitySnapshotResolver;
+    std::unique_ptr<rim::FacadeManager>
+        facadeManager;
 
     //
     // Publisher
@@ -91,8 +99,9 @@ struct RIManagerContext
     rim::PeriodicNotifyManager
         periodicNotifyManager;
 
-    rim::PublishManager
-        publishManager;
+    std::unique_ptr<
+        rim::PublishManager>
+            publishManager;
 
     rim::NotificationReceiver
         receiver;
@@ -113,79 +122,149 @@ struct RIManagerContext
     // Worker
     //
 
-    rim::PublisherWorker
-        publisherWorker;
+    std::unique_ptr<
+        rim::PublisherWorker>
+            publisherWorker;
 
     //
     // Accessor
     //
 
-    rim::SnapshotAccessor
-        snapshotAccessor;
+    std::unique_ptr<
+        rim::SnapshotAccessor>
+            snapshotAccessor;
 
-    rim::CapabilitySnapshotProvider
-        capabilitySnapshotProvider;
+    std::unique_ptr<
+        rim::CapabilitySnapshotProvider>
+            capabilitySnapshotProvider;
 
-    rim::CapabilityAccessor
-        capabilityAccessor;
+    std::unique_ptr<
+        rim::CapabilityAccessor>
+            capabilityAccessor;
 
-    RIManagerContext()
-        : routeProvider()
-        ,dispatcher(
-            rim::kPrinterAProductDefinition,
-            routeProvider)
-        , capabilityManager(
-            capabilityStore,
-            rim::kPrinterAProductDefinition)
-        , capabilitySnapshotResolver(
-            rim::kPrinterAProductDefinition)
-        , snapshotAccessor(
-            domainStore,
-            rim::kPrinterAProductDefinition)
-        , capabilitySnapshotProvider(
-            capabilitySnapshotResolver,
-            snapshotAccessor)
-        ,callbackWorker(
-            callbackQueue,
-            callbackRegistry)
-        , notifyManager(
-            subscriptionStore,
-            mailboxManager,
-            callbackRegistry,
-            callbackQueue)
-        , receiver(
-            mailboxManager)
-        , publishManager(
-            notifyManager,
-            periodicNotifyManager,
-            subscriptionStore,
-            routeProvider)
-        , publisherWorker(
-            publisherQueue,
-            publishManager)
-        , capabilityAccessor(
-            capabilityStore)
+    std::unique_ptr<
+        rim::FacadeSnapshotProvider>
+            facadeSnapshotProvider;
+
+    std::unique_ptr<
+        rim::FacadeAccessor>
+            facadeAccessor;
+
+RIManagerContext()
+    : routeProvider()
+    , callbackWorker(
+        callbackQueue,
+        callbackRegistry)
+    , notifyManager(
+        subscriptionStore,
+        mailboxManager,
+        callbackRegistry,
+        callbackQueue)
+    , receiver(
+        mailboxManager)
+{
+}
+
+    void Initialize(
+        std::unique_ptr<rim::IProductProvider> provider)
     {
-    }
+        productProvider =
+            std::move(provider);
 
-    void Initialize(std::unique_ptr<rim::IProductProvider> provider)
-    {
-        productProvider = std::move(provider);
-        const auto& product = productProvider->GetProfile().definition;
+        const auto& product =
+            productProvider->GetProfile().definition;
 
-        routeProvider.Initialize(product);
+        productContext =
+            std::make_unique<
+                rim::ProductContext>(
+                    product);
+
+        facadeManager =
+            std::make_unique<
+                rim::FacadeManager>(
+                    domainStore,
+                    *productContext);
+
+        capabilitySnapshotResolver =
+            std::make_unique<
+                rim::CapabilitySnapshotResolver>(
+                    *productContext);
+
+        snapshotAccessor =
+            std::make_unique<
+                rim::SnapshotAccessor>(
+                    domainStore,
+                    *productContext);
+
+        capabilitySnapshotProvider =
+            std::make_unique<
+                rim::CapabilitySnapshotProvider>(
+                    *capabilitySnapshotResolver,
+                    *snapshotAccessor);
+
+        capabilityManager =
+            std::make_unique<
+                rim::CapabilityManager>(
+                    domainStore,
+                    *productContext);
+
+        facadeSnapshotProvider =
+            std::make_unique<
+                rim::FacadeSnapshotProvider>(
+                    *productContext,
+                    domainStore);
+
+        capabilityAccessor =
+            std::make_unique<
+                rim::CapabilityAccessor>(
+                    domainStore,
+                    *productContext);
+
+        facadeAccessor =
+            std::make_unique<
+                rim::FacadeAccessor>(
+                    domainStore,
+                    *productContext);
+
+        dispatcher =
+            std::make_unique<
+                rim::AdapterDispatcher>(
+                    *productContext,
+                    routeProvider);
+
+        publishManager =
+            std::make_unique<
+                rim::PublishManager>(
+                    notifyManager,
+                    periodicNotifyManager,
+                    subscriptionStore,
+                    *productContext);
+
+        publisherWorker =
+            std::make_unique<
+                rim::PublisherWorker>(
+                    publisherQueue,
+                    *publishManager);
+
+        routeProvider.Initialize(
+            *productContext);
+
         routeExecutor.clear();
 
-        for (const auto& [name, queues]: routeProvider.GetQueues())
+        for (const auto& [name, queues]
+            : routeProvider.GetQueues())
         {
             routeExecutor.push_back(
-                std::make_unique<rim::RouteExecutor>(
-                    product,
-                    queues,
-                    domainStore,
-                    capabilityManager,
-                    publisherQueue,
-                    capabilitySnapshotProvider));
+                std::make_unique<
+                    rim::RouteExecutor>(
+                        *productContext,
+                        queues,
+                        domainStore,
+                        *capabilityManager,
+                        *facadeManager,
+                        publisherQueue,
+                        *capabilitySnapshotProvider,
+                        *facadeSnapshotProvider));
         }
     }
 
@@ -209,17 +288,79 @@ bool TryReadDataItem(
         return false;
     }
 
-    return g_context
-        ->domainStore
-        .FindData(
-            dataId,
-            item);
+    const auto domainId =
+        g_context->productContext
+            ->FindDataDomainId(
+                dataId);
+
+    const auto* storage =
+        g_context->domainStore.Find(
+            domainId);
+
+    if (!storage)
+    {
+        return false;
+    }
+
+    return storage->Find(
+        dataId,
+        item);
 }
-}
+
+} // namespace
 
 extern "C"
 {
 
+const char*
+RIM_GetProductName(void)
+{
+    return
+        rim::ProductInfo::
+            GetName().data();
+}
+
+RIStatus
+RIM_GetVersionInfo(
+    RIM_VERSION_INFO* versionInfo)
+{
+    if (versionInfo == nullptr)
+    {
+        return RI_INVALID_PARAMETER;
+    }
+
+    const auto core =
+        rim::CoreVersionInfo::Get();
+
+    versionInfo->core.major =
+        core.major;
+    versionInfo->core.minor =
+        core.minor;
+    versionInfo->core.patch =
+        core.patch;
+
+    const auto product =
+        rim::ProductVersionInfo::Get();
+
+    versionInfo->product.major =
+        product.major;
+    versionInfo->product.minor =
+        product.minor;
+    versionInfo->product.patch =
+        product.patch;
+
+    return RI_SUCCESS;
+}
+
+#define RIM_VERSION_STRING \
+    "Product/" RIM_PRODUCT_VERSION_STRING \
+    " Core/" RIM_CORE_VERSION_STRING
+
+const char*
+RIM_GetVersionString(void)
+{
+    return RIM_VERSION_STRING;
+}
 
 int RIM_Create(void)
 {
@@ -243,7 +384,7 @@ int RIM_Destroy(void)
         return RI_NOT_INITIALIZED;
     }
 
-    g_context->publisherWorker.Stop();
+    g_context->publisherWorker->Stop();
     g_context->callbackWorker.Stop();
 
     // g_context->capabilityWorker.Stop();
@@ -271,7 +412,7 @@ int RIM_Start(void)
         route->Start();
     }
     g_context->callbackWorker.Run();
-    g_context->publisherWorker.Run();
+    g_context->publisherWorker->Run();
 
     return RI_SUCCESS;
 }
@@ -283,7 +424,7 @@ int RIM_Stop(void)
         return RI_NOT_INITIALIZED;
     }
 
-    g_context->publisherWorker.Stop();
+    g_context->publisherWorker->Stop();
     g_context->callbackWorker.Stop();
     
     for (auto& route : g_context->routeExecutor)
@@ -302,7 +443,18 @@ RIM_GetCapabilityAccessor()
         return nullptr;
     }
 
-    return &g_context->capabilityAccessor;
+    return g_context->capabilityAccessor.get();
+}
+
+rim::FacadeAccessor*
+RIM_GetFacadeAccessor()
+{
+    if (!g_context)
+    {
+        return nullptr;
+    }
+
+    return g_context->facadeAccessor.get();
 }
 
 RIStatus
@@ -463,41 +615,6 @@ uint32_t RIM_GetMailboxCount(
     return g_context->receiver.GetMailboxCount(subscriptionId);
 }
 
-int RIM_Unsubscribe(
-    uint64_t subscriptionId)
-{
-    if (!g_context)
-    {
-        return RI_NOT_INITIALIZED;
-    }
-
-    bool removed = false;
-
-    removed |=
-        g_context->callbackRegistry
-            .Unsubscribe(
-                subscriptionId);
-
-    removed |=
-        g_context->subscriptionStore
-            .Remove(
-                subscriptionId);
-
-    removed |=
-        g_context->periodicNotifyManager
-            .Remove(
-                subscriptionId);
-                
-    removed |=
-    g_context->mailboxManager
-        .RemoveMailbox(
-            subscriptionId);
-
-    return removed
-        ? RI_SUCCESS
-        : RI_NO_DATA;
-}
-
 RIStatus
 RIM_GetBool(
     RIDataId dataId,
@@ -560,7 +677,7 @@ RIM_SetBool(
             CreateBool(
                 value != 0);
 
-    return g_context->dispatcher.Dispatch(item)
+    return g_context->dispatcher->Dispatch(item)
        ? RI_SUCCESS
        : RI_INVALID_PARAMETER;
 }
@@ -626,7 +743,7 @@ RIM_SetInt32(
             CreateInt32(
                 value);
 
-    return g_context->dispatcher.Dispatch(item)
+    return g_context->dispatcher->Dispatch(item)
            ? RI_SUCCESS
            : RI_INVALID_PARAMETER;
 }
@@ -692,7 +809,7 @@ RIM_SetDouble(
             CreateDouble(
                 value);
 
-    return g_context->dispatcher.Dispatch(item)
+    return g_context->dispatcher->Dispatch(item)
        ? RI_SUCCESS
        : RI_INVALID_PARAMETER;
 }
@@ -721,31 +838,34 @@ RIM_GetBinary(
         return RI_NO_DATA;
     }
 
-    const rim::BinaryStoreValue* value{};
+    const std::uint8_t* bytes{};
+    std::size_t size{};
 
     if (!rim::RIMValueAccessor::GetBinary(
             item.value,
-            value))
+            bytes,
+            size))
     {
         return RI_INTERNAL_ERROR;
     }
 
-    if (value == nullptr)
+    if (bytes == nullptr)
     {
         return RI_NO_DATA;
     }
 
     binary->data =
-        value->data.data();
+        bytes;
 
     binary->size =
         static_cast<uint32_t>(
-            value->data.size());
+            size);
 
     return RI_SUCCESS;
 }
 
-int RIM_SetBinary(
+RIStatus
+RIM_SetBinary(
     RIDataId dataId,
     const void* data,
     size_t size)
@@ -761,34 +881,123 @@ int RIM_SetBinary(
         return RI_NOT_INITIALIZED;
     }
 
-    auto binary =
-        std::make_unique<
-            rim::BinaryStoreValue>();
-
-    binary->data.resize(
-        size);
-
-    std::memcpy(
-        binary->data.data(),
-        data,
-        size);
-
     rim::RIMDataItem item{};
 
     item.id =
         dataId;
 
-    // item.valueType =
-    //     rim::ValueType::kBinary;
-
     item.value =
         rim::RIMValueFactory::
             CreateBinary(
-                binary.release());
+                static_cast<
+                    const std::uint8_t*>(
+                        data),
+                size);
 
-    return g_context->dispatcher.Dispatch(item)
-       ? RI_SUCCESS
-       : RI_INVALID_PARAMETER;
+    return g_context->dispatcher->Dispatch(
+               item)
+           ? RI_SUCCESS
+           : RI_INVALID_PARAMETER;
+}
+
+RIStatus RIM_GetCapabilityBool(RICapabilityId capabilityId, int* capability)
+{
+    if (capability == nullptr)
+    {
+        return RI_INVALID_PARAMETER;
+    }
+
+    auto* accessor = RIM_GetCapabilityAccessor();
+
+    if (accessor == nullptr)
+    {
+        return RI_NOT_INITIALIZED;
+    }
+
+    rim::RIMValue value{};
+
+    if (!accessor->TryGet(capabilityId, value))
+    {
+        return RI_NO_DATA;
+    }
+
+    bool found{};
+
+    if (!rim::RIMValueAccessor::GetBool(value, found))
+    {
+        return RI_INTERNAL_ERROR;
+    }
+
+    *capability =
+        found ? 1 : 0;
+
+    return RI_SUCCESS;
+}
+
+RIStatus RIM_GetCapabilityInt32(RICapabilityId capabilityId, std::int32_t* capability)
+{
+    if (capability == nullptr)
+    {
+        return RI_INVALID_PARAMETER;
+    }
+
+    auto* accessor = RIM_GetCapabilityAccessor();
+
+    if (accessor == nullptr)
+    {
+        return RI_NOT_INITIALIZED;
+    }
+
+    rim::RIMValue value{};
+
+    if (!accessor->TryGet(capabilityId, value))
+    {
+        return RI_NO_DATA;
+    }
+
+    std::int32_t found{};
+
+    if (!rim::RIMValueAccessor::GetInt32(value, found))
+    {
+        return RI_INTERNAL_ERROR;
+    }
+
+    *capability = found;
+
+    return RI_SUCCESS;
+}
+
+RIStatus RIM_GetCapabilityDouble(RICapabilityId capabilityId, double* capability)
+{
+    if (capability == nullptr)
+    {
+        return RI_INVALID_PARAMETER;
+    }
+
+    auto* accessor = RIM_GetCapabilityAccessor();
+
+    if (accessor == nullptr)
+    {
+        return RI_NOT_INITIALIZED;
+    }
+
+    rim::RIMValue value{};
+
+    if (!accessor->TryGet(capabilityId, value))
+    {
+        return RI_NO_DATA;
+    }
+
+    double found{};
+
+    if (!rim::RIMValueAccessor::GetDouble(value, found))
+    {
+        return RI_INTERNAL_ERROR;
+    }
+
+    *capability = found;
+
+    return RI_SUCCESS;
 }
 
 }

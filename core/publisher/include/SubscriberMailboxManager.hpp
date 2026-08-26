@@ -16,9 +16,6 @@ public:
     SubscriberMailbox&
     GetMailbox(
         SubscriptionId id);
-        
-    bool RemoveMailbox(
-        SubscriptionId id);
 
     uint64_t GetOverflowCount(
     SubscriptionId id);
@@ -26,13 +23,11 @@ public:
 private:
 
     std::unordered_map
-    <
-        SubscriptionId,
-        SubscriberMailbox
-    > mailboxes_;
+    <SubscriptionId,
+     SubscriberMailbox> 
+    mailboxes_;
 
-    mutable std::mutex
-    mutex_;
+    mutable std::mutex mutex_;
 };
 
 }

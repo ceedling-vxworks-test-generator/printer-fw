@@ -179,16 +179,6 @@ TEST(
         2U);
 
     ASSERT_EQ(
-        RIM_Unsubscribe(
-            callbackId),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
-        RIM_Unsubscribe(
-            mailboxId),
-        RI_SUCCESS);
-
-    ASSERT_EQ(
         RIM_Stop(),
         RI_SUCCESS);
 

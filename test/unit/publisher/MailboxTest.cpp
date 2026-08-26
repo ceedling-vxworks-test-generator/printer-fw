@@ -6,6 +6,7 @@
 
 #include "NotificationMessage.hpp"
 #include "NotificationTrigger.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     MailboxTest,
@@ -15,10 +16,7 @@ TEST(
 
     mailbox.Push(
     {
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<uint32_t>(RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::NotificationTrigger::OnChange
     });
 
@@ -62,19 +60,13 @@ TEST(
 
     mailbox.Push(
     {
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<uint32_t>(RI_CAPABILITY_ENVIRONMENT)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::NotificationTrigger::OnChange
     });
 
     mailbox.Push(
     {
-        {
-            rim::NotificationTargetType::Capability,
-            static_cast<uint32_t>(RI_CAPABILITY_ERROR)
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ERROR),
         rim::NotificationTrigger::OnChange
     });
 

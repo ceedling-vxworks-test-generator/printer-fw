@@ -6,23 +6,25 @@
 #include "ICapabilitySnapshotProvider.hpp"
 #include "SnapshotAccessor.hpp"
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "RouteProvider.hpp"
 
 namespace rim
 {
 
 RouteExecutor::RouteExecutor(
-    const ProductDefinition& product,
+    const ProductContext& context,
     const RouteQueues& queues,
-    DomainStorageRegistry& domainStore,
+    PartitionStorageRegistry& domainStore,
     CapabilityManager& capabilityManager,
+    FacadeManager& facadeManager,
     PublisherInputQueue& publisherQueue,
-    const ICapabilitySnapshotProvider& snapshotProvider)
+    const ICapabilitySnapshotProvider& capabilitySnapshotProvider,
+    const IFacadeSnapshotProvider& facadeSnapshotProvider)
 {
-    dispatcher_ =
+    dataStoreWorker_ =
         std::make_unique<DataStoreWorker>(
-            product,
+            context,
             *queues.storeQueue,
             domainStore,
             *queues.capabilityQueue);
@@ -31,8 +33,11 @@ RouteExecutor::RouteExecutor(
         std::make_unique<CapabilityWorker>(
             *queues.capabilityQueue,
             capabilityManager,
+            facadeManager,
             publisherQueue,
-            snapshotProvider);
+            capabilitySnapshotProvider,
+            facadeSnapshotProvider,
+            context);
 }
 
 RouteExecutor::~RouteExecutor()
@@ -43,13 +48,21 @@ RouteExecutor::~RouteExecutor()
 void
 RouteExecutor::Start()
 {
-    dispatcher_->start();
-    capabilityWorker_->Run();
+
+    // TODO: ログ追加候補
+    // RouteExecutor開始時に対象Route名を出力すると
+    // Worker起動状況の確認に利用できる。
+
+    dataStoreWorker_->start();
+    capabilityWorker_->start();
 }
 
 void
 RouteExecutor::Stop()
 {
+    // TODO: ログ追加候補
+    // RouteExecutor停止時に対象Route名を出力すると
+    // 終了シーケンス確認に利用できる。
     if (stopped_)
     {
         return;
@@ -57,19 +70,34 @@ RouteExecutor::Stop()
 
     stopped_ = true;
 
-    capabilityWorker_->Stop();
-    dispatcher_->stop();
+    dataStoreWorker_->stop();
+    capabilityWorker_->stop();
 }
 
 bool
 RouteExecutor::ExecuteOnce()
 {
-    if (!dispatcher_->ExecuteOnce())
+    if (!dataStoreWorker_->ExecuteOnce())
     {
+
+        // TODO: ログ追加候補
+        // DataStoreWorkerに処理対象が無かった場合の発生頻度を
+        // 記録すると負荷状況の確認に利用できる。
+
         return false;
     }
 
-    return capabilityWorker_->ExecuteOnce();
+    if (!capabilityWorker_->ExecuteOnce())
+    {
+        
+        // TODO: ログ追加候補
+        // CapabilityWorkerに処理対象が無かった場合の発生頻度を
+        // 記録すると処理経路の確認に利用できる。
+
+        return false;
+    }
+
+    return true;
 }
 
 } // namespace rim

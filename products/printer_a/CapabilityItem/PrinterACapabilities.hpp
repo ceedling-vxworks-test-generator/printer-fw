@@ -8,7 +8,6 @@
 #include "PrinterACapabilityBuilders.hpp"
 #include "PrinterACapabilityComparators.hpp"
 
-
 namespace rim
 {
 
@@ -27,28 +26,6 @@ kPrintReadyItems =
     RI_DATA_RIGHT_DOOR_OPEN,
     RI_DATA_LEFT_DOOR_OPEN
 };
-
-// inline constexpr std::array<
-//     RIDataId,
-//     2>
-// kConsumableItems =
-// {
-//     RI_DATA_STAPLE_LEVEL,
-//     RI_DATA_TONER_LEVEL
-// };
-
-// inline constexpr std::array<
-//     RIDataId,
-//     2>
-// kJobItems =
-// {
-//     RI_DATA_JOB_ACTIVE,
-//     RI_DATA_JOB_ID
-// };
-
-inline constexpr CapabilityItemDefinition kEnvironmentCapability    {   RI_CAPABILITY_ENVIRONMENT,  "Environment",  ValueType::kBool,   BuildEnvironmentCapability, CompareEnvironment, kEnvironmentItems.data(),   kEnvironmentItems.size(),	"ValueRoute"   };
-inline constexpr CapabilityItemDefinition kPrintReadyCapability     {   RI_CAPABILITY_PRINT_READY,  "PrintReady",   ValueType::kBool,   BuildPrintReadyCapability,  ComparePrintReady,  kPrintReadyItems.data(),    kPrintReadyItems.size(),	"DataRoute"    };
-// inline constexpr CapabilityItemDefinition kConsumableCapability     {   RI_CAPABILITY_CONSUMABLE,   "Consumable",   ValueType::kBool,   BuildConsumableCapability,  CompareConsumable,  kConsumableItems.data(),    kConsumableItems.size(),    "DataRoute"    };
-// inline constexpr CapabilityItemDefinition kJobCapability            {   RI_CAPABILITY_JOB,          "Job",          ValueType::kBool,   BuildJobCapability,         CompareJob,         kJobItems.data(),           kJobItems.size(),           "ErrorRoute"   };
-
+inline constexpr CapabilityItemDefinition kEnvironmentCapability    {   RI_CAPABILITY_ENVIRONMENT,  "Environment",  ValueType::kInt32,  {   ValueType::kInt32,  {   .i32 = false  },    0   },  BuildEnvironmentCapability, IdentityDiff, kEnvironmentItems.data(),   kEnvironmentItems.size(),   ROUTE_VALUE    };
+inline constexpr CapabilityItemDefinition kPrintReadyCapability     {   RI_CAPABILITY_PRINT_READY,  "PrintReady",   ValueType::kBool,   {   ValueType::kBool,   {   .b = false  },      0   },  BuildPrintReadyCapability,  IdentityDiff,  kPrintReadyItems.data(),    kPrintReadyItems.size(),    ROUTE_DATA     };
 } // namespace rim

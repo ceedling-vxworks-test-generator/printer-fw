@@ -3,13 +3,11 @@
 #include <atomic>
 #include <thread>
 
-#include "ProductDefinition.hpp"
-
-#include "DomainStorageRegistry.hpp"
-#include "DataDomainMap.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "IQueue.hpp"
 #include "CapabilityInput.hpp"
 #include "RIMDataItem.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -17,12 +15,18 @@ namespace rim
 class DataStoreWorker
 {
 public:
-
     DataStoreWorker(
-        const ProductDefinition& product,
+        const ProductContext& context,
         IQueue<RIMDataItem>& queue,
-        DomainStorageRegistry& domainStore,
-        IQueue<CapabilityInput>& capabilityQueue);
+        PartitionStorageRegistry& domainStore,
+        IQueue<CapabilityInput>& capabilityQueue)
+        :
+        context_(context),
+        queue_(queue),
+        domainStore_(domainStore),
+        capabilityQueue_(capabilityQueue)
+    {
+    }
 
     ~DataStoreWorker();
 
@@ -34,20 +38,16 @@ public:
 
 private:
 
-    void run();
+    void WorkerLoop();
 
-    bool ProcessItem(
-        RIMDataItem& item);
+    void Process(RIMDataItem& item);
 
-private:
-
-    const ProductDefinition& product_;
+    const ProductContext& context_;
     IQueue<RIMDataItem>& queue_;
-    DomainStorageRegistry& domainStore_;
+    PartitionStorageRegistry& domainStore_;
     IQueue<CapabilityInput>& capabilityQueue_;
     std::atomic<bool> running_{false};
     std::thread workerThread_;
-    DataDomainMap dataDomainMap_;
 };
 
 } // namespace rim

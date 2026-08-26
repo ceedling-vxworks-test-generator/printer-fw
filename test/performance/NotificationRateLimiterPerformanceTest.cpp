@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
 #include "NotificationRateLimiter.hpp"
 
 #include "NotificationTargetType.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     NotificationRateLimiterPerformanceTest,
@@ -19,13 +19,8 @@ TEST(
     rim::NotificationRateLimiter
         limiter;
 
-    rim::NotificationTarget
-        target
-        {
-            rim::NotificationTargetType::
-                Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        };
+    rim::NotificationTarget target =
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
 
     auto start =
         std::chrono::steady_clock::now();
@@ -82,13 +77,8 @@ TEST(
     rim::NotificationRateLimiter
         limiter;
 
-    rim::NotificationTarget
-        target
-        {
-            rim::NotificationTargetType::
-                Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        };
+    rim::NotificationTarget target = 
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
 
     std::size_t allowed = 0;
 

@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "CapabilityInput.hpp"
-#include "ProductDefinition.hpp"
 #include "PrinterAProductDefinition.hpp"
+#include "RIMValueFactory.hpp"
+#include "RIMValueAccessor.hpp"
 
 TEST(
     CapabilityInputQueueTest,

@@ -3,14 +3,13 @@
 #include "AccessorFacade.hpp"
 
 #include "CapabilityAccessor.hpp"
-#include "CapabilityStore.hpp"
 #include "DataAccessor.hpp"
 #include "PrinterAProductDefinition.hpp"
 #include "RIMValueFactory.hpp"
 #include "SnapshotAccessor.hpp"
 
-#include "DomainStorageRegistry.hpp"
-#include "DomainStorage.hpp"
+#include "PartitionStorageRegistry.hpp"
+#include "PartitionStorage.hpp"
 #include "DataDomainMap.hpp"
 
 namespace
@@ -27,14 +26,17 @@ protected:
 
     AccessorFacadeTest()
         :
+        productContext(
+            rim::kPrinterAProductDefinition),
         dataAccessor(
             domainStore,
-            rim::kPrinterAProductDefinition),
+            productContext),
         capabilityAccessor(
-            capabilityStore),
+            domainStore,
+            productContext),
         snapshotAccessor(
             domainStore,
-            rim::kPrinterAProductDefinition),
+            productContext),
         facade(
             dataAccessor,
             capabilityAccessor),
@@ -61,50 +63,44 @@ protected:
                 item);
     }
 
-    void
-    StoreTemperatureA(
+    void StoreTemperatureA(
         double value = 25.0)
     {
         StoreItem(
             {
                 RI_DATA_TEMPERATURE_SENSOR_A,
-                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
     }
 
-    void
-    StoreTemperatureB(
+    void StoreTemperatureB(
         double value = 26.0)
     {
         StoreItem(
             {
                 RI_DATA_TEMPERATURE_SENSOR_B,
-                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
     }
 
-    void
-    StoreHumidity(
+    void StoreHumidity(
         double value = 50.0)
     {
         StoreItem(
             {
                 RI_DATA_HUMIDITY_SENSOR,
-                // rim::ValueType::kDouble,
                 rim::RIMValueFactory::CreateDouble(
                     value)
             });
     }
 
-    rim::DomainStorageRegistry
-        domainStore;
+    rim::ProductContext
+        productContext;
 
-    rim::CapabilityStore
-        capabilityStore;
+    rim::PartitionStorageRegistry
+        domainStore;
 
     rim::DataDomainMap
         dataDomainMap;

@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <thread>
 
 #include "PerformanceTestFixture.hpp"
@@ -17,6 +16,7 @@
 #include "ChangeNotifyManager.hpp"
 
 #include "test/support/TestWaitHelper.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 namespace
 {
@@ -108,47 +108,18 @@ TEST_F(
     EXPECT_GT(
         received,
         0);
-
-    ASSERT_EQ(
-        RIM_Unsubscribe(
-            subscriptionId),
-        RI_SUCCESS);
 }
 
 
 
 #include <atomic>
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
 #include "CallbackSubscriptionRegistry.hpp"
 #include "SubscriptionStore.hpp"
-
-namespace
-{
-
-rim::NotificationTarget EnvironmentTarget()
-{
-    return
-    {
-        rim::NotificationTargetType::Capability,
-        static_cast<std::uint32_t>(
-            RI_CAPABILITY_ENVIRONMENT)
-    };
-}
-
-rim::NotificationMessage EnvironmentMessage()
-{
-    return
-    {
-        EnvironmentTarget(),
-        rim::NotificationTrigger::OnChange
-    };
-}
-
-}
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     CallbackPerformanceTest,
@@ -186,7 +157,7 @@ TEST(
     {
         registry.Notify(
             id,
-            EnvironmentMessage());
+            test::OnChangeMessage(RI_CAPABILITY_ENVIRONMENT));
     }
 
     const auto end =
@@ -282,7 +253,7 @@ TEST(
         {
             registry.Notify(
                 lastId,
-                EnvironmentMessage());
+                test::OnChangeMessage(RI_CAPABILITY_ENVIRONMENT));
         }
 
         const auto end =
@@ -371,10 +342,7 @@ TEST(
     store.Register(
     {
         id,
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::DeliveryMethod::Callback,
         rim::NotificationTrigger::OnChange
     });
@@ -382,11 +350,8 @@ TEST(
     callbackWorker.Run();
 
     manager.Notify(
-    {
-        rim::NotificationTargetType::Capability,
-        RI_CAPABILITY_ENVIRONMENT
-    },
-    rim::NotificationTrigger::OnChange);
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+        rim::NotificationTrigger::OnChange);
 
     ASSERT_TRUE(
         WaitUntil(
@@ -446,10 +411,7 @@ TEST(
     store.Register(
     {
         id,
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
+        test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
         rim::DeliveryMethod::Callback,
         rim::NotificationTrigger::OnChange
     });
@@ -464,11 +426,8 @@ TEST(
          ++i)
     {
         manager.Notify(
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
-        rim::NotificationTrigger::OnChange);
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::NotificationTrigger::OnChange);
     }
 
     ASSERT_TRUE(
@@ -495,4 +454,123 @@ TEST(
                / elapsed.count()
         << " callbacks/sec"
         << std::endl;
+}
+
+TEST(
+    CallbackPerformanceTest,
+    MultiWorkerThroughputComparison)
+{
+    constexpr int kMessageCount = 1000;
+
+    auto Measure =
+        [&](std::size_t workerCount)     {
+            rim::CallbackSubscriptionRegistry
+                callbackRegistry;
+
+            rim::CallbackQueue
+                callbackQueue;
+
+            rim::CallbackWorker
+                callbackWorker(
+                    callbackQueue,
+                    callbackRegistry);
+
+            std::atomic<int>
+                received{0};
+
+            constexpr rim::SubscriptionId
+                subscriptionId = 1;
+
+            callbackRegistry.Subscribe(
+                subscriptionId,
+                [&](rim::SubscriptionId id,
+                    const rim::NotificationMessage& message)
+                {
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds(1));
+
+                    ++received;
+                });
+
+            callbackWorker.Run(
+                workerCount);
+
+            const auto start =
+                std::chrono::steady_clock::now();
+
+            for (int i = 0;
+                 i < kMessageCount;
+                 ++i)
+            {
+                rim::CallbackNotification
+                    notification{};
+
+                notification.subscriptionId =
+                    subscriptionId;
+
+                notification.target =
+                    test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT);
+
+                notification.trigger =
+                    rim::NotificationTrigger::OnChange;
+
+                callbackQueue.Push(
+                    notification);
+            }
+
+            EXPECT_TRUE(
+                WaitUntil(
+                    [&]
+                    {
+                        return
+                            received.load()
+                            == kMessageCount;
+                    },
+                    std::chrono::seconds(30)));
+
+            const auto elapsed =
+                std::chrono::duration_cast
+                <
+                    std::chrono::milliseconds
+                >
+                (
+                    std::chrono::steady_clock::now()
+                    - start
+                );
+
+            callbackWorker.Stop();
+
+            return elapsed.count();
+        };
+
+    const auto singleWorkerMs =
+        Measure(1);
+
+    const auto fourWorkerMs =
+        Measure(4);
+
+    std::cout
+        << "\n=== Callback Multi Worker Comparison ===\n"
+        << "Messages      : "
+        << kMessageCount
+        << '\n'
+        << "1 Worker(ms)  : "
+        << singleWorkerMs
+        << '\n'
+        << "4 Workers(ms) : "
+        << fourWorkerMs
+        << '\n'
+        << "Speedup       : "
+        << static_cast<double>(
+               singleWorkerMs)
+               /
+               static_cast<double>(
+                    std::max<int64_t>(
+                        1,
+                        fourWorkerMs))
+        << "x\n";
+
+    EXPECT_LT(
+        fourWorkerMs,
+        singleWorkerMs);
 }

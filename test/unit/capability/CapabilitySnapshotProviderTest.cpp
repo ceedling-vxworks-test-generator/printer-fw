@@ -5,16 +5,17 @@
 #include "CapabilitySnapshotResolver.hpp"
 #include "SnapshotAccessor.hpp"
 
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "RIMValueFactory.hpp"
 
 #include "PrinterAProductDefinition.hpp"
+#include "ProductContext.hpp"
 
 TEST(
     CapabilitySnapshotProviderTest,
     CreateEnvironmentSnapshot)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     auto& domain =
         store.GetOrCreate(
@@ -32,27 +33,31 @@ TEST(
     domain.Store(
         item);
 
-    rim::CapabilitySnapshotResolver
-        resolver(
+    rim::ProductContext
+        productContext(
             rim::kPrinterAProductDefinition);
+
+    rim::CapabilitySnapshotResolver
+        snapshotResolver(
+            productContext);
 
     rim::SnapshotAccessor
         accessor(
             store,
-            rim::kPrinterAProductDefinition);
+            productContext);
 
     rim::CapabilitySnapshotProvider
         provider(
-            resolver,
+            snapshotResolver,
             accessor);
 
     const auto snapshot =
         provider.Create(
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            RI_CAPABILITY_ENVIRONMENT);
 
     EXPECT_EQ(
-        snapshot.items.size(),
-        1U);
+        1U,
+        snapshot.items.size());
 
     double value{};
 
@@ -62,15 +67,15 @@ TEST(
             value));
 
     EXPECT_DOUBLE_EQ(
-        value,
-        300.15);
+        300.15,
+        value);
 }
 
 TEST(
     CapabilitySnapshotProviderTest,
     ReturnsAllItemsInCapabilityDomain)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
 
     auto& domain =
         store.GetOrCreate(
@@ -104,23 +109,27 @@ TEST(
             item);
     }
 
-    rim::CapabilitySnapshotResolver
-        resolver(
+    rim::ProductContext
+        productContext(
             rim::kPrinterAProductDefinition);
+
+    rim::CapabilitySnapshotResolver
+        snapshotResolver(
+            productContext);
 
     rim::SnapshotAccessor
         accessor(
             store,
-            rim::kPrinterAProductDefinition);
+            productContext);
 
     rim::CapabilitySnapshotProvider
         provider(
-            resolver,
+            snapshotResolver,
             accessor);
 
     const auto snapshot =
         provider.Create(
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            RI_CAPABILITY_ENVIRONMENT);
 
     rim::RIMDataItem temperature{};
 
@@ -160,22 +169,26 @@ TEST(
 
 TEST(
     CapabilitySnapshotProviderTest,
-    UnknownDataReturnsEmptySnapshot)
+    UnknownCapabilityReturnsEmptySnapshot)
 {
-    rim::DomainStorageRegistry store;
+    rim::PartitionStorageRegistry store;
+
+    rim::ProductContext
+        productContext(
+            rim::kPrinterAProductDefinition);
 
     rim::CapabilitySnapshotResolver
-        resolver(
-            rim::kPrinterAProductDefinition);
+        snapshotResolver(
+            productContext);
 
     rim::SnapshotAccessor
         accessor(
             store,
-            rim::kPrinterAProductDefinition);
+            productContext);
 
     rim::CapabilitySnapshotProvider
         provider(
-            resolver,
+            snapshotResolver,
             accessor);
 
     const auto snapshot =
@@ -190,7 +203,7 @@ TEST(
     CapabilitySnapshotProviderTest,
     CollectItemsFromMultipleDomains)
 {
-    rim::DomainStorageRegistry
+    rim::PartitionStorageRegistry
         store;
 
     {
@@ -229,23 +242,27 @@ TEST(
             item);
     }
 
-    rim::CapabilitySnapshotResolver
-        resolver(
+    rim::ProductContext
+        productContext(
             rim::kPrinterAProductDefinition);
+
+    rim::CapabilitySnapshotResolver
+        snapshotResolver(
+            productContext);
 
     rim::SnapshotAccessor
         accessor(
             store,
-            rim::kPrinterAProductDefinition);
+            productContext);
 
     rim::CapabilitySnapshotProvider
         provider(
-            resolver,
+            snapshotResolver,
             accessor);
 
     const auto snapshot =
         provider.Create(
-            RI_DATA_TEMPERATURE_SENSOR_A);
+            RI_CAPABILITY_ENVIRONMENT);
 
     EXPECT_GE(
         snapshot.items.size(),

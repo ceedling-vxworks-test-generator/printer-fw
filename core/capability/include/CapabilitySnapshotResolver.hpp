@@ -6,7 +6,8 @@
 #include "DomainId.hpp"
 
 #include "CapabilityDependencyMap.hpp"
-#include "CapabilityDomainMap.hpp"
+#include "CapabilityRequiredDomainMap.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -15,25 +16,20 @@ class CapabilitySnapshotResolver
 {
 public:
 
-    CapabilitySnapshotResolver(
-        const ProductDefinition& product)
-        :
-        dependencyMap_(product),
-        domainMap_(product)
-    {
-    }
+    explicit CapabilitySnapshotResolver(
+        const ProductContext& context);
 
     std::vector<DomainId>
     ResolveSnapshotDomains(
-        RIDataId changedDataId) const;
+        RICapabilityId capabilityId) const;
 
 private:
 
-    CapabilityDependencyMap
+    const CapabilityDependencyMap&
         dependencyMap_;
 
-    CapabilityDomainMap
+    const CapabilityRequiredDomainMap&
         domainMap_;
-};
+    };
 
 } // namespace rim

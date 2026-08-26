@@ -98,11 +98,7 @@ TEST(
 {
     rim::RIMSnapshot snapshot;
 
-    auto binary =
-        std::make_unique<
-            rim::BinaryStoreValue>();
-
-    binary->data =
+    std::uint8_t data[]
     {
         1,
         2,
@@ -116,23 +112,38 @@ TEST(
 
     item.value =
         rim::RIMValueFactory::CreateBinary(
-            binary.release());
+            data,
+            sizeof(data));
 
     snapshot.items.push_back(
         item);
 
-    const rim::BinaryStoreValue* found{};
+    const std::uint8_t* found{};
+    std::size_t size{};
 
     ASSERT_TRUE(
         snapshot.TryGetBinary(
             RI_DATA_ERROR_LIST,
-            found));
+            found,
+            size));
 
     ASSERT_NE(
         found,
         nullptr);
 
     EXPECT_EQ(
-        found->data.size(),
-        3U);
+        size,
+        sizeof(data));
+
+    EXPECT_EQ(
+        found[0],
+        1);
+
+    EXPECT_EQ(
+        found[1],
+        2);
+
+    EXPECT_EQ(
+        found[2],
+        3);
 }

@@ -1,11 +1,10 @@
 #pragma once
 
-#include "ProductDefinition.hpp"
-
-#include "CapabilityStore.hpp"
+#include "PartitionStorageRegistry.hpp"
 #include "CapabilityDependencyMap.hpp"
 #include "CapabilityChangeSet.hpp"
 #include "RIMSnapshot.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -14,26 +13,30 @@ class CapabilityManager
 {
 public:
 
-    explicit CapabilityManager(
-        CapabilityStore& store,
-        const ProductDefinition& product)
+    CapabilityManager(
+        PartitionStorageRegistry& store,
+        const ProductContext& context)
         : store_(store)
-        , dependencyMap_(product)
-        , product_(product)
+        , context_(context)
+        , dependencyMap_(
+            context.CapabilityDependencies())
     {
     }
 
-    CapabilityChangeSet Evaluate(
+    bool Evaluate(
         const RIMSnapshot& snapshot,
-        RIDataId changedDataId);
+        const CapabilityItemDefinition* capability);
 
 private:
 
-    CapabilityStore& store_;
+    PartitionStorageRegistry& store_;
 
-    CapabilityDependencyMap dependencyMap_;
+    const CapabilityDependencyMap&
+        dependencyMap_;
 
-    const ProductDefinition& product_;
+    const ProductContext&
+        context_;
+
 };
 
 } // namespace rim

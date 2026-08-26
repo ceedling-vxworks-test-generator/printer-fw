@@ -2,10 +2,10 @@
 
 #include <cstddef>
 #include <string_view>
-#include <any>
 
 #include "RIId.hpp"
 #include "ValueType.hpp"
+#include "RIMValue.hpp"
 
 namespace rim
 {
@@ -13,31 +13,26 @@ namespace rim
 class RIMSnapshot;
 
 using CapabilityBuildCallback =
-    std::any (*)(
+    RIMValue (*)(
         const RIMSnapshot& snapshot);
 
-using CapabilityCompareCallback =
+using CapabilityDiffCallback =
     bool (*)(
-        const std::any& oldValue,
-        const std::any& newValue);
+        const RIMValue& oldValue,
+        const RIMValue& newValue);
 
 struct CapabilityItemDefinition
 {
     RICapabilityId id;
-
     std::string_view name;
-
     ValueType valueType;
-
+    RIMValue initialValue;
     CapabilityBuildCallback build;
-
-    CapabilityCompareCallback compare;
-
+    CapabilityDiffCallback diff;
     const RIDataId* requiredDataIds;
-
     std::size_t requiredDataCount;
-
-    std::string_view route;
+    // std::string_view route;
+    std::uint32_t routeId;
 };
 
 } // namespace rim

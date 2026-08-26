@@ -3,8 +3,9 @@
 #include <memory>
 
 #include "PublisherInputQueue.hpp"
-#include "ProductDefinition.hpp"
 #include "RouteProvider.hpp"
+#include "ProductContext.hpp"
+#include "ProductDefinition.hpp"
 
 namespace rim
 {
@@ -13,23 +14,28 @@ class DataStoreWorker;
 class CapabilityWorker;
 
 class CapabilityManager;
-class DomainStorageRegistry;
+class FacadeManager;
+class PartitionStorageRegistry;
 
 class CapabilitySnapshotResolver;
+class FacadeSnapshotResolver;
 class SnapshotAccessor;
 class ICapabilitySnapshotProvider;
+class IFacadeSnapshotProvider;
 
 class RouteExecutor
 {
 public:
 
     RouteExecutor(
-        const ProductDefinition& product,
+        const ProductContext& context,
         const RouteQueues& queues,
-        DomainStorageRegistry& domainStore,
+        PartitionStorageRegistry& domainStore,
         CapabilityManager& capabilityManager,
+        FacadeManager& facadeManager,
         PublisherInputQueue& publisherQueue,
-        const ICapabilitySnapshotProvider& snapshotProvider);
+        const ICapabilitySnapshotProvider& capabilitySnapshotProvider,
+        const IFacadeSnapshotProvider& facadeSnapshotProvider);
 
     ~RouteExecutor();
 
@@ -44,7 +50,7 @@ private:
     bool stopped_{false};
 
     std::unique_ptr<DataStoreWorker>
-        dispatcher_;
+        dataStoreWorker_;
 
     std::unique_ptr<CapabilityWorker>
         capabilityWorker_;

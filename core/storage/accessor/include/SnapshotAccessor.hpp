@@ -3,10 +3,10 @@
 #include <vector>
 
 #include "DomainId.hpp"
-#include "ProductDefinition.hpp"
 #include "RIMSnapshot.hpp"
 #include "SnapshotBuilder.hpp"
-#include "DomainStorageRegistry.hpp"
+#include "PartitionStorageRegistry.hpp"
+#include "ProductContext.hpp"
 
 namespace rim
 {
@@ -16,13 +16,12 @@ class SnapshotAccessor
 public:
 
     SnapshotAccessor(
-        const DomainStorageRegistry& store,
-        const ProductDefinition& product)
+        const PartitionStorageRegistry& store,
+        const ProductContext& context)
         :
         store_(store),
         snapshotBuilder_(
-            store,
-            product)
+            store)
     {
     }
 
@@ -32,7 +31,7 @@ public:
 
 private:
 
-    const DomainStorageRegistry&
+    const PartitionStorageRegistry&
         store_;
 
     SnapshotBuilder

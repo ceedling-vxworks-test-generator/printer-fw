@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <iostream>
 
 #include "printer_a.h"
 
@@ -10,6 +9,7 @@
 #include "NotificationTargetType.hpp"
 #include "DeliveryMethod.hpp"
 #include "NotificationTrigger.hpp"
+#include "test/support/NotificationTestHelper.hpp"
 
 TEST(
     SubscriptionStorePerformanceTest,
@@ -35,12 +35,8 @@ TEST(
         {
             store.Register(
             {
-                static_cast<rim::SubscriptionId>(
-                    i + 1),
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                static_cast<rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -96,12 +92,8 @@ TEST(
         {
             store.Register(
             {
-                static_cast<rim::SubscriptionId>(
-                    i + 1),
-                {
-                    rim::NotificationTargetType::Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
+                static_cast<rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
                 rim::DeliveryMethod::Mailbox,
                 rim::NotificationTrigger::Periodic
             });
@@ -114,12 +106,9 @@ TEST(
             std::chrono::steady_clock::now();
 
         store.GetSubscriptions(
-        {
-            rim::NotificationTargetType::Capability,
-            RI_CAPABILITY_ENVIRONMENT
-        },
-        rim::NotificationTrigger::Periodic,
-        subscriptions);
+            test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+            rim::NotificationTrigger::Periodic,
+            subscriptions);
 
         auto end =
             std::chrono::steady_clock::now();
@@ -134,64 +123,6 @@ TEST(
             << " count=" << count
             << " elapsed="
             << elapsedUs.count()
-            << " us"
-            << std::endl;
-    }
-}
-
-TEST(
-    SubscriptionStorePerformanceTest,
-    RemoveScaling)
-{
-    const std::size_t counts[] =
-    {
-        10,
-        100,
-        1000,
-        5000,
-        10000
-    };
-
-    for (auto count : counts)
-    {
-        rim::SubscriptionStore store;
-
-    for (std::size_t i = 0;
-        i < count;
-        ++i)
-    {
-        store.Register(
-        {
-            static_cast<rim::SubscriptionId>(
-                i + 1),
-            {
-                rim::NotificationTargetType::Capability,
-                RI_CAPABILITY_ENVIRONMENT
-            },
-            rim::DeliveryMethod::Mailbox,
-            rim::NotificationTrigger::Periodic
-        });
-    }
-
-        auto start =
-            std::chrono::steady_clock::now();
-
-        store.Remove(
-            static_cast<
-                rim::SubscriptionId>(
-                    count));
-
-        auto end =
-            std::chrono::steady_clock::now();
-
-        std::cout
-            << "[Remove]"
-            << " count=" << count
-            << " elapsed="
-            << std::chrono::duration_cast<
-                std::chrono::microseconds>(
-                    end - start)
-                   .count()
             << " us"
             << std::endl;
     }
@@ -224,17 +155,10 @@ TEST(
         {
             store.Register(
             {
-                static_cast<rim::SubscriptionId>(
-                    i + 1),
-                {
-                    rim::NotificationTargetType::
-                        Capability,
-                    RI_CAPABILITY_ENVIRONMENT
-                },
-                rim::DeliveryMethod::
-                    Mailbox,
-                rim::NotificationTrigger::
-                    Periodic
+                static_cast<rim::SubscriptionId>(i + 1),
+                test::CapabilityTarget(RI_CAPABILITY_ENVIRONMENT),
+                rim::DeliveryMethod::Mailbox,
+                rim::NotificationTrigger::Periodic
             });
         }
 
