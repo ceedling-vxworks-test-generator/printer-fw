@@ -1,0 +1,55 @@
+#include <gtest/gtest.h>
+
+#include <chrono>
+#include <thread>
+
+#include "rim_api.h"
+
+TEST(
+    EndToEndCApiNotificationTest,
+    StartStopAndReceiveCapability)
+{
+    ASSERT_EQ(
+        RIM_Create(),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIM_Start(),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_TEMPERATURE_SENSOR_A,
+            30.0),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIM_SetDouble(
+            RI_DATA_HUMIDITY_SENSOR,
+            40.0),
+        RI_SUCCESS);
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(
+            100));
+
+    int32_t capability{};
+
+    ASSERT_EQ(
+        RIM_GetCapabilityInt32(
+            RI_CAPABILITY_ENVIRONMENT,
+            &capability),
+        RI_SUCCESS);
+
+    EXPECT_EQ(
+        capability,
+        1);
+
+    ASSERT_EQ(
+        RIM_Stop(),
+        RI_SUCCESS);
+
+    ASSERT_EQ(
+        RIM_Destroy(),
+        RI_SUCCESS);
+}
