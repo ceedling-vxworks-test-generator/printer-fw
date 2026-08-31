@@ -1,0 +1,34 @@
+# CMake ビルド成果物
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.cmake
+!CMakeLists.txt
+
+# コンパイル成果物
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# カバレッジ
+*.info
+coverage_html/
+coverage/
+
+# コアダンプ
+core
+core.*
+
+# VS Code（ユーザー固有設定は除外、共有設定は管理下に置く）
+.vscode/settings.json
+.vscode/launch.json
+.vscode/c_cpp_properties.json
+.vscode/ipch/
+
+# DevContainer の一時ファイル
+.devcontainer/.tmp/
+.tmp/
