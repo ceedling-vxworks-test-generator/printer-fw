@@ -22,9 +22,16 @@ column with measured values — the Excel output is editable for exactly
 this reason.
 
 Usage:
-    python3 tools/library_feature_rom_audit.py                # summary to stdout
-    python3 tools/library_feature_rom_audit.py --xlsx out.xlsx # detailed Excel
-    python3 tools/library_feature_rom_audit.py --csv out.csv   # detailed CSV
+    python3 tools/library_feature_rom_audit.py
+
+    Copy the files you want analyzed (any format, any subfolder
+    structure) into library_feature_rom_audit_target/, then run the
+    script. It writes library_feature_rom_audit_output/result.csv and
+    result.xlsx (needs openpyxl for the latter) and prints a summary
+    to stdout.
+
+    --target / --output / --csv / --xlsx let you override the default
+    folders for one-off runs; see `--help`.
 """
 
 from __future__ import annotations
@@ -43,11 +50,7 @@ from coverage_audit import (  # noqa: E402  (reuse the tested mini-parser)
     strip_comments_and_literals,
     strip_preprocessor_directives,
 )
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-DEFAULT_SOURCE_DIRS = ["core", "products"]
-DEFAULT_EXCLUDE_DIR_NAMES = {"old_0818", "old_0820", "0820_FW", "test"}
+from _io_layout import iter_all_files, output_dir_for, target_dir_for  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Feature reference table: name -> (regex, impact tier, rough KB, note)
@@ -239,11 +242,12 @@ def scan_features(text: str) -> dict[str, int]:
     return counts
 
 
-def scan_file(path: Path) -> list[ClassUsage]:
+def scan_file(path: Path, target_dir: Path) -> list[ClassUsage]:
     raw = path.read_text(encoding="utf-8", errors="replace")
     includes = sorted(set(_INCLUDE_RE.findall(raw)))
-    layer = classify_layer(path)
-    rel = str(path.relative_to(REPO_ROOT))
+    rel_path = path.relative_to(target_dir)
+    layer = classify_layer(rel_path)
+    rel = str(rel_path)
 
     text = strip_preprocessor_directives(strip_comments_and_literals(raw))
 
@@ -284,20 +288,10 @@ def scan_file(path: Path) -> list[ClassUsage]:
     return results
 
 
-def collect(source_dirs: list[Path]) -> list[ClassUsage]:
-    files: list[Path] = []
-    for d in source_dirs:
-        if not d.is_dir():
-            continue
-        for pattern in ("*.hpp", "*.h", "*.cpp"):
-            for p in d.rglob(pattern):
-                if any(part in DEFAULT_EXCLUDE_DIR_NAMES for part in p.parts):
-                    continue
-                files.append(p)
-
+def collect_from_target(target_dir: Path) -> list[ClassUsage]:
     usages: list[ClassUsage] = []
-    for p in sorted(set(files)):
-        usages.extend(scan_file(p))
+    for p in iter_all_files(target_dir):
+        usages.extend(scan_file(p, target_dir))
     return usages
 
 
@@ -310,6 +304,7 @@ FEATURE_NAMES = list(FEATURES.keys())
 
 def write_csv(usages: list[ClassUsage], out_path: Path) -> None:
     import csv
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["Layer", "Class", "SourceFile", "ROM目安低(KB)", "ROM目安高(KB)"] + FEATURE_NAMES)
@@ -493,6 +488,7 @@ def write_xlsx(usages: list[ClassUsage], out_path: Path) -> None:
             ws3[f"{col}{row}"].font = Font(name=FONT_NAME, size=9)
             ws3[f"{col}{row}"].alignment = Alignment(wrap_text=(col == "C"), vertical="top")
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
 
 
@@ -520,33 +516,38 @@ def print_summary(usages: list[ClassUsage]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--source-dirs", nargs="*", default=DEFAULT_SOURCE_DIRS,
-                         help="Directories (relative to repo root) scanned recursively for .hpp/.h/.cpp")
-    parser.add_argument("--csv", type=Path, default=None, help="Write full results as CSV")
-    parser.add_argument("--xlsx", type=Path, default=None, help="Write full results as a formatted Excel file (needs openpyxl)")
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT, help="Override repo root (default: parent of tools/)")
+    parser.add_argument("--target", type=Path, default=None,
+                         help="Folder to scan recursively (default: library_feature_rom_audit_target/ next to this script)")
+    parser.add_argument("--output", type=Path, default=None,
+                         help="Folder to write results into (default: library_feature_rom_audit_output/ next to this script)")
+    parser.add_argument("--csv", type=Path, default=None, help="Override CSV output path (default: <output>/result.csv)")
+    parser.add_argument("--xlsx", type=Path, default=None, help="Override Excel output path (default: <output>/result.xlsx, needs openpyxl)")
     args = parser.parse_args()
 
-    root = args.repo_root.resolve()
-    source_dirs = [root / d for d in args.source_dirs]
+    target_dir = args.target.resolve() if args.target else target_dir_for(__file__)
+    output_dir = args.output.resolve() if args.output else output_dir_for(__file__)
 
-    usages = collect(source_dirs)
+    if not target_dir.is_dir():
+        print(f"Target folder not found: {target_dir}", file=sys.stderr)
+        return 1
+
+    print(f"# 解析対象フォルダ: {target_dir}")
+    usages = collect_from_target(target_dir)
     usages.sort(key=lambda u: (u.layer, u.class_name))
 
     print_summary(usages)
 
-    if args.csv:
-        write_csv(usages, args.csv)
-        print(f"\nCSV written: {args.csv}")
+    csv_path = args.csv if args.csv else output_dir / "result.csv"
+    write_csv(usages, csv_path)
+    print(f"\nCSV written: {csv_path}")
 
-    if args.xlsx:
-        try:
-            write_xlsx(usages, args.xlsx)
-            print(f"Excel written: {args.xlsx}")
-        except ImportError:
-            print("openpyxl is not installed; skipping --xlsx output "
-                  "(pip install openpyxl)", file=sys.stderr)
-            return 1
+    xlsx_path = args.xlsx if args.xlsx else output_dir / "result.xlsx"
+    try:
+        write_xlsx(usages, xlsx_path)
+        print(f"Excel written: {xlsx_path}")
+    except ImportError:
+        print("openpyxl is not installed; skipping Excel output "
+              "(pip install openpyxl)", file=sys.stderr)
 
     return 0
 

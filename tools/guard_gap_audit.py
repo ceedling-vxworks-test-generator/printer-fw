@@ -20,10 +20,15 @@ carries a rough confidence label (高/中/低) reflecting how directly
 its heuristic maps to the real risk.
 
 Usage:
-    python3 tools/guard_gap_audit.py                      # auto-detect latest RevNNN_FW, summary to stdout
-    python3 tools/guard_gap_audit.py --root Rev755_FW      # target a specific folder
-    python3 tools/guard_gap_audit.py --xlsx out.xlsx       # detailed Excel
-    python3 tools/guard_gap_audit.py --csv out.csv         # detailed CSV
+    python3 tools/guard_gap_audit.py
+
+    Copy the files you want analyzed (any format, any subfolder
+    structure) into guard_gap_audit_target/, then run the script. It
+    writes guard_gap_audit_output/result.csv and result.xlsx (needs
+    openpyxl for the latter) and prints a summary to stdout.
+
+    --target / --output / --csv / --xlsx let you override the default
+    folders for one-off runs; see `--help`.
 """
 
 from __future__ import annotations
@@ -48,31 +53,7 @@ from coverage_audit import (  # noqa: E402  (reuse the tested mini-parser)
     strip_comments_and_literals,
     strip_preprocessor_directives,
 )
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-DEFAULT_EXCLUDE_DIR_NAMES = {"test", ".vscode", ".devcontainer", ".github"}
-
-# ---------------------------------------------------------------------------
-# Rev folder auto-detection
-# ---------------------------------------------------------------------------
-
-_REV_DIR_RE = re.compile(r"^Rev(\d+)_FW$")
-
-
-def find_latest_rev_dir(root: Path) -> Path | None:
-    candidates = []
-    for p in root.iterdir():
-        if not p.is_dir():
-            continue
-        m = _REV_DIR_RE.match(p.name)
-        if m:
-            candidates.append((int(m.group(1)), p))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda t: t[0])
-    return candidates[-1][1]
-
+from _io_layout import iter_all_files, output_dir_for, target_dir_for  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Layer classification (best-effort, path-fragment based)
@@ -239,10 +220,11 @@ def extract_free_functions(text: str, source_file: str, layer: str) -> list[Meth
     return results
 
 
-def scan_file(path: Path, repo_root: Path) -> list[MethodBody]:
+def scan_file(path: Path, target_dir: Path) -> list[MethodBody]:
     raw = path.read_text(encoding="utf-8", errors="replace")
-    layer = classify_layer(path)
-    rel = str(path.relative_to(repo_root))
+    rel_path = path.relative_to(target_dir)
+    layer = classify_layer(rel_path)
+    rel = str(rel_path)
     text = strip_preprocessor_directives(strip_comments_and_literals(raw))
 
     methods = extract_inline_class_methods(text, rel, layer)
@@ -251,20 +233,10 @@ def scan_file(path: Path, repo_root: Path) -> list[MethodBody]:
     return methods
 
 
-def collect(source_dirs: list[Path], repo_root: Path) -> list[MethodBody]:
-    files: list[Path] = []
-    for d in source_dirs:
-        if not d.is_dir():
-            continue
-        for pattern in ("*.hpp", "*.h", "*.cpp"):
-            for p in d.rglob(pattern):
-                if any(part in DEFAULT_EXCLUDE_DIR_NAMES for part in p.parts):
-                    continue
-                files.append(p)
-
+def collect_from_target(target_dir: Path) -> list[MethodBody]:
     methods: list[MethodBody] = []
-    for p in sorted(set(files)):
-        methods.extend(scan_file(p, repo_root))
+    for p in iter_all_files(target_dir):
+        methods.extend(scan_file(p, target_dir))
     return methods
 
 
@@ -455,6 +427,7 @@ def analyze(methods: list[MethodBody]) -> list[MethodResult]:
 
 def write_csv(results: list[MethodResult], out_path: Path) -> None:
     import csv
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["Layer", "Class", "Method", "SourceFile", "未ガード件数"] + [c.label for c in GUARD_CATEGORIES])
@@ -629,6 +602,7 @@ def write_xlsx(results: list[MethodResult], out_path: Path) -> None:
     for col in "CDEF":
         ws3.column_dimensions[col].width = 14
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
 
 
@@ -661,47 +635,39 @@ def print_summary(results: list[MethodResult]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--root", type=str, default=None,
-                         help="Target folder relative to repo root (e.g. Rev755_FW). "
-                              "Default: auto-detect the highest-numbered RevNNN_FW at repo root.")
-    parser.add_argument("--csv", type=Path, default=None, help="Write full results as CSV")
-    parser.add_argument("--xlsx", type=Path, default=None, help="Write full results as a formatted Excel file (needs openpyxl)")
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT, help="Override repo root (default: parent of tools/)")
+    parser.add_argument("--target", type=Path, default=None,
+                         help="Folder to scan recursively (default: guard_gap_audit_target/ next to this script)")
+    parser.add_argument("--output", type=Path, default=None,
+                         help="Folder to write results into (default: guard_gap_audit_output/ next to this script)")
+    parser.add_argument("--csv", type=Path, default=None, help="Override CSV output path (default: <output>/result.csv)")
+    parser.add_argument("--xlsx", type=Path, default=None, help="Override Excel output path (default: <output>/result.xlsx, needs openpyxl)")
     args = parser.parse_args()
 
-    repo_root = args.repo_root.resolve()
+    target_dir = args.target.resolve() if args.target else target_dir_for(__file__)
+    output_dir = args.output.resolve() if args.output else output_dir_for(__file__)
 
-    if args.root:
-        target = repo_root / args.root
-    else:
-        target = find_latest_rev_dir(repo_root)
-        if target is None:
-            print("No RevNNN_FW folder found at repo root and --root not given.", file=sys.stderr)
-            return 1
-        print(f"# 自動検出した対象フォルダ: {target.relative_to(repo_root)}")
-
-    if not target.is_dir():
-        print(f"Target folder not found: {target}", file=sys.stderr)
+    if not target_dir.is_dir():
+        print(f"Target folder not found: {target_dir}", file=sys.stderr)
         return 1
 
-    methods = collect([target], repo_root)
+    print(f"# 解析対象フォルダ: {target_dir}")
+    methods = collect_from_target(target_dir)
     results = analyze(methods)
     results.sort(key=lambda r: (r.layer, r.class_name, r.method_name))
 
     print_summary(results)
 
-    if args.csv:
-        write_csv(results, args.csv)
-        print(f"\nCSV written: {args.csv}")
+    csv_path = args.csv if args.csv else output_dir / "result.csv"
+    write_csv(results, csv_path)
+    print(f"\nCSV written: {csv_path}")
 
-    if args.xlsx:
-        try:
-            write_xlsx(results, args.xlsx)
-            print(f"Excel written: {args.xlsx}")
-        except ImportError:
-            print("openpyxl is not installed; skipping --xlsx output "
-                  "(pip install openpyxl)", file=sys.stderr)
-            return 1
+    xlsx_path = args.xlsx if args.xlsx else output_dir / "result.xlsx"
+    try:
+        write_xlsx(results, xlsx_path)
+        print(f"Excel written: {xlsx_path}")
+    except ImportError:
+        print("openpyxl is not installed; skipping Excel output "
+              "(pip install openpyxl)", file=sys.stderr)
 
     return 0
 

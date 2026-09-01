@@ -1,0 +1,7 @@
+# Sibling target/output folders for tools/*.py (see _io_layout.py).
+# Their contents are user-local scratch input/generated output; keep
+# only the placeholder README.md that _io_layout.py auto-creates.
+*_target/**
+!*_target/README.md
+*_output/**
+!*_output/README.md

@@ -4,12 +4,33 @@
 どちらも正規表現＋波括弧対応カウントによる簡易パーサで実装しており、
 libclang等の外部依存もビルドシステムとの連携も不要（`python3`単体で動く）。
 
+## 共通の入出力の運用ルール
+
+3つのツールはすべて同じ入出力の規約に従う（実装は`_io_layout.py`共通）。
+
+- ツール本体(`<tool>.py`)と同じ階層に、初回実行時に自動生成される
+  **`<tool>_target/`**（解析対象を置くフォルダ）と**`<tool>_output/`**
+  （結果が出力されるフォルダ）が対になっている。
+- `<tool>_target/`配下に置いたファイルは、**サブフォルダも拡張子も問わず**
+  再帰的にすべて解析対象になる（`.hpp`/`.cpp`以外の拡張子や拡張子なしの
+  ファイルも中身は読まれる。C++らしく見えないファイルは単にどのパターンにも
+  マッチせず無害）。レイヤ判定(Adapter/Store/Capability等)は元のパス構造
+  （`core/adapter/...`等）に依存するので、判定精度を保ちたい場合は元のディレクトリ
+  構成を保ったままコピーすること。
+- 解析結果は`<tool>_output/result.csv`・`<tool>_output/result.xlsx`に自動出力される
+  （xlsxはopenpyxl未インストール時はスキップ）。
+- `--target`/`--output`/`--csv`/`--xlsx`で一時的にパスを上書きできる(`--help`参照)。
+- `<tool>_target/`・`<tool>_output/`の中身（自動生成される`README.md`を除く）は
+  `tools/.gitignore`でgit管理対象外にしている。フォルダ自体とプレースホルダの
+  `README.md`はリポジトリに残るので、cloneした直後でも置き場所がすぐ分かる。
+
 ## coverage_audit.py — 単体テストカバレッジの機械的調査
 
-**用途**: `core/`・`products/printer_a/`配下のクラスのpublicメソッド、および
-`include/rim_api.h`・`products/printer_a/printer_a.h`のC-API関数プロトタイプを
-洗い出し、`test/unit/`配下の`TEST()`/`TEST_F()`からその名前が参照されているかを
-突き合わせて、正常系・異常系それぞれのテスト実施状況を一覧化する。
+**用途**: 解析対象フォルダ内の各ファイルを中身で判定し（`TEST()`/`TEST_F()`を含む
+ファイルはテストファイル、それ以外はソースファイル扱い）、ソースファイル側から
+クラスのpublicメソッドと自由関数(namespaceスコープ/C API等)を洗い出し、テスト
+ファイル側の`TEST()`/`TEST_F()`本体からその名前が参照されているかを突き合わせて、
+正常系・異常系それぞれのテスト実施状況を一覧化する。
 
 参照元テストケース名に`Null`/`Invalid`/`Unknown`/`Reject`/`Missing`/`Duplicate`等の
 キーワードが含まれていれば異常系、含まれなければ正常系と判定する（命名規則ベースの
@@ -18,9 +39,8 @@ libclang等の外部依存もビルドシステムとの連携も不要（`pytho
 **使い方**:
 
 ```bash
-python3 tools/coverage_audit.py                  # サマリーを標準出力
-python3 tools/coverage_audit.py --csv out.csv     # 全件CSV
-python3 tools/coverage_audit.py --xlsx out.xlsx   # 整形済みExcel（openpyxl要）
+# coverage_audit_target/ に解析したいソース一式・テスト一式をコピーしてから
+python3 tools/coverage_audit.py
 ```
 
 **向いている場面**:
@@ -39,15 +59,15 @@ python3 tools/coverage_audit.py --xlsx out.xlsx   # 整形済みExcel（openpyxl
 
 ## library_feature_rom_audit.py — C++標準ライブラリ機能の使用状況とROM目安調査
 
-**用途**: 指定ディレクトリ配下の`.hpp`/`.cpp`を再帰的に解析し、クラス（および
+**用途**: 解析対象フォルダ配下のファイルを再帰的に解析し、クラス（および
 ファイル直下の自由関数群）ごとにC++標準ライブラリのどの機能
 （`std::vector`、`std::string`、例外、RTTI、iostream、`std::thread`等）を
 使用しているかを検出し、各機能の一般的なROM(コードサイズ)影響の目安と合わせて
 Excelに出力する。
 
 ```bash
-python3 tools/library_feature_rom_audit.py                     # サマリーを標準出力
-python3 tools/library_feature_rom_audit.py --xlsx out.xlsx      # 詳細Excel
+# library_feature_rom_audit_target/ に解析したいファイル一式をコピーしてから
+python3 tools/library_feature_rom_audit.py
 ```
 
 **重要な注意**: ROM影響の数値は実測ではなく、一般的な組み込みC++開発における
@@ -59,10 +79,11 @@ python3 tools/library_feature_rom_audit.py --xlsx out.xlsx      # 詳細Excel
 
 ## guard_gap_audit.py — 異常系ガード欠落調査
 
-**用途**: `Rev○○_FW/`（省略時は最新のRev番号のものを自動検出）配下の`.hpp`/`.cpp`を
-再帰的に解析し、クラス内メソッドの実装本体（ヘッダのインライン定義・`.cpp`側の
-`Class::Method(...)`定義の両方）を抽出したうえで、以下13種類の異常系ガードパターンごとに
-「該当しそうなのにガードが見当たらないメソッド」を洗い出す。
+**用途**: 解析対象フォルダ配下のファイルを再帰的に解析し、クラス内メソッドの実装本体
+（ヘッダのインライン定義・`.cpp`側の`Class::Method(...)`定義の両方）を抽出したうえで、
+以下13種類の異常系ガードパターンごとに「該当しそうなのにガードが見当たらないメソッド」を
+洗い出す。対象のRevフォルダ(例: `Rev755_FW/`)の中身をそのまま
+`guard_gap_audit_target/`にコピーして使う運用を想定している。
 
 - NULLポインタチェック / 未初期化状態チェック(`g_context`) / ID未登録チェック(Find系) /
   型不一致チェック(Get/TryGet系) / サイズ・範囲外チェック / 重複登録・多重初期化チェック /
@@ -74,9 +95,8 @@ python3 tools/library_feature_rom_audit.py --xlsx out.xlsx      # 詳細Excel
 本体のどこかにあるか）」の正規表現ペアで判定する、命名/構文パターンベースのヒューリスティック。
 
 ```bash
-python3 tools/guard_gap_audit.py                       # 最新のRevNNN_FWを自動検出してサマリー出力
-python3 tools/guard_gap_audit.py --root Rev755_FW       # 対象フォルダを明示
-python3 tools/guard_gap_audit.py --xlsx out.xlsx        # 凡例/メソッド別一覧/カテゴリ別サマリーの3シート構成Excel
+# guard_gap_audit_target/ に解析したいRevフォルダの中身などをコピーしてから
+python3 tools/guard_gap_audit.py
 ```
 
 **重要な注意**: データフロー解析ではない。「該当あり」は引数の型や呼んでいる関数名など

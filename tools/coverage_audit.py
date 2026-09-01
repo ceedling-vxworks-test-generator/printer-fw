@@ -1,34 +1,44 @@
 #!/usr/bin/env python3
 """coverage_audit.py — mechanical unit-test coverage survey.
 
-For every public C++ method (class methods under core/ and
-products/printer_a/, plus the C-API function prototypes declared in
-include/rim_api.h and products/printer_a/printer_a.h) this script
-reports whether the method name is referenced from inside a GoogleTest
-TEST()/TEST_F() body under the given test directories, and classifies
-each referencing test case as "normal" or "abnormal" by matching its
-test-case name against a keyword list (see ABNORMAL_KEYWORDS below).
+Scans every file placed under coverage_audit_target/ (next to this
+script), regardless of file extension. Each file is classified by its
+*content*, not its location or extension:
+
+  * a file containing GoogleTest TEST()/TEST_F() macros is treated as
+    a test file, and its test cases are collected;
+  * anything else is treated as a source file, and its class'
+    public methods plus any free (namespace-scope) functions are
+    extracted.
+
+For every extracted method/function, this script then reports whether
+its name is referenced from inside a collected test body, and
+classifies each referencing test case as "normal" or "abnormal" by
+matching its test-case name against a keyword list (see
+ABNORMAL_KEYWORDS below).
 
 This is a *naming-convention heuristic*, not a semantic read of what a
 test actually asserts. Two things it deliberately does NOT do:
 
   * It cannot tell two overloads of the same method apart (e.g.
-    ProductDefinition.cpp's two `FindDataItem` overloads) — a method
-    name match against a test file counts for every overload sharing
-    that name. Rows for such methods are flagged in the "Note" column.
+    two `FindDataItem` overloads on the same class) — a method name
+    match against a test file counts for every overload sharing that
+    name. Rows for such methods are flagged in the "Note" column.
 
   * It does not judge *which* abnormal scenarios are missing, or
     propose new ones — it only reports what is/isn't exercised today,
     based on existing test names.
 
 Usage:
-    python3 tools/coverage_audit.py                     # summary to stdout
-    python3 tools/coverage_audit.py --csv out.csv        # full CSV
-    python3 tools/coverage_audit.py --xlsx out.xlsx      # formatted Excel (needs openpyxl)
+    python3 tools/coverage_audit.py
 
-Run from anywhere; paths are resolved relative to the repo root
-(the parent of this tools/ directory) unless overridden with
---source-dirs / --test-dirs.
+    Copy the files you want analyzed (any format, any subfolder
+    structure) into coverage_audit_target/, then run the script. It
+    writes coverage_audit_output/result.csv and result.xlsx (needs
+    openpyxl for the latter) and prints a summary to stdout.
+
+    --target / --output / --csv / --xlsx let you override the default
+    folders for one-off runs; see `--help`.
 """
 
 from __future__ import annotations
@@ -39,37 +49,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _io_layout import iter_all_files, output_dir_for, target_dir_for  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
-# Header files scanned for `class`/`struct` definitions with public methods.
-DEFAULT_CLASS_HEADER_DIRS = [
-    "core/adapter/include",
-    "core/capability/include",
-    "core/common/include",
-    "core/publisher/include",
-    "core/storage/include",
-    "core/storage/accessor/include",
-    "core/storage/snapshot/include",
-    "core/store/include",
-    "products/printer_a/CapabilityItem",
-    "products/printer_a/DataItem",
-    "products/printer_a/Adapter",
-    "products/printer_a/Route",
-]
-
-# Header files scanned for free-function prototypes (namespace-scope or
-# extern "C") rather than class methods.
-DEFAULT_FREE_FUNCTION_HEADERS = [
-    "core/common/include/ProductDefinition.hpp",
-    "include/rim_api.h",
-    "products/printer_a/printer_a.h",
-]
-
-DEFAULT_TEST_DIRS = ["test/unit"]
 
 # Substrings (case-insensitive) that, when found in a GoogleTest case
 # name (Suite.Case, checked against "Case" — the part after the last
@@ -91,6 +77,10 @@ ABNORMAL_KEYWORDS = [
 
 # Directory-path fragment -> display layer name. Longer/more specific
 # fragments must come before shorter ones since the first match wins.
+# Matched against the file's path *relative to the target folder*, so
+# this only resolves to something other than "Other" when the folder
+# structure copied into coverage_audit_target/ preserves the repo's
+# original subpaths (e.g. core/adapter/... , products/printer_a/...).
 LAYER_RULES = [
     ("core/storage/accessor", "Accessor"),
     ("core/storage/snapshot", "Snapshot"),
@@ -249,34 +239,6 @@ class MethodInfo:
     overload_count: int = 1
 
 
-def extract_methods_from_class_headers(paths: list[Path]) -> list[MethodInfo]:
-    methods: list[MethodInfo] = []
-    for path in paths:
-        raw = path.read_text(encoding="utf-8", errors="replace")
-        text = strip_preprocessor_directives(strip_comments_and_literals(raw))
-        for m in _CLASS_RE.finditer(text):
-            kind = m.group(2)
-            name = m.group(3)
-            open_brace = m.end() - 1
-            close_brace = find_matching_brace(text, open_brace)
-            body = isolate_access_labels(text[open_brace + 1:close_brace])
-            default_access = "public" if kind == "struct" else "private"
-            statements = split_statements(body)
-            for access, stmt in split_by_access(statements, default_access):
-                if access != "public":
-                    continue
-                info = parse_method_statement(stmt, name)
-                if info is not None:
-                    methods.append(info)
-        # de-duplicate overload counts per (class, name)
-    counts: dict[tuple[str, str], int] = {}
-    for mo in methods:
-        counts[(mo.class_name, mo.name)] = counts.get((mo.class_name, mo.name), 0) + 1
-    for mo in methods:
-        mo.overload_count = counts[(mo.class_name, mo.name)]
-    return methods
-
-
 _SKIP_LEADING_RE = re.compile(
     r"^\s*(template\s*<[^;{}]*>\s*)?"
     r"((virtual|static|inline|explicit|friend|constexpr|const)\s+)*"
@@ -330,7 +292,6 @@ def parse_method_statement(stmt: str, class_name: str) -> MethodInfo | None:
     close_paren = find_matching_paren(header, open_paren)
     if close_paren <= open_paren:
         return None
-    params = header[open_paren + 1:close_paren].strip()
     trailer = header[close_paren + 1:].strip()
 
     # Drop a constructor's member-initializer list ("... ) : a_(x), b_(y)")
@@ -349,26 +310,6 @@ def parse_method_statement(stmt: str, class_name: str) -> MethodInfo | None:
         signature=signature,
         name=name,
     )
-
-
-def extract_free_functions(paths: list[Path]) -> list[MethodInfo]:
-    """Namespace-scope / extern "C" function *declarations* only
-    (these header files declare prototypes, not definitions)."""
-    funcs: list[MethodInfo] = []
-    for path in paths:
-        raw = path.read_text(encoding="utf-8", errors="replace")
-        text = strip_preprocessor_directives(strip_comments_and_literals(raw))
-        text = flatten_wrappers(text)
-        for stmt in split_statements(text):
-            info = parse_method_statement(stmt, path.name)
-            if info is not None and info.name not in ("namespace",):
-                funcs.append(info)
-    counts: dict[tuple[str, str], int] = {}
-    for fo in funcs:
-        counts[(fo.class_name, fo.name)] = counts.get((fo.class_name, fo.name), 0) + 1
-    for fo in funcs:
-        fo.overload_count = counts[(fo.class_name, fo.name)]
-    return funcs
 
 
 # Matches `namespace X {` / `extern "C" {`. Note: by the time this runs,
@@ -454,8 +395,8 @@ def name_referenced(name: str, text: str) -> bool:
 # Layer classification
 # ---------------------------------------------------------------------------
 
-def classify_layer(path: Path) -> str:
-    rel = path.as_posix()
+def classify_layer(rel_path: Path) -> str:
+    rel = rel_path.as_posix()
     for fragment, label in LAYER_RULES:
         if fragment in rel:
             return label
@@ -472,7 +413,8 @@ class CoverageRow:
     class_name: str
     method: str
     source_file: str
-    overload_count: int
+    name: str
+    overload_count: int = 1
     normal_tested: bool = False
     normal_test_names: list[str] = field(default_factory=list)
     abnormal_tested: bool = False
@@ -483,60 +425,85 @@ class CoverageRow:
         return "overloaded name (ambiguous match)" if self.overload_count > 1 else ""
 
 
-def build_rows(
-    class_header_dirs: list[Path],
-    free_function_headers: list[Path],
-    test_dirs: list[Path],
-) -> list[CoverageRow]:
-    header_paths = []
-    for d in class_header_dirs:
-        if d.is_dir():
-            header_paths.extend(sorted(d.glob("*.hpp")))
+def scan_source_file(path: Path, target_dir: Path) -> list[CoverageRow]:
+    """Extract public class methods and free (namespace-scope) functions
+    from a single non-test file, classifying by content only."""
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    text = strip_preprocessor_directives(strip_comments_and_literals(raw))
+    rel = path.relative_to(target_dir)
+    layer = classify_layer(rel)
 
-    methods = extract_methods_from_class_headers(header_paths)
-    method_sources = {id(m): p for m in methods for p in [None]}  # placeholder
-
-    # Track source file per method by re-walking (simpler: redo per-file)
     rows: list[CoverageRow] = []
-    for d in class_header_dirs:
-        if not d.is_dir():
-            continue
-        for path in sorted(d.glob("*.hpp")):
-            for mo in extract_methods_from_class_headers([path]):
+    class_spans: list[tuple[int, int]] = []
+
+    for m in _CLASS_RE.finditer(text):
+        kind = m.group(2)
+        cname = m.group(3)
+        open_brace = m.end() - 1
+        close_brace = find_matching_brace(text, open_brace)
+        class_spans.append((m.start(), close_brace))
+        body = isolate_access_labels(text[open_brace + 1:close_brace])
+        default_access = "public" if kind == "struct" else "private"
+        for access, stmt in split_by_access(split_statements(body), default_access):
+            if access != "public":
+                continue
+            info = parse_method_statement(stmt, cname)
+            if info is not None:
                 rows.append(CoverageRow(
-                    layer=classify_layer(path),
-                    class_name=mo.class_name,
-                    method=mo.signature,
-                    source_file=str(path.relative_to(REPO_ROOT)),
-                    overload_count=mo.overload_count,
+                    layer=layer, class_name=info.class_name, method=info.signature,
+                    source_file=str(rel), name=info.name,
                 ))
 
-    for path in free_function_headers:
-        if not path.is_file():
-            continue
-        for fo in extract_free_functions([path]):
+    # Free functions live outside every class body -- carve those spans
+    # out first so a method statement never gets double-counted here.
+    outside_chunks = []
+    cursor = 0
+    for start, end in sorted(class_spans):
+        if start > cursor:
+            outside_chunks.append(text[cursor:start])
+        cursor = max(cursor, end + 1)
+    outside_chunks.append(text[cursor:])
+    outside_text = flatten_wrappers("\n".join(outside_chunks))
+
+    for stmt in split_statements(outside_text):
+        info = parse_method_statement(stmt, path.name)
+        if info is not None and info.name not in ("namespace",):
             rows.append(CoverageRow(
-                layer=classify_layer(path),
-                class_name=path.name,
-                method=fo.signature,
-                source_file=str(path.relative_to(REPO_ROOT)),
-                overload_count=fo.overload_count,
+                layer=layer, class_name=info.class_name, method=info.signature,
+                source_file=str(rel), name=info.name,
             ))
 
-    test_files = []
-    for d in test_dirs:
-        if d.is_dir():
-            test_files.extend(sorted(d.rglob("*.cpp")))
-    test_cases = collect_test_cases(test_files)
+    return rows
 
+
+def build_rows_from_target(target_dir: Path) -> list[CoverageRow]:
+    test_files: list[Path] = []
+    source_files: list[Path] = []
+    for path in iter_all_files(target_dir):
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        stripped = strip_preprocessor_directives(strip_comments_and_literals(raw))
+        if _TEST_MACRO_RE.search(stripped):
+            test_files.append(path)
+        else:
+            source_files.append(path)
+
+    rows: list[CoverageRow] = []
+    for path in source_files:
+        rows.extend(scan_source_file(path, target_dir))
+
+    # Overload counts are computed globally (class_name, name) so that a
+    # method split across files (or genuinely overloaded within one) is
+    # still flagged as an ambiguous match.
+    counts: dict[tuple[str, str], int] = {}
+    for r in rows:
+        counts[(r.class_name, r.name)] = counts.get((r.class_name, r.name), 0) + 1
+    for r in rows:
+        r.overload_count = counts[(r.class_name, r.name)]
+
+    test_cases = collect_test_cases(test_files)
     for row in rows:
-        # extract the bare identifier name from the stored signature
-        m = list(_NAME_PAREN_RE.finditer(row.method))
-        name = m[0].group(1) if m else None
-        if not name:
-            continue
         for tc in test_cases:
-            if name_referenced(name, tc.body):
+            if name_referenced(row.name, tc.body):
                 if tc.is_abnormal():
                     row.abnormal_tested = True
                     row.abnormal_test_names.append(tc.full_name)
@@ -553,6 +520,7 @@ def build_rows(
 
 def write_csv(rows: list[CoverageRow], out_path: Path) -> None:
     import csv
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow([
@@ -623,12 +591,11 @@ def write_xlsx(rows: list[CoverageRow], out_path: Path) -> None:
 
     ws.freeze_panes = "D2"
     ws.auto_filter.ref = f"A1:I{len(rows) + 1}"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
 
 
 def print_summary(rows: list[CoverageRow]) -> None:
-    from collections import Counter
-
     total = len(rows)
     normal_ok = sum(1 for r in rows if r.normal_tested)
     abnormal_ok = sum(1 for r in rows if r.abnormal_tested)
@@ -665,39 +632,38 @@ def print_summary(rows: list[CoverageRow]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--source-dirs", nargs="*", default=DEFAULT_CLASS_HEADER_DIRS,
-                         help="Directories (relative to repo root) scanned for class headers")
-    parser.add_argument("--free-function-headers", nargs="*", default=DEFAULT_FREE_FUNCTION_HEADERS,
-                         help="Header files (relative to repo root) scanned for free-function prototypes")
-    parser.add_argument("--test-dirs", nargs="*", default=DEFAULT_TEST_DIRS,
-                         help="Directories (relative to repo root) scanned for TEST()/TEST_F() cases")
-    parser.add_argument("--csv", type=Path, default=None, help="Write full results as CSV")
-    parser.add_argument("--xlsx", type=Path, default=None, help="Write full results as a formatted Excel file (needs openpyxl)")
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT, help="Override repo root (default: parent of tools/)")
+    parser.add_argument("--target", type=Path, default=None,
+                         help="Folder to scan recursively (default: coverage_audit_target/ next to this script)")
+    parser.add_argument("--output", type=Path, default=None,
+                         help="Folder to write results into (default: coverage_audit_output/ next to this script)")
+    parser.add_argument("--csv", type=Path, default=None, help="Override CSV output path (default: <output>/result.csv)")
+    parser.add_argument("--xlsx", type=Path, default=None, help="Override Excel output path (default: <output>/result.xlsx, needs openpyxl)")
     args = parser.parse_args()
 
-    root = args.repo_root.resolve()
-    class_dirs = [root / d for d in args.source_dirs]
-    free_headers = [root / f for f in args.free_function_headers]
-    test_dirs = [root / d for d in args.test_dirs]
+    target_dir = args.target.resolve() if args.target else target_dir_for(__file__)
+    output_dir = args.output.resolve() if args.output else output_dir_for(__file__)
 
-    rows = build_rows(class_dirs, free_headers, test_dirs)
+    if not target_dir.is_dir():
+        print(f"Target folder not found: {target_dir}", file=sys.stderr)
+        return 1
+
+    print(f"# 解析対象フォルダ: {target_dir}")
+    rows = build_rows_from_target(target_dir)
     rows.sort(key=lambda r: (r.layer, r.class_name, r.method))
 
     print_summary(rows)
 
-    if args.csv:
-        write_csv(rows, args.csv)
-        print(f"\nCSV written: {args.csv}")
+    csv_path = args.csv if args.csv else output_dir / "result.csv"
+    write_csv(rows, csv_path)
+    print(f"\nCSV written: {csv_path}")
 
-    if args.xlsx:
-        try:
-            write_xlsx(rows, args.xlsx)
-            print(f"Excel written: {args.xlsx}")
-        except ImportError:
-            print("openpyxl is not installed; skipping --xlsx output "
-                  "(pip install openpyxl)", file=sys.stderr)
-            return 1
+    xlsx_path = args.xlsx if args.xlsx else output_dir / "result.xlsx"
+    try:
+        write_xlsx(rows, xlsx_path)
+        print(f"Excel written: {xlsx_path}")
+    except ImportError:
+        print("openpyxl is not installed; skipping Excel output "
+              "(pip install openpyxl)", file=sys.stderr)
 
     return 0
 
