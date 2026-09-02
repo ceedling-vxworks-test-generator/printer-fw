@@ -312,11 +312,12 @@ def parse_method_statement(stmt: str, class_name: str) -> MethodInfo | None:
     )
 
 
-# Matches `namespace X {` / `extern "C" {`. Note: by the time this runs,
+# Matches `namespace X {` (including a C++17 nested name like
+# `namespace X::Y {`) / `extern "C" {`. Note: by the time this runs,
 # strip_comments_and_literals() has already blanked string literals to
 # spaces, so the literal `"C"` in `extern "C" {` has become whitespace --
 # match `extern` followed by arbitrary whitespace then `{`, not the quotes.
-_WRAPPER_RE = re.compile(r'(namespace\s+\w*\s*\{|extern\s*\{)')
+_WRAPPER_RE = re.compile(r'(namespace\s+[\w:]*\s*\{|extern\s*\{)')
 
 
 def flatten_wrappers(text: str) -> str:

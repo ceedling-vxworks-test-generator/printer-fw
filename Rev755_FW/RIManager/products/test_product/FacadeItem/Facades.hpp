@@ -7,6 +7,7 @@
 #include "FacadeItemDefinition.hpp"
 #include "FacadeBuilders.hpp"
 #include "FacadeComparators.hpp"
+#include "../../common/CommonDiffFunctions.hpp"
 
 namespace rim
 {

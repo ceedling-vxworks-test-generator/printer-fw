@@ -7,6 +7,7 @@
 #include "CapabilityItemDefinition.hpp"
 #include "CapabilityBuilders.hpp"
 #include "CapabilityComparators.hpp"
+#include "../../common/CommonDiffFunctions.hpp"
 
 // 製品要求定義書(Capabilityシート)に定義された全Capability。
 

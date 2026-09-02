@@ -7,6 +7,7 @@
 #include "CapabilityItemDefinition.hpp"
 #include "CapabilityBuilders.hpp"
 #include "CapabilityComparators.hpp"
+#include "../../common/CommonDiffFunctions.hpp"
 
 namespace rim
 {
